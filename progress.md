@@ -40,14 +40,35 @@
 - Borrow checker: student needed guidance on ordering borrows and the two-phase mutation pattern. Will surface again in Phase 2 with `Arc<Mutex<T>>` — good moment to revisit.
 - `.unwrap()` habit: student used double-unwrap in `move_card`. Revisit naturally in Milestone 6 (error handling audit).
 
+## Concepts Covered (continued)
+
+### Phase 1, Milestone 4 — CLI with clap
+- clap derive API: `Parser`, `Subcommand`, `Args`
+- Nested subcommands: `Parser → Args → Subcommand` chain
+- Why tuple variants in `Subcommand` enums require `Args`, not `Subcommand`
+- `&str` vs `String` in function signatures: take `&str` to read, `String` to own
+- `{}` (Display) vs `{:?}` (Debug) — user-facing output vs developer output
+- Dereferencing with `*` to write through a mutable reference
+- `Option::as_mut()` to get `&mut T` from `&mut Option<T>`
+- Guard clauses with early `return`
+
+### Phase 1, Milestone 5 — Persistence with serde + JSON
+- `#[derive(Serialize, Deserialize)]` on structs and enums
+- `serde_json::from_reader` with `BufReader` for deserialization
+- `serde_json::to_string` + `fs::write` for serialization
+- `Result::ok()` to convert `Result` to `Option` (discard error)
+- `Option::ok_or` / `ok_or_else` to convert `Option` to `Result`
+- `.ok()?` pattern for early-return on failure in `Option`-returning functions
+- `map_err` to convert library error types to `String`
+- `as_ref()` to get `Option<&T>` from `&Option<T>`
+- `&` in for loops to iterate by reference without consuming the collection
+- `{}` (Display) vs `{:?}` (Debug) — reinforced repeatedly
+
 ## Next Task
-**Milestone 4: CLI interface with `clap`**
+**Milestone 6: Error handling audit**
 
-Add `clap` as a dependency and build a real CLI. The app should support subcommands:
-- `kanban board create <name>`
-- `kanban list add <name>`
-- `kanban card add <list-id> <title> [--description <desc>]`
-- `kanban card move <card-id> <to-list-id>`
-- `kanban show` — debug-print the board
-
-For now, the board lives only in memory (loaded fresh each run). Persistence comes in Milestone 5.
+Replace all `.unwrap()` calls with proper `Result` propagation. This means:
+- Defining a custom error type (an enum) for the application
+- Implementing `From` for library error types so `?` works across error boundaries
+- Propagating errors up to `main` and printing them cleanly
+- No panics in production code paths

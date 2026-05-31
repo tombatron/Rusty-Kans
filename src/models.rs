@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Card {
     pub id: u64,
     pub title: String,
@@ -6,14 +8,14 @@ pub struct Card {
     pub status: Status
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct List {
     pub id: u64,
     pub name: String,
     pub cards: Vec<Card>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Board {
     pub name: String,
     pub lists: Vec<List>,
@@ -29,12 +31,12 @@ impl Board {
         }
     }
 
-    pub fn add_list(&mut self, title: String) -> u64 {
+    pub fn add_list(&mut self, title: &str) -> u64 {
         let list_id = self.get_next_id();
 
         let list = List {
             id: list_id,
-            name: title,
+            name: title.to_string(),
             cards: vec![]
         };
 
@@ -43,7 +45,7 @@ impl Board {
         list_id
     }
 
-    pub fn add_card(&mut self, list_id: u64, title: String, description: Option<String>) -> Result<u64, String> {
+    pub fn add_card(&mut self, list_id: u64, title: &str, description: Option<String>) -> Result<u64, String> {
         let id = self.get_next_id();
 
         let target_list = match self.lists.iter_mut().find(|l| l.id == list_id) {
@@ -53,7 +55,7 @@ impl Board {
 
         let new_card = Card {
             id,
-            title,
+            title: title.to_string(),
             description,
             status: Status::Todo
         };
@@ -97,7 +99,7 @@ impl Board {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Status {
     Todo,
     Doing,
