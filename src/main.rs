@@ -6,6 +6,7 @@ use clap::{Args, Parser, Subcommand};
 use std::fs;
 use std::fs::File;
 use std::io::BufReader;
+use crate::errors::KanbanError;
 
 #[derive(Parser)]
 struct Cli {
@@ -84,12 +85,10 @@ fn handle_board_command(args: BoardArgs, board_reference: &mut Option<Board>) {
 fn handle_card_command(args: CardArgs, board_reference: &mut Option<Board>) {
     let card_command = args.command;
 
-    if board_reference.is_none() {
-        println!("You manipulate cards on the board, because the board doesn't exist.");
+    let Some(board) = board_reference.as_mut() else {
+        println!("You can't manipulate cards on the board, because the board doesn't exist.");
         return;
-    }
-
-    let board = board_reference.as_mut().unwrap();
+    };
 
     match card_command {
         CardCommands::Add { list_id, title, description} => {
@@ -115,12 +114,10 @@ fn handle_card_command(args: CardArgs, board_reference: &mut Option<Board>) {
 fn handle_list_command(args: ListArgs, board_reference: &mut Option<Board>) {
     let list_command = args.command;
 
-    if board_reference.is_none() {
+    let Some(board) = board_reference.as_mut() else {
         println!("You can't work with lists on a board, because the board doesn't exist.");
         return;
-    }
-
-    let board = board_reference.as_mut().unwrap();
+    };
 
     match list_command {
         ListCommands::Add { name } => {
@@ -132,12 +129,10 @@ fn handle_list_command(args: ListArgs, board_reference: &mut Option<Board>) {
 }
 
 fn handle_show_command(board_reference: &Option<Board>) {
-    if board_reference.is_none() {
+    let Some(board) = board_reference else {
         println!("You can't show the board, because the board doesn't exist.");
         return;
-    }
-
-    let board = board_reference.as_ref().unwrap();
+    };
 
     println!("Board: {}", board.name);
 
@@ -156,12 +151,10 @@ fn load_existing_board_configuration() -> Option<Board> {
     serde_json::from_reader(reader).ok() // The type is grabbed from the method signature and Some is returned if there's no error.
 }
 
-fn save_board_configuration(board: &Board) -> Result<(), String> {
-    let file_content = serde_json::to_string(board)
-        .map_err(|e| format!("Couldn't serialize the board. Error: {e}"))?;
+fn save_board_configuration(board: &Board) -> Result<(), KanbanError> {
+    let file_content = serde_json::to_string(board)?;
 
-    fs::write("board.json", &file_content)
-        .map_err(|e| format!("Couldn't write data to disk. Error: {e}"))?;
+    fs::write("board.json", &file_content)?;
 
     Ok(())
 }

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::errors::KanbanError;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Card {
@@ -45,11 +46,11 @@ impl Board {
         list_id
     }
 
-    pub fn add_card(&mut self, list_id: u64, title: &str, description: Option<String>) -> Result<u64, String> {
+    pub fn add_card(&mut self, list_id: u64, title: &str, description: Option<String>) -> Result<u64, KanbanError> {
         let id = self.get_next_id();
 
         let target_list = match self.lists.iter_mut().find(|l| l.id == list_id) {
-            None => return Err(format!("There is no list {list_id}.")),
+            None => return Err(KanbanError::ListNotFound(list_id)),
             Some(list) => list
         };
 
@@ -65,12 +66,10 @@ impl Board {
         Ok(id)
     }
 
-    pub fn move_card(&mut self, card_id: u64, to_list_id: u64) -> Result<(), String> {
-        let target_list_pos = self.lists.iter().position(|l| l.id == to_list_id);
-
-        if target_list_pos.is_none() {
-            return Err(format!("The target list {to_list_id} doesn't exist."));
-        }
+    pub fn move_card(&mut self, card_id: u64, to_list_id: u64) -> Result<(), KanbanError> {
+        let target_list_pos = self.lists.iter()
+            .position(|l| l.id == to_list_id)
+            .ok_or(KanbanError::ListNotFound(to_list_id))?;
 
         let card = self.lists.iter_mut()
             .find_map(|list| {
@@ -78,7 +77,7 @@ impl Board {
                Some(list.cards.remove(pos))
             });
 
-        let target_list = self.lists.get_mut(target_list_pos.unwrap()).unwrap();
+        let target_list = self.lists.get_mut(target_list_pos).unwrap();
 
         match card {
             Some(card) => {
@@ -86,7 +85,7 @@ impl Board {
 
                 Ok(())
             },
-            None => Err(format!("Cannot find the card id {card_id}"))
+            None => Err(KanbanError::CardNotFound(card_id))
         }
     }
 
