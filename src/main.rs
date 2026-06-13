@@ -51,7 +51,10 @@ enum CardCommands {
     Move {
         card_id: u64,
         to_list_id: u64,
-    }
+    },
+    Search {
+        keyword: String,
+    },
 }
 
 #[derive(Args)]
@@ -106,6 +109,20 @@ fn handle_card_command(args: CardArgs, board_reference: &mut Option<Board>) {
             match card_move_result {
                 Ok(()) => println!("Card {card_id} was moved to list id {to_list_id}."),
                 Err(msg) => println!("{msg}")
+            }
+        },
+
+        CardCommands::Search { keyword} => {
+            let search_results = board.search(&keyword);
+
+            if search_results.is_empty() {
+                println!("No cards were found that contain the keyword `{}` in the title.", keyword);
+            } else {
+                println!("Search results:");
+
+                for result in search_results {
+                    print!("{}", result);
+                }
             }
         }
     }

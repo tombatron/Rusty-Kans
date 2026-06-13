@@ -108,6 +108,13 @@ impl Board {
         }
     }
 
+    pub fn search(&self, keyword: &str) -> Vec<&Card> {
+        self.lists.iter()
+            .flat_map(|l| l.cards.iter())
+            .filter(|c| c.title.contains(keyword))
+            .collect()
+    }
+
     fn get_next_id(&mut self) -> u64 {
         let result = self.next_id;
 
