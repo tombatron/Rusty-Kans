@@ -134,15 +134,7 @@ fn handle_show_command(board_reference: &Option<Board>) {
         return;
     };
 
-    println!("Board: {}", board.name);
-
-    for list in &board.lists {
-        println!("List: {} (id: {})", list.name, list.id);
-
-        for card in &list.cards {
-            println!("    [{}] {}", card.id, card.title);
-        }
-    }
+    println!("{}", board);
 }
 
 fn load_existing_board_configuration() -> Option<Board> {

@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use serde::{Deserialize, Serialize};
 use crate::errors::KanbanError;
 
@@ -9,11 +10,29 @@ pub struct Card {
     pub status: Status
 }
 
+impl Display for Card {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "    [{}] {}", self.id, self.title)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct List {
     pub id: u64,
     pub name: String,
     pub cards: Vec<Card>
+}
+
+impl Display for List {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "List: {} (id: {})", self.name, self.id)?;
+
+        for card in &self.cards {
+            writeln!(f, "{}", card)?;
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -95,6 +114,18 @@ impl Board {
         self.next_id += 1;
 
         result
+    }
+}
+
+impl Display for Board {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Board: {}", self.name)?;
+
+        for list in &self.lists {
+            write!(f, "{}", list)?;
+        }
+
+        Ok(())
     }
 }
 
