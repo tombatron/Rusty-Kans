@@ -64,11 +64,51 @@
 - `&` in for loops to iterate by reference without consuming the collection
 - `{}` (Display) vs `{:?}` (Debug) — reinforced repeatedly
 
-## Next Task
-**Milestone 6: Error handling audit**
+### Phase 1, Milestone 6 — Error handling audit
+- Custom error enums as the idiomatic alternative to `String` errors
+- `From` trait: implementing it so `?` can convert across error type boundaries
+- `?` operator: unwraps `Ok`, converts and returns `Err` via `From`
+- `ok_or(...)`: converts `Option` → `Result` at the error site
+- `let-else`: check + bind in one expression, else branch must diverge
+- When `let-else` doesn't apply: `is_some()` guard is still correct when you want to proceed on `None`
 
-Replace all `.unwrap()` calls with proper `Result` propagation. This means:
-- Defining a custom error type (an enum) for the application
-- Implementing `From` for library error types so `?` works across error boundaries
-- Propagating errors up to `main` and printing them cleanly
-- No panics in production code paths
+## Struggles / Watch For
+- One-liner chaining instinct: student noticed the temptation themselves. Reinforce: one transformation per line is readable; beyond that, use named variables.
+
+### Phase 1, Milestone 7 — Traits and display
+- `std::fmt::Display` trait: implementing `fmt` to power `{}` formatting
+- `write!` / `writeln!` macros: write into a `Formatter` instead of stdout
+- `Ok(())` required as the final expression in `fmt` when the body uses a `for` loop
+- Composing `Display` implementations: `Board::fmt` delegates to `{}` on `List`, which delegates to `{}` on `Card`
+- `write!` vs `writeln!`: choosing carefully to avoid double newlines when the inner type already ends with `\n`
+- Blanket impl: implementing `Display` gives `.to_string()` for free
+- Trait impl vs derive: `Display` must be written by hand; `Debug` can be derived
+
+## Struggles / Watch For
+- Missing `Ok(())`: student forgot it after the `for` loop in `fmt`. Will internalize with repetition.
+- `Display` vs `ToString` analogy from C#: student correctly identified it resembles both overriding `ToString()` and implementing an interface simultaneously.
+
+### Phase 1, Milestone 8 — Iterators and functional patterns
+- `.flat_map()`: flattens nested iterators (lists of cards) into a single stream
+- `.filter()`: keep items matching a predicate
+- `.collect()`: materializes a lazy iterator into a `Vec`
+- `Vec<_>`: type hole — tell the compiler the container, let it infer the element type
+- `&str` vs `&String` in parameters: prefer `&str` — strictly more flexible, accepts both
+- Refactoring logic into model methods: handlers parse/print, models own behavior
+
+## Struggles / Watch For
+- `FromIterator` confusion: student tried implementing it on `Card` when collect() errored. Root cause was missing type annotation + `.cards` instead of `.cards.iter()`. Clarify: `FromIterator` is for *defining* what collect() produces, not something you implement on the item type.
+- String types: student flagged `&str` vs `&String` vs `String` as something to build intuition on. Reinforce naturally as it comes up.
+
+### Phase 1, Milestone 9 — Lifetimes (introduction)
+- Every reference has a lifetime — how long it's valid
+- Lifetime elision rule 3: if `&self` is a parameter, output lifetime matches `self`
+- Explicit annotation syntax: `fn search<'a>(&'a self, ...) -> Vec<&'a Card>`
+- `'a` links the output lifetime to the input — "returned refs live as long as self"
+- When elision works vs when explicit annotations are needed (multiple input refs, structs holding refs)
+- Student intuition: "referencing members and returning from them obviously ties lifetime to the instance" — correct
+
+## Next Task
+**Milestone 10: Generics**
+
+Extract a reusable pattern from the codebase. Add a generic `find_by_id` method to `Board` that works for both lists and cards, introducing `<T>` type parameters and trait bounds.
