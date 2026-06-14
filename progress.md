@@ -108,7 +108,21 @@
 - When elision works vs when explicit annotations are needed (multiple input refs, structs holding refs)
 - Student intuition: "referencing members and returning from them obviously ties lifetime to the instance" — correct
 
-## Next Task
-**Milestone 10: Generics**
+### Phase 1, Milestone 10 — Generics
+- `<T>` type parameters: write once, works for any type
+- Trait bounds: `T: HasId` constrains what T must be capable of
+- Defining custom traits: `pub trait HasId { fn id(&self) -> u64; }`
+- Lifetime + type parameters together: `<'a, T: HasId>`
+- `&&T` smell: when `T` is already `&Card`, `find_by_id` returns `Option<&&Card>` — double ref
+- Deref coercion: Rust auto-dereferences through multiple levels for `Display` and method calls
+- Generic methods are best suited for flat slices; nested data (lists of cards) fights the abstraction
+- Future improvement: `HashMap<u64, List>` would make `find_by_id` genuinely useful (O(1) lookup)
 
-Extract a reusable pattern from the codebase. Add a generic `find_by_id` method to `Board` that works for both lists and cards, introducing `<T>` type parameters and trait bounds.
+## Next Task
+**Milestone 11: Testing**
+
+Add unit tests for `Board` methods using Rust's built-in test framework. This means:
+- `#[cfg(test)]` modules and `#[test]` attributes
+- `assert_eq!`, `assert!`, `assert!(matches!(...))` 
+- Testing `Result` and `Option` return values
+- Running tests with `cargo test`
