@@ -118,11 +118,21 @@
 - Generic methods are best suited for flat slices; nested data (lists of cards) fights the abstraction
 - Future improvement: `HashMap<u64, List>` would make `find_by_id` genuinely useful (O(1) lookup)
 
-## Next Task
-**Milestone 11: Testing**
+### Phase 1, Milestone 11 — Testing
+- `#[cfg(test)]` module: only compiled during `cargo test`, not in release builds
+- `#[test]` attribute: marks a function as a test case
+- `use super::*`: imports parent module's items into the test module
+- `assert_eq!`, `assert_ne!`: compare values, panic with a diff on failure
+- `.unwrap()` and `.expect("msg")` are idiomatic in tests — a panic is a test failure
+- `PartialEq` derive: required for `assert_eq!` on custom types; compiler will tell you when it's needed
+- `PartialEq` vs `Eq`: `PartialEq` for most types; `Eq` is the stronger total-equality variant
+- Student workflow: compiler-driven derive — not coincidence, just good iteration
 
-Add unit tests for `Board` methods using Rust's built-in test framework. This means:
-- `#[cfg(test)]` modules and `#[test]` attributes
-- `assert_eq!`, `assert!`, `assert!(matches!(...))` 
-- Testing `Result` and `Option` return values
-- Running tests with `cargo test`
+## Next Task
+**Milestone 12: HashMap**
+
+Replace the `Vec<List>` in `Board` with a `HashMap<u64, List>` for O(1) id-based lookup. This makes `find_by_id` genuinely useful and teaches:
+- `HashMap` basics: insert, get, get_mut, contains_key
+- When to reach for `HashMap` vs `Vec`
+- Iterating over a `HashMap` (order is not guaranteed)
+- Updating serialization/deserialization (serde handles HashMap out of the box)
