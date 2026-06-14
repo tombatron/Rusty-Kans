@@ -168,3 +168,43 @@ pub enum Status {
     Doing,
     Done
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn adding_a_list_increments_the_count() {
+        let mut board = Board::new("Test".to_string());
+
+        let initial_count = board.lists.len();
+
+        board.add_list("whatever");
+
+        let final_count = board.lists.len();
+
+        assert_eq!(initial_count, 0);
+        assert_eq!(final_count, 1);
+    }
+
+    #[test]
+    fn can_add_a_card_to_a_list() {
+        let mut board = Board::new("Test".to_string());
+        let list_id = board.add_list("whatever");
+
+        let card_add_result = board
+            .add_card(list_id, "New test card", Some("some description".to_string()))
+            .expect("I guess the card didn't get added?");
+
+        assert_ne!(card_add_result, 0);
+    }
+
+    #[test]
+    fn can_not_add_a_card_to_a_non_existent_list() {
+        let mut board = Board::new("Whatever".to_string());
+
+        let card_add_result = board.add_card(67, "Bogus test card", None);
+
+        assert_eq!(card_add_result, Err(KanbanError::ListNotFound(67)));
+    }
+}
