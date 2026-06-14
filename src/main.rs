@@ -55,6 +55,9 @@ enum CardCommands {
     Search {
         keyword: String,
     },
+    Show {
+        card_id: u64,
+    },
 }
 
 #[derive(Args)]
@@ -123,6 +126,20 @@ fn handle_card_command(args: CardArgs, board_reference: &mut Option<Board>) {
                 for result in search_results {
                     print!("{}", result);
                 }
+            }
+        },
+
+        CardCommands::Show { card_id } => {
+            let cards: Vec<_> = board.lists.iter()
+                .flat_map(|l| l.cards.iter())
+                .collect();
+
+            let card_result = board.find_by_id(&cards, card_id);
+
+            if let Some(card) = card_result {
+                println!("{}", card);
+            } else {
+                println!("Card ID `{}` is not found.", card_id);
             }
         }
     }

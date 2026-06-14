@@ -2,12 +2,27 @@ use std::fmt::{Display, Formatter};
 use serde::{Deserialize, Serialize};
 use crate::errors::KanbanError;
 
+pub trait HasId {
+    fn id(&self) -> u64;
+}
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Card {
     pub id: u64,
     pub title: String,
     pub description: Option<String>,
     pub status: Status
+}
+
+impl HasId for Card {
+    fn id(&self) -> u64 {
+        self.id
+    }
+}
+
+impl HasId for &Card {
+    fn id(&self) -> u64 {
+        self.id
+    }
 }
 
 impl Display for Card {
@@ -21,6 +36,12 @@ pub struct List {
     pub id: u64,
     pub name: String,
     pub cards: Vec<Card>
+}
+
+impl HasId for List {
+    fn id(&self) -> u64 {
+        self.id
+    }
 }
 
 impl Display for List {
@@ -68,10 +89,11 @@ impl Board {
     pub fn add_card(&mut self, list_id: u64, title: &str, description: Option<String>) -> Result<u64, KanbanError> {
         let id = self.get_next_id();
 
-        let target_list = match self.lists.iter_mut().find(|l| l.id == list_id) {
-            None => return Err(KanbanError::ListNotFound(list_id)),
-            Some(list) => list
-        };
+        if self.find_by_id(&self.lists, list_id).is_none() {
+            return Err(KanbanError::ListNotFound(list_id));
+        }
+
+        let target_list =  self.lists.iter_mut().find(|l| l.id == list_id).unwrap();
 
         let new_card = Card {
             id,
@@ -113,6 +135,10 @@ impl Board {
             .flat_map(|l| l.cards.iter())
             .filter(|c| c.title.contains(keyword))
             .collect()
+    }
+
+    pub fn find_by_id<'a, T:HasId>(&self, items: &'a[T], id: u64) -> Option<&'a T> {
+        items.iter().find(|item| item.id() == id)
     }
 
     fn get_next_id(&mut self) -> u64 {
