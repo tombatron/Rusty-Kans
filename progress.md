@@ -128,11 +128,15 @@
 - `PartialEq` vs `Eq`: `PartialEq` for most types; `Eq` is the stronger total-equality variant
 - Student workflow: compiler-driven derive — not coincidence, just good iteration
 
-## Next Task
-**Milestone 12: HashMap**
+### Phase 1, Milestone 12 — HashMap
+- `HashMap<K, V>`: key-value store with O(1) insert and lookup
+- `HashMap::new()`, `.insert(k, v)`, `.get(&k)`, `.get_mut(&k)`, `.values()`, `.values_mut()`
+- Iterating HashMap: `.values()` yields `&V` directly — no `&` needed on the iterator
+- `&` on `Vec` iteration vs `.values()` on HashMap: different mechanisms, same effect
+- Breaking schema changes: `Vec` → `HashMap` changed the JSON format, old `board.json` unreadable
+- Tests as a safety net: all 3 tests passed after the refactor, confirming behavior unchanged
 
-Replace the `Vec<List>` in `Board` with a `HashMap<u64, List>` for O(1) id-based lookup. This makes `find_by_id` genuinely useful and teaches:
-- `HashMap` basics: insert, get, get_mut, contains_key
-- When to reach for `HashMap` vs `Vec`
-- Iterating over a `HashMap` (order is not guaranteed)
-- Updating serialization/deserialization (serde handles HashMap out of the box)
+## Next Task
+**Milestone 13: `impl Trait` vs `dyn Trait`**
+
+Explore the two ways to use traits in function signatures and understand the tradeoff between static dispatch (`impl Trait`) and dynamic dispatch (`dyn Trait`).
