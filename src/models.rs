@@ -1,6 +1,7 @@
-use std::fmt::{Display, Formatter};
-use serde::{Deserialize, Serialize};
 use crate::errors::KanbanError;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 
 pub trait HasId {
     fn id(&self) -> u64;
@@ -10,7 +11,7 @@ pub struct Card {
     pub id: u64,
     pub title: String,
     pub description: Option<String>,
-    pub status: Status
+    pub status: Status,
 }
 
 impl HasId for Card {
@@ -35,7 +36,7 @@ impl Display for Card {
 pub struct List {
     pub id: u64,
     pub name: String,
-    pub cards: Vec<Card>
+    pub cards: Vec<Card>,
 }
 
 impl HasId for List {
@@ -59,16 +60,16 @@ impl Display for List {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Board {
     pub name: String,
-    pub lists: Vec<List>,
-    next_id: u64
+    pub lists: HashMap<u64, List>,
+    next_id: u64,
 }
 
 impl Board {
     pub fn new(name: String) -> Self {
         Board {
             name,
-            lists: vec![],
-            next_id: 1
+            lists: HashMap::new(),
+            next_id: 1,
         }
     }
 
@@ -78,66 +79,68 @@ impl Board {
         let list = List {
             id: list_id,
             name: title.to_string(),
-            cards: vec![]
+            cards: vec![],
         };
 
-        self.lists.push(list);
+        self.lists.insert(list_id, list); // Should we evaluate the resulting option?
 
         list_id
     }
 
-    pub fn add_card(&mut self, list_id: u64, title: &str, description: Option<String>) -> Result<u64, KanbanError> {
+    pub fn add_card(
+        &mut self,
+        list_id: u64,
+        title: &str,
+        description: Option<String>,
+    ) -> Result<u64, KanbanError> {
         let id = self.get_next_id();
 
-        if self.find_by_id(&self.lists, list_id).is_none() {
-            return Err(KanbanError::ListNotFound(list_id));
+        if let Some(target_list) = self.lists.get_mut(&list_id) {
+            let new_card = Card {
+                id,
+                title: title.to_string(),
+                description,
+                status: Status::Todo,
+            };
+
+            target_list.cards.push(new_card);
+
+            return Ok(id);
         }
 
-        let target_list =  self.lists.iter_mut().find(|l| l.id == list_id).unwrap();
-
-        let new_card = Card {
-            id,
-            title: title.to_string(),
-            description,
-            status: Status::Todo
-        };
-
-        target_list.cards.push(new_card);
-
-        Ok(id)
+        Err(KanbanError::ListNotFound(list_id))
     }
 
     pub fn move_card(&mut self, card_id: u64, to_list_id: u64) -> Result<(), KanbanError> {
-        let target_list_pos = self.lists.iter()
-            .position(|l| l.id == to_list_id)
-            .ok_or(KanbanError::ListNotFound(to_list_id))?;
+        let card = self.lists.values_mut().find_map(|list| {
+            let pos = list.cards.iter().position(|c| c.id == card_id)?;
+            Some(list.cards.remove(pos))
+        });
 
-        let card = self.lists.iter_mut()
-            .find_map(|list| {
-               let pos = list.cards.iter().position(|c| c.id == card_id)?;
-               Some(list.cards.remove(pos))
-            });
-
-        let target_list = self.lists.get_mut(target_list_pos).unwrap();
+        let target_list = match self.lists.get_mut(&to_list_id) {
+            None => return Err(KanbanError::ListNotFound(to_list_id)),
+            Some(tl) => tl,
+        };
 
         match card {
             Some(card) => {
                 target_list.cards.push(card);
 
                 Ok(())
-            },
-            None => Err(KanbanError::CardNotFound(card_id))
+            }
+            None => Err(KanbanError::CardNotFound(card_id)),
         }
     }
 
     pub fn search(&self, keyword: &str) -> Vec<&Card> {
-        self.lists.iter()
+        self.lists
+            .values()
             .flat_map(|l| l.cards.iter())
             .filter(|c| c.title.contains(keyword))
             .collect()
     }
 
-    pub fn find_by_id<'a, T:HasId>(&self, items: &'a[T], id: u64) -> Option<&'a T> {
+    pub fn find_by_id<'a, T: HasId>(&self, items: &'a [T], id: u64) -> Option<&'a T> {
         items.iter().find(|item| item.id() == id)
     }
 
@@ -154,7 +157,7 @@ impl Display for Board {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Board: {}", self.name)?;
 
-        for list in &self.lists {
+        for list in self.lists.values() {
             write!(f, "{}", list)?;
         }
 
@@ -166,7 +169,7 @@ impl Display for Board {
 pub enum Status {
     Todo,
     Doing,
-    Done
+    Done,
 }
 
 #[cfg(test)]
@@ -193,7 +196,11 @@ mod tests {
         let list_id = board.add_list("whatever");
 
         let card_add_result = board
-            .add_card(list_id, "New test card", Some("some description".to_string()))
+            .add_card(
+                list_id,
+                "New test card",
+                Some("some description".to_string()),
+            )
             .expect("I guess the card didn't get added?");
 
         assert_ne!(card_add_result, 0);
