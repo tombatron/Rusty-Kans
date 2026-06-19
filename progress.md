@@ -136,7 +136,20 @@
 - Breaking schema changes: `Vec` → `HashMap` changed the JSON format, old `board.json` unreadable
 - Tests as a safety net: all 3 tests passed after the refactor, confirming behavior unchanged
 
-## Next Task
-**Milestone 13: `impl Trait` vs `dyn Trait`**
+### Phase 1, Milestone 13 — `impl Trait` vs `dyn Trait`
+- `impl Trait`: static dispatch — compiler stamps out a concrete version per type, zero cost
+- `dyn Trait`: dynamic dispatch — type resolved at runtime via vtable, like C# interface references
+- `dyn Trait` is unsized — must always live behind a pointer (`&dyn`, `Box<dyn>`, `Arc<dyn>`)
+- `&dyn Trait`: borrow when you just need to read; `Box<dyn Trait>`: own when you need to store
+- Prefer `impl Trait` for function parameters; reach for `dyn Trait` for mixed-type collections or runtime-determined types
+- C# analogy: `impl Trait` ≅ generics, `dyn Trait` ≅ interface references
+- `&str`/`&[T]`/`&dyn Trait` pattern: borrowed form when reading, owned form when storing
 
-Explore the two ways to use traits in function signatures and understand the tradeoff between static dispatch (`impl Trait`) and dynamic dispatch (`dyn Trait`).
+## Next Task
+**Milestone 14: Closures and function pointers**
+
+Add a `card sort` command that sorts cards within a list by a chosen field (title, id). This means:
+- Closure syntax: `|args| body`
+- Passing closures to methods like `.sort_by()`
+- `Fn`, `FnMut`, `FnOnce` trait bounds
+- When to use closures vs function pointers (`fn`)
