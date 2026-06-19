@@ -1,9 +1,8 @@
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Display, Formatter};
 use serde_json::Error;
 
 #[derive(Debug, PartialEq)]
 pub enum KanbanError {
-    BoardNotFound,
     ListNotFound(u64),
     CardNotFound(u64),
     SerializationError(String),
@@ -13,9 +12,6 @@ pub enum KanbanError {
 impl Display for KanbanError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            KanbanError::BoardNotFound => {
-                write!(f, "No board was found.")
-            }
             KanbanError::ListNotFound(list_id) => {
                 write!(f, "List with ID ({}) was not found.", list_id)
             }

@@ -259,4 +259,19 @@ mod tests {
         // First card should now start as "a".
         assert_eq!(test_list.cards.get(0).unwrap().title, "a"); 
     }
+
+    #[test]
+    fn moving_a_card_to_non_existent_list_leaves_card_in_original_list() {
+        let mut board = Board::new(String::from("test_board"));
+
+        let list_id = board.add_list("whatever");
+
+        let card_id = board.add_card(list_id, "woo", None).unwrap();
+
+        let result = board.move_card(card_id, 1000);
+
+        let expected_result = Err(KanbanError::ListNotFound(1000));
+
+        assert_eq!(expected_result, result);
+    }
 }
