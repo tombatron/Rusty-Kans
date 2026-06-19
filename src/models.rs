@@ -39,6 +39,12 @@ pub struct List {
     pub cards: Vec<Card>,
 }
 
+impl List {
+    pub fn sort_by_title(&mut self) {
+        self.cards.sort_by(|a, b| a.title.cmp(&b.title));
+    }
+}
+
 impl HasId for List {
     fn id(&self) -> u64 {
         self.id
@@ -213,5 +219,44 @@ mod tests {
         let card_add_result = board.add_card(67, "Bogus test card", None);
 
         assert_eq!(card_add_result, Err(KanbanError::ListNotFound(67)));
+    }
+
+    #[test]
+    fn sort_by_title_will_sort_a_list_alphabetically_by_title() {
+        let card_a = Card {
+            id: 1,
+            title: String::from("a"),
+            description: None,
+            status: Status::Todo,
+        };
+
+        let card_b = Card {
+            id: 2,
+            title: String::from("b"),
+            description: None,
+            status: Status::Todo,
+        };
+
+        let card_c = Card {
+            id: 3,
+            title: String::from("c"),
+            description: None,
+            status: Status::Todo,
+        };
+
+        let mut test_list = List {
+            id: 1000,
+            name: String::from("Test List"),
+            cards: vec![card_c, card_b, card_a],
+        };
+
+        // First card should start as "c".
+        assert_eq!(test_list.cards.get(0).unwrap().title, "c");
+
+        // Sort list by title.
+        test_list.sort_by_title();
+
+        // First card should now start as "a".
+        assert_eq!(test_list.cards.get(0).unwrap().title, "a"); 
     }
 }

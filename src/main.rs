@@ -1,7 +1,6 @@
 mod models;
 mod errors;
 
-use std::fmt::Display;
 use crate::models::Board;
 use clap::{Args, Parser, Subcommand};
 use std::fs;
@@ -71,7 +70,10 @@ struct ListArgs {
 enum ListCommands {
     Add {
         name: String
-    }
+    },
+    Sort {
+        id: u64
+    },
 }
 
 fn handle_board_command(args: BoardArgs, board_reference: &mut Option<Board>) {
@@ -159,6 +161,16 @@ fn handle_list_command(args: ListArgs, board_reference: &mut Option<Board>) {
             let new_list_id = board.add_list(name.as_str());
 
             println!("New list \"{name}\" created as id {new_list_id}");
+        },
+        ListCommands::Sort { id } => {
+            let Some(sort_target_list) = board.lists.get_mut(&id) else {
+                println!("Couldn't sort List ID `{}` because that list wasn't found.", id);
+                return;
+            };
+
+            sort_target_list.sort_by_title();
+
+            println!("List ID `{}` was sorted.", id);
         }
     }
 }
