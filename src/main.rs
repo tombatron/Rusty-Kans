@@ -1,6 +1,7 @@
 mod models;
 mod errors;
 
+use std::fmt::Display;
 use crate::models::Board;
 use clap::{Args, Parser, Subcommand};
 use std::fs;
@@ -130,7 +131,7 @@ fn handle_card_command(args: CardArgs, board_reference: &mut Option<Board>) {
         },
 
         CardCommands::Show { card_id } => {
-            let cards: Vec<_> = board.lists.iter()
+            let cards: Vec<_> = board.lists.values()
                 .flat_map(|l| l.cards.iter())
                 .collect();
 
