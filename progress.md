@@ -153,7 +153,19 @@
 - HashMap O(1) lookup paying off: `get_mut(&id)` with `let-else` — no iteration needed
 - Student wrote a test unprompted with correct before/after assertion pattern
 
-## Next Task
-**Milestone 15: Wrapping up Phase 1**
+### Phase 1, Milestone 15 — Phase 1 cleanup
+- Bug fix: `move_card` was removing the card before checking the target list existed — data loss on invalid move
+- Removed `HasId`/`find_by_id` dead code — learning exercise, no real production usage
+- Test-only `impl` blocks: methods only needed in tests belong inside `#[cfg(test)]` module
+- Multiple `impl` blocks for the same type are valid and idiomatic
+- Unused imports generate warnings just like unused code — keep them clean
+- Lesson: always commit working state before refactoring
 
-Review the full codebase for anything worth cleaning up, then introduce Phase 2 preview: threads and shared state with `Arc<Mutex<T>>`.
+## Phase 2 Preview
+Phase 1 covered the core language: ownership, borrowing, traits, generics, lifetimes, error handling, iterators, closures, HashMap, and testing.
+
+Phase 2 will introduce concurrency and async Rust:
+- `Arc<Mutex<T>>` — shared state across threads
+- `async`/`await` and the Tokio runtime
+- Channels for message passing between threads
+- The borrow checker in a concurrent context
