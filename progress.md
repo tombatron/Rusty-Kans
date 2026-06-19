@@ -145,11 +145,15 @@
 - C# analogy: `impl Trait` ≅ generics, `dyn Trait` ≅ interface references
 - `&str`/`&[T]`/`&dyn Trait` pattern: borrowed form when reading, owned form when storing
 
-## Next Task
-**Milestone 14: Closures and function pointers**
+### Phase 1, Milestone 14 — Closures and function pointers
+- Closure syntax: `|a, b| a.title.cmp(&b.title)` — anonymous functions that capture their environment
+- `.sort_by()`: takes a closure returning `Ordering` (Less, Equal, Greater)
+- `Ordering`: the return type of `.cmp()`, same concept as C#/Java Comparator
+- Closures vs `fn`: closures can capture surrounding scope, plain `fn` cannot
+- HashMap O(1) lookup paying off: `get_mut(&id)` with `let-else` — no iteration needed
+- Student wrote a test unprompted with correct before/after assertion pattern
 
-Add a `card sort` command that sorts cards within a list by a chosen field (title, id). This means:
-- Closure syntax: `|args| body`
-- Passing closures to methods like `.sort_by()`
-- `Fn`, `FnMut`, `FnOnce` trait bounds
-- When to use closures vs function pointers (`fn`)
+## Next Task
+**Milestone 15: Wrapping up Phase 1**
+
+Review the full codebase for anything worth cleaning up, then introduce Phase 2 preview: threads and shared state with `Arc<Mutex<T>>`.
