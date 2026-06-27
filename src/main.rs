@@ -196,7 +196,8 @@ fn save_board_configuration(board: &Board) -> Result<(), KanbanError> {
     Ok(())
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
 
     let mut board: Option<Board> = load_existing_board_configuration();
