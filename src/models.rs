@@ -3,27 +3,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
-pub trait HasId {
-    fn id(&self) -> u64;
-}
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Card {
     pub id: u64,
     pub title: String,
     pub description: Option<String>,
     pub status: Status,
-}
-
-impl HasId for Card {
-    fn id(&self) -> u64 {
-        self.id
-    }
-}
-
-impl HasId for &Card {
-    fn id(&self) -> u64 {
-        self.id
-    }
 }
 
 impl Display for Card {
@@ -42,12 +27,6 @@ pub struct List {
 impl List {
     pub fn sort_by_title(&mut self) {
         self.cards.sort_by(|a, b| a.title.cmp(&b.title));
-    }
-}
-
-impl HasId for List {
-    fn id(&self) -> u64 {
-        self.id
     }
 }
 
@@ -144,10 +123,6 @@ impl Board {
             .flat_map(|l| l.cards.iter())
             .filter(|c| c.title.contains(keyword))
             .collect()
-    }
-
-    pub fn find_by_id<'a, T: HasId>(&self, items: &'a [T], id: u64) -> Option<&'a T> {
-        items.iter().find(|item| item.id() == id)
     }
 
     fn get_next_id(&mut self) -> u64 {
