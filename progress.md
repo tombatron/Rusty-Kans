@@ -161,11 +161,21 @@
 - Unused imports generate warnings just like unused code — keep them clean
 - Lesson: always commit working state before refactoring
 
-## Phase 2 Preview
-Phase 1 covered the core language: ownership, borrowing, traits, generics, lifetimes, error handling, iterators, closures, HashMap, and testing.
+## Phase 2
 
-Phase 2 will introduce concurrency and async Rust:
-- `Arc<Mutex<T>>` — shared state across threads
-- `async`/`await` and the Tokio runtime
-- Channels for message passing between threads
-- The borrow checker in a concurrent context
+### Phase 2, Milestone 1 — Introduce Tokio, make `main` async
+- `#[tokio::main]` is a proc macro — rewrites `async fn main` into a sync `fn main` that sets up the Tokio runtime and calls `block_on`
+- Rust has no built-in async runtime — you choose one (Tokio is standard for servers)
+- `async fn` returns a `Future` — lazy, does nothing until polled
+- Semver ranges in `Cargo.toml`: prefer `"1"` over pinned `"1.52.3"` — Cargo.lock handles reproducibility
+
+### Phase 2, Milestone 2 — Basic HTTP server, health endpoint
+- `axum::Router::new().route(path, method(handler))` — declarative routing
+- Handler functions: `async fn` returning `impl IntoResponse` (or a concrete type like `Json<Value>`)
+- `Json(json!({...}))` — serialize a value and set correct content-type header
+- `tokio::net::TcpListener` — async version of std's TcpListener, must `.await` the bind
+- `axum::serve(listener, app).await` — drives the server; blocks until shutdown
+- CLI layer removed entirely; models/errors temporarily orphaned until routes are wired up
+
+## Current Position
+**Phase 2, Milestone 3** — Expose board read operations via HTTP
