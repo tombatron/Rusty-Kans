@@ -177,5 +177,16 @@
 - `axum::serve(listener, app).await` — drives the server; blocks until shutdown
 - CLI layer removed entirely; models/errors temporarily orphaned until routes are wired up
 
+### Phase 2, Milestone 3 — Board read operations via HTTP
+- `Arc<Mutex<T>>`: shared ownership (`Arc`) + safe mutable access (`Mutex`) — the pattern for shared state across async handlers
+- `MutexGuard` drops at end of scope, releasing the lock — don't hold it across `.await`
+- Axum `State` extractor: destructure with `State(inner)` to get the inner value
+- `Result<Json<Value>, StatusCode>`: idiomatic handler return type when a route can 404
+- `.map().ok_or()` chain on `Option` to produce `Result` without `if let`
+- `json!(struct)` works when the struct derives `Serialize` — full nested serialization for free
+- Axum 0.8 path syntax: `{id}` not `:id`
+- `.ok()?` in `Option`-returning functions: convert `Result` to `Option` and early-return on `None`
+- `fs::read_to_string` as a simpler alternative to `File::open` + `BufReader` for small files
+
 ## Current Position
-**Phase 2, Milestone 3** — Expose board read operations via HTTP
+**Phase 2, Milestone 4** — Write operations (POST/PATCH/DELETE)
