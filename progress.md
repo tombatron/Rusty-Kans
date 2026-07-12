@@ -188,5 +188,51 @@
 - `.ok()?` in `Option`-returning functions: convert `Result` to `Option` and early-return on `None`
 - `fs::read_to_string` as a simpler alternative to `File::open` + `BufReader` for small files
 
+### Phase 2, Milestone 4 — Write operations
+- `Json<T>` as an extractor (input): deserializes request body, returns 422 on failure before handler runs
+- `#[derive(Deserialize)]` on request structs — required for `Json<T>` extraction
+- `Path<(u64, u64)>` tuple destructuring for multiple path params — can't use two separate `Path` extractors
+- `.map(|_| value).map_err(|_| value)` — transform `Result` arms functionally without `match`
+- `axum::routing::post` — register POST handlers alongside `get`
+- `Result<StatusCode, StatusCode>` — return type for handlers that succeed/fail with no body
+- curl defaults to GET — always use `-X POST` for write operations
+
+### Phase 2, Milestone 5 — Shared mutable state and persistence
+- `Arc<Mutex<T>>`: `Arc` = shared ownership, `Mutex` = safe mutation — neither alone is sufficient
+- Never hold `MutexGuard` across `.await` — guard isn't `Send`, task may resume on different thread
+- Block scope pattern: lock → mutate → serialize → drop guard → `.await` write
+- `&*guard` to get `&T` from `MutexGuard<T>` — explicit deref coercion through the smart pointer
+- `MutexGuard<T>` implements `Deref<Target = T>` — same mechanism as `Box<T>`, `Arc<T>`
+- Only persist on success — check `result.is_ok()` before writing to disk
+
+### Phase 3, Milestone 1 — App structure
+- Split monolithic `main.rs` into `handlers.rs`, `router.rs`, `state.rs`
+- `Router<S>` type parameter: S = "state still needed"; `.with_state()` converts to `Router<()>`
+- `axum::serve` requires `Router<()>` — the state must be fully provided before serving
+- `pub` on handler fns required for router module to see them; request structs need matching visibility
+- Type alias `ApplicationState = Arc<Mutex<Board>>` — readable handler signatures throughout
+
+### Phase 3, Milestone 2 — Query parameters
+- `Query<T>` extractor: deserializes URL query string into a struct using serde field names as keys
+- `#[derive(Deserialize)]` on query structs — same as JSON body structs
+- `axum::extract::Query` alongside `Path`, `State`, `Json`
+- `#[serde(rename = "...")]` available to decouple field name from query param name
+
+### Phase 3, Milestone 3 — Proper error handling
+- `impl IntoResponse for KanbanError`: map domain errors to HTTP status + body automatically
+- Handlers return `Result<T, KanbanError>` — Axum calls `into_response()` on the error variant
+- `?` on fallible model methods: propagates `KanbanError` and removes `.map_err()` noise
+- `ok_or(KanbanError::...)`: convert `Option` → `Result` when model returns `None`
+- Block scope + `?`: early-return on error before releasing lock, serialize inside block
+- `to_string()` on `Display` types reuses existing impl — avoid duplicating message strings
+
+### Phase 3, Milestone 4 — Application state and dependency injection
+- Dependency injection: router accepts state as a parameter rather than constructing it internally
+- `main` owns state construction — the right place for wiring concerns together
+- `match` on `TcpListener::bind` for explicit error handling at startup
+- `axum::serve(...).await` blocks until shutdown — startup messages must precede it, not follow
+- `if let Err(e)` on serve to handle shutdown errors without panicking
+- Named constants for config values (`LOCAL_ADDRESS`) — avoids magic strings
+
 ## Current Position
-**Phase 2, Milestone 4** — Write operations (POST/PATCH/DELETE)
+**Phase 3 complete** — deciding next direction
