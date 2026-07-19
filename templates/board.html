@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Board &mdash; {{ name }} ({{ id }})</title>
+</head>
+<body>
+
+<h2>Lists</h2>
+{% for list in lists %}
+    <h3>{{ list.name }}</h3>
+
+    <ul>
+        {% for card in list.cards %}
+        <li id="card-{{ card.id }}">
+            <h4>{{ card.title }} - {{ card.status }}</h4>
+            {% if let Some(desc) = card.description %}
+            <p>{{ desc }}</p>
+            {% else %}
+            <p>No description.</p>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+{% endfor %}
+</body>
+</html>

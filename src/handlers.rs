@@ -1,11 +1,58 @@
 use crate::errors::KanbanError;
+use crate::models::{Card, List};
 use crate::state::ApplicationState;
+use askama::Template;
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
+use axum::response::{Html, IntoResponse};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sqlx::Row;
+use sqlx::{AssertSqlSafe, Row};
+
+#[derive(Debug, Template)]
+#[template(path = "board.html")]
+struct IndexTemplate {
+    id: u64,
+    name: String,
+    lists: Vec<List>
+}
+
+pub async fn get_index(
+    State(db): State<ApplicationState>,
+) -> Result<impl IntoResponse, KanbanError> {
+    let board = sqlx::query("SELECT board_id, name FROM boards LIMIT 1")
+        .fetch_one(&db)
+        .await?;
+
+    let mut lists: Vec<List> =
+        sqlx::query_as::<_, List>("SELECT list_id, name FROM lists WHERE board_id = ?")
+            .bind(board.get::<i64, _>("board_id"))
+            .fetch_all(&db)
+            .await?;
+
+    let list_ids_placeholders = lists.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+    let query_text = format!("SELECT card_id, list_id, title, description, status FROM cards WHERE list_id in ({})", list_ids_placeholders);
+    let mut query = sqlx::query_as::<_, Card>(AssertSqlSafe(query_text));
+
+    for id in &lists {
+        query = query.bind(id.id as i64);
+    }
+
+    let cards: Vec<Card> = query.fetch_all(&db).await?;
+
+    for l in lists.iter_mut() {
+        l.cards = cards.iter().filter(|c|c.list_id == l.id).cloned().collect()
+    }
+
+    let response_template = IndexTemplate {
+        id: board.get::<u64, _>("board_id"),
+        name: board.get::<String, _>("name"),
+        lists
+    };
+
+    Ok(Html(response_template.render()?))
+}
 
 pub async fn get_health() -> Json<Value> {
     Json(json!({"status": "ok"}))
@@ -138,12 +185,17 @@ pub async fn post_move_card(
     Ok(StatusCode::OK)
 }
 
-pub async fn get_card_by_id(State(db): State<ApplicationState>, Path(card_id): Path<u64>) -> Result<Json<Value>, KanbanError> {
-    let card_result = sqlx::query("SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;")
-        .bind(card_id as i64)
-        .fetch_optional(&db)
-        .await?
-        .ok_or(KanbanError::CardNotFound(card_id))?;
+pub async fn get_card_by_id(
+    State(db): State<ApplicationState>,
+    Path(card_id): Path<u64>,
+) -> Result<Json<Value>, KanbanError> {
+    let card_result = sqlx::query(
+        "SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;",
+    )
+    .bind(card_id as i64)
+    .fetch_optional(&db)
+    .await?
+    .ok_or(KanbanError::CardNotFound(card_id))?;
 
     Ok(Json(json!({
         "card_id": card_result.get::<i64, _>("card_id"),

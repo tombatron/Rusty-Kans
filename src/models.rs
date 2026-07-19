@@ -1,0 +1,58 @@
+use serde::{Deserialize, Serialize};
+use sqlx::{FromRow, Type};
+use std::fmt::{Display, Formatter};
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Card {
+    #[sqlx(rename = "card_id")]
+    pub id: u64,
+    pub list_id: u64,
+    pub title: String,
+    pub description: Option<String>,
+    pub status: Status,
+}
+
+impl Display for Card {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "    [{}] {}", self.id, self.title)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct List {
+    #[sqlx(rename = "list_id")]
+    pub id: u64,
+    pub name: String,
+    #[sqlx(skip)]
+    pub cards: Vec<Card>,
+}
+
+impl Display for List {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "List: {} (id: {})", self.name, self.id)?;
+
+        for card in &self.cards {
+            writeln!(f, "{}", card)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[sqlx(type_name = "TEXT", rename_all = "PascalCase")]
+pub enum Status {
+    Todo,
+    Doing,
+    Done,
+}
+
+impl Display for Status {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Status::Todo => write!(f, "Todo"),
+            Status::Doing => write!(f, "Doing"),
+            Status::Done => write!(f, "Done")
+        }
+    }
+}

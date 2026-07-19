@@ -5,6 +5,8 @@ use axum::Router;
 
 pub fn create_router(application_state: ApplicationState) -> Router<()> {
     Router::new()
+        .route("/", get(get_index))
+        // API Routes
         .route("/health", get(get_health))
         .route("/board", get(get_board))
         .route("/lists/{id}", get(get_list_by_id))

@@ -1,7 +1,7 @@
-use std::fmt::{Display, Formatter};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::Error;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, PartialEq)]
 pub enum KanbanError {
@@ -9,7 +9,8 @@ pub enum KanbanError {
     CardNotFound(u64),
     SerializationError(String),
     IoError(String),
-    DatabaseError(String)
+    DatabaseError(String),
+    TemplateError(String),
 }
 
 impl Display for KanbanError {
@@ -22,13 +23,20 @@ impl Display for KanbanError {
                 write!(f, "Card with ID ({}) was not found.", card_id)
             }
             KanbanError::SerializationError(serialization_error) => {
-                write!(f, "There was an error during serialization: {}", serialization_error)
+                write!(
+                    f,
+                    "There was an error during serialization: {}",
+                    serialization_error
+                )
             }
             KanbanError::IoError(io_error) => {
                 write!(f, "There was an IO error: {}", io_error)
             }
             KanbanError::DatabaseError(database_error) => {
                 write!(f, "There was a database error: {}", database_error)
+            }
+            KanbanError::TemplateError(template_error) => {
+                write!(f, "There was a templating error: {}", template_error)
             }
         }
     }
@@ -64,6 +72,9 @@ impl IntoResponse for KanbanError {
             KanbanError::DatabaseError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
             }
+            KanbanError::TemplateError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
+            }
         }
     }
 }
@@ -71,5 +82,11 @@ impl IntoResponse for KanbanError {
 impl From<sqlx::Error> for KanbanError {
     fn from(value: sqlx::Error) -> Self {
         KanbanError::DatabaseError(value.to_string())
+    }
+}
+
+impl From<askama::Error> for KanbanError {
+    fn from(value: askama::Error) -> Self {
+        KanbanError::TemplateError(value.to_string())
     }
 }
