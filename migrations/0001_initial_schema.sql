@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS boards (
     board_id INTEGER PRIMARY KEY,
     name TEXT NOT NULL
-)
+);
 
 CREATE TABLE IF NOT EXISTS lists (
     list_id INTEGER PRIMARY KEY,
@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS lists (
     name TEXT NOT NULL,
 
     FOREIGN KEY (board_id) REFERENCES boards(board_id) ON DELETE CASCADE ON UPDATE NO ACTION
-)
+);
 
 CREATE TABLE IF NOT EXISTS cards (
     card_id INTEGER PRIMARY KEY,
@@ -19,4 +19,4 @@ CREATE TABLE IF NOT EXISTS cards (
     status TEXT NOT NULL DEFAULT 'Todo',
 
     FOREIGN KEY (list_id) REFERENCES lists(list_id) ON DELETE CASCADE ON UPDATE NO ACTION
-)
+);

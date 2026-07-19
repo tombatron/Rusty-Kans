@@ -9,6 +9,7 @@ pub enum KanbanError {
     CardNotFound(u64),
     SerializationError(String),
     IoError(String),
+    DatabaseError(String)
 }
 
 impl Display for KanbanError {
@@ -25,6 +26,9 @@ impl Display for KanbanError {
             }
             KanbanError::IoError(io_error) => {
                 write!(f, "There was an IO error: {}", io_error)
+            }
+            KanbanError::DatabaseError(database_error) => {
+                write!(f, "There was a database error: {}", database_error)
             }
         }
     }
@@ -45,18 +49,27 @@ impl From<std::io::Error> for KanbanError {
 impl IntoResponse for KanbanError {
     fn into_response(self) -> Response {
         match self {
-            KanbanError::ListNotFound(list_id) => {
-                (StatusCode::NOT_FOUND, format!("List with ID ({}) was not found.", list_id)).into_response()
+            KanbanError::ListNotFound(_) => {
+                (StatusCode::NOT_FOUND, self.to_string()).into_response()
             }
-            KanbanError::CardNotFound(card_id) => {
-                (StatusCode::NOT_FOUND, format!("Card with ID ({}) was not found.", card_id)).into_response()
+            KanbanError::CardNotFound(_) => {
+                (StatusCode::NOT_FOUND, self.to_string()).into_response()
             }
-            KanbanError::SerializationError(serialization_error) => {
-                (StatusCode::BAD_REQUEST, format!("There was an error during serialization: {}", serialization_error)).into_response()
+            KanbanError::SerializationError(_) => {
+                (StatusCode::BAD_REQUEST, self.to_string()).into_response()
             }
-            KanbanError::IoError(io_error) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("There was an IO error: {}", io_error)).into_response()
+            KanbanError::IoError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
+            }
+            KanbanError::DatabaseError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
             }
         }
+    }
+}
+
+impl From<sqlx::Error> for KanbanError {
+    fn from(value: sqlx::Error) -> Self {
+        KanbanError::DatabaseError(value.to_string())
     }
 }

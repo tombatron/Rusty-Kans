@@ -1,6 +1,5 @@
 mod errors;
 mod handlers;
-mod models;
 mod router;
 mod state;
 
@@ -11,7 +10,7 @@ const LOCAL_ADDRESS: &str = "0.0.0.0:3000";
 
 #[tokio::main]
 async fn main() {
-    let application_state = create_application_state();
+    let application_state = create_application_state().await;
 
     let router = create_router(application_state);
 

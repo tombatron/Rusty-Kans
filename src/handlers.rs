@@ -5,44 +5,74 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use serde::Deserialize;
 use serde_json::{Value, json};
-
-const BOARD_FILENAME: &str = "board.json";
+use sqlx::Row;
 
 pub async fn get_health() -> Json<Value> {
     Json(json!({"status": "ok"}))
 }
 
-pub async fn get_board(State(board): State<ApplicationState>) -> Json<Value> {
-    let board = board.lock().unwrap();
+pub async fn get_board(State(db): State<ApplicationState>) -> Result<Json<Value>, KanbanError> {
+    let board = sqlx::query("SELECT board_id, name FROM boards WHERE board_id = 1;")
+        .fetch_one(&db)
+        .await?;
 
-    let lists: Vec<Value> = board
-        .lists
-        .values()
+    let lists = sqlx::query("SELECT list_id, name FROM lists WHERE board_id = ?")
+        .bind(board.get::<i64, _>("board_id"))
+        .fetch_all(&db)
+        .await?;
+
+    let lists_json: Vec<Value> = lists
+        .iter()
         .map(|l| {
             json!({
-                "id": l.id,
-                "name": l.name
+                "id": l.get::<i64, _>("list_id"),
+                "name": l.get::<String, _>("name")
             })
         })
         .collect();
 
-    Json(json!({
-        "name": board.name,
-        "lists": lists
-    }))
+    Ok(Json(json!({
+        "id": board.get::<i64, _>("board_id"),
+        "name": board.get::<String, _>("name"),
+        "lists": lists_json
+    })))
 }
 
 pub async fn get_list_by_id(
-    State(board): State<ApplicationState>,
+    State(db): State<ApplicationState>,
     Path(id): Path<u64>,
 ) -> Result<Json<Value>, KanbanError> {
-    let board = board.lock().unwrap();
+    let list = sqlx::query("SELECT list_id, board_id, name FROM lists WHERE list_id = ?")
+        .bind(id as i64)
+        .fetch_optional(&db)
+        .await?
+        .ok_or(KanbanError::ListNotFound(id))?;
 
-    board
-        .lists
-        .get(&id)
-        .map(|list| Json(json!(list)))
-        .ok_or(KanbanError::ListNotFound(id))
+    let cards = sqlx::query(
+        "SELECT card_id, list_id, title, description, status FROM cards WHERE list_id = ?",
+    )
+    .bind(id as i64)
+    .fetch_all(&db)
+    .await?;
+
+    let cards_json: Vec<Value> = cards
+        .iter()
+        .map(|c| {
+            json!({
+                "card_id": c.get::<i64, _>("card_id"),
+                "title": c.get::<String, _>("title"),
+                "description": c.get::<Option<String>, _>("description"),
+                "status": c.get::<String, _>("status")
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({
+        "list_id": list.get::<i64, _>("list_id"),
+        "board_id": list.get::<i64, _>("board_id"),
+        "name": list.get::<String, _>("name"),
+        "cards": cards_json
+    })))
 }
 
 #[derive(Deserialize)]
@@ -51,18 +81,16 @@ pub struct CreateListRequest {
 }
 
 pub async fn post_list(
-    State(board): State<ApplicationState>,
+    State(db): State<ApplicationState>,
     Json(list): Json<CreateListRequest>,
 ) -> Result<Json<Value>, KanbanError> {
-    let (mutated_board, list_id) = {
-        let mut board = board.lock().unwrap();
+    let insert_list_result =
+        sqlx::query("INSERT INTO lists (board_id, name) SELECT board_id, ? FROM boards LIMIT 1;")
+            .bind(&list.name)
+            .execute(&db)
+            .await?;
 
-        let list_id = board.add_list(&list.name);
-
-        (serde_json::to_string(&*board)?, list_id)
-    };
-
-    tokio::fs::write(BOARD_FILENAME, mutated_board).await?;
+    let list_id = insert_list_result.last_insert_rowid();
 
     Ok(Json(json!({
         "id": list_id,
@@ -77,46 +105,53 @@ pub struct CreateCardRequest {
 }
 
 pub async fn post_card(
-    State(board): State<ApplicationState>,
+    State(db): State<ApplicationState>,
     Path(list_id): Path<u64>,
     Json(card): Json<CreateCardRequest>,
 ) -> Result<Json<Value>, KanbanError> {
-    let (mutated_board, result) = {
-        let mut board = board.lock().unwrap();
+    let result = sqlx::query("INSERT INTO cards (list_id, title, description) VALUES (?, ?, ?);")
+        .bind(list_id as i64)
+        .bind(&card.title)
+        .bind(&card.description)
+        .execute(&db)
+        .await?;
 
-        let result = board
-            .add_card(list_id, &card.title, card.description.clone())
-            .map(|card_id| {
-                Json(json!({
-                    "id": card_id,
-                    "title": card.title,
-                    "description": card.description
-                }))
-            })?;
+    let card_id = result.last_insert_rowid();
 
-        (serde_json::to_string(&*board)?, result)
-    };
-
-    tokio::fs::write(BOARD_FILENAME, mutated_board).await?;
-
-    Ok(result)
+    Ok(Json(json!({
+        "id": card_id,
+        "title": card.title,
+        "description": card.description,
+    })))
 }
 
 pub async fn post_move_card(
-    State(board): State<ApplicationState>,
+    State(db): State<ApplicationState>,
     Path((list_id, card_id)): Path<(u64, u64)>,
 ) -> Result<StatusCode, KanbanError> {
-    let mutated_board = {
-        let mut board = board.lock().unwrap();
-
-        board.move_card(card_id, list_id)?;
-
-        serde_json::to_string(&*board)?
-    };
-
-    tokio::fs::write(BOARD_FILENAME, mutated_board).await?;
+    sqlx::query("UPDATE cards SET list_id = ? WHERE card_id = ?;")
+        .bind(list_id as i64)
+        .bind(card_id as i64)
+        .execute(&db)
+        .await?;
 
     Ok(StatusCode::OK)
+}
+
+pub async fn get_card_by_id(State(db): State<ApplicationState>, Path(card_id): Path<u64>) -> Result<Json<Value>, KanbanError> {
+    let card_result = sqlx::query("SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;")
+        .bind(card_id as i64)
+        .fetch_optional(&db)
+        .await?
+        .ok_or(KanbanError::CardNotFound(card_id))?;
+
+    Ok(Json(json!({
+        "card_id": card_result.get::<i64, _>("card_id"),
+        "list_id": card_result.get::<i64, _>("list_id"),
+        "title": card_result.get::<String, _>("title"),
+        "description": card_result.get::<Option<String>, _>("description"),
+        "status": card_result.get::<String, _>("status")
+    })))
 }
 
 #[derive(Deserialize)]
@@ -125,10 +160,28 @@ pub struct SearchQuery {
 }
 
 pub async fn get_card_search(
-    State(board): State<ApplicationState>,
+    State(db): State<ApplicationState>,
     Query(search_query): Query<SearchQuery>,
-) -> Json<Value> {
-    let board = board.lock().unwrap();
+) -> Result<Json<Value>, KanbanError> {
+    let search_result = sqlx::query(
+        "SELECT card_id, list_id, title, description, status FROM cards WHERE title LIKE ?;",
+    )
+    .bind(format!("%{}%", &search_query.keyword))
+    .fetch_all(&db)
+    .await?;
 
-    Json(json!(board.search(&search_query.keyword)))
+    let cards = search_result
+        .iter()
+        .map(|c| {
+            json!({
+                "card_id": c.get::<i64, _>("card_id"),
+                "list_id": c.get::<i64, _>("list_id"),
+                "title": c.get::<String, _>("title"),
+                "description": c.get::<Option<String>, _>("description"),
+                "status": c.get::<String, _>("status")
+            })
+        })
+        .collect();
+
+    Ok(Json(cards))
 }

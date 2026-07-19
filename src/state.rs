@@ -1,17 +1,14 @@
-use std::fs;
-use crate::models::Board;
-use std::sync::{Arc, Mutex};
+use sqlx::SqlitePool;
 
-pub type ApplicationState = Arc<Mutex<Board>>;
+pub type ApplicationState = SqlitePool;
 
-pub fn create_application_state() -> ApplicationState {
-    let board = load_existing_board_configuration()
-        .unwrap_or_else(|| Board::new(String::from("Web board")));
+pub async fn create_application_state() -> ApplicationState {
+    let pool = SqlitePool::connect("sqlite:./kanban.db").await.unwrap();
 
-    ApplicationState::new(Mutex::new(board))
-}
+    sqlx::query("INSERT OR IGNORE INTO boards (board_id, name) VALUES (1, 'My Board')")
+        .execute(&pool)
+        .await
+        .unwrap();
 
-fn load_existing_board_configuration() -> Option<Board> {
-    let saved_board_configuration = fs::read_to_string("board.json").ok()?;
-    serde_json::from_str(&saved_board_configuration).ok()
+    pool
 }

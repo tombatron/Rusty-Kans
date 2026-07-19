@@ -234,5 +234,19 @@
 - `if let Err(e)` on serve to handle shutdown errors without panicking
 - Named constants for config values (`LOCAL_ADDRESS`) — avoids magic strings
 
+### Phase 3, Milestone 5 — SQLite via sqlx
+- `SqlitePool` replaces `Arc<Mutex<Board>>` — connection pool handles concurrency, no manual locking
+- `sqlx::query().bind().fetch_one/fetch_optional/fetch_all/execute` — the core query API
+- `.bind()` for safe parameter passing — never interpolate values into SQL strings
+- `.get::<Type, _>("column")` to read typed column values from a row — requires `use sqlx::Row`
+- `u64` doesn't map to SQLite — cast to `i64` with `as i64` before binding
+- `Option<String>` for nullable columns — `.get::<Option<String>, _>()` handles NULL correctly
+- `fetch_optional` returns `Option<Row>` — use `.ok_or(KanbanError::...)` to convert to 404
+- `.execute()` returns a result with `.last_insert_rowid()` for getting new IDs
+- `FROM<sqlx::Error> for KanbanError` — `?` converts database errors automatically
+- `INSERT OR IGNORE` for idempotent seeding at startup
+- `LIKE ?` with `format!("%{}%", keyword)` for wildcard search — wildcards go in the bound value
+- `models.rs` entirely replaced by inline SQL queries — no intermediate model layer needed
+
 ## Current Position
-**Phase 3 complete** — deciding next direction
+**Turbo phase** — HTML responses and Hotwire Turbo integration

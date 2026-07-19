@@ -10,10 +10,8 @@ pub fn create_router(application_state: ApplicationState) -> Router<()> {
         .route("/lists/{id}", get(get_list_by_id))
         .route("/lists", post(post_list))
         .route("/lists/{id}/cards", post(post_card))
-        .route(
-            "/lists/{list_id}/cards/{card_id}/move",
-            post(post_move_card),
-        )
+        .route("/lists/{list_id}/cards/{card_id}/move", post(post_move_card))
         .route("/cards/search", get(get_card_search))
+        .route("/cards/{card_id}", get(get_card_by_id))
         .with_state(application_state)
 }

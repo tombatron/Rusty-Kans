@@ -1,0 +1,45 @@
+### Get the health status
+GET http://localhost:3000/health
+
+### Get the board
+GET http://localhost:3000/board
+
+### Add a list
+POST http://localhost:3000/lists
+content-type: application/json
+
+{
+    "name": "New Test List"
+}
+
+### Add a card with a description
+POST http://localhost:3000/lists/1/cards
+content-type: application/json
+
+{
+  "title": "This is a test card with description",
+  "description": "This is a test description"
+}
+
+### Add a card without a description
+POST http://localhost:3000/lists/1/cards
+content-type: application/json
+
+{
+  "title": "This is a test card without a description"
+}
+
+### Get a list that has cards
+GET http://localhost:3000/lists/1
+accept: application/json
+
+### Get another list that has cards
+GET http://localhost:3000/lists/2
+accept: application/json
+
+
+### Move an existing card to a new list
+POST http://localhost:3000/lists/2/cards/1/move
+
+### Get an existing card by id
+GET http://localhost:3000/cards/2
