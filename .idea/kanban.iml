@@ -10,5 +10,6 @@
     <orderEntry type="library" name="sortablejs" level="application" />
     <orderEntry type="library" name="@hotwired/stimulus" level="application" />
     <orderEntry type="library" name="@hotwired/turbo" level="application" />
+    <orderEntry type="library" name="lucide" level="application" />
   </component>
 </module>

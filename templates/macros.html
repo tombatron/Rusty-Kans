@@ -11,3 +11,14 @@
     </li>
 </template>
 {% endmacro %}
+
+{% macro add_card(list_id) %}
+<div class="add-card">
+    <form action="/lists/{{ list_id }}/cards" method="post">
+        <input type="text" name="title" placeholder="Card title&hellip;" required>
+        <div class="add-card-actions">
+            <button type="submit">Add</button>
+        </div>
+    </form>
+</div>
+{% endmacro %}

@@ -34,6 +34,7 @@
                 {{ macros::list_item(card) }}
                 {% endfor %}
             </ul>
+            {{ macros::add_card(list.id) }}
         </div>
         {% endfor %}
     </turbo-frame>
