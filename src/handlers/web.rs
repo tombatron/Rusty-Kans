@@ -1,12 +1,12 @@
 use crate::errors::KanbanError;
-use crate::handlers::{create_card_common, create_list_common, move_card_common, CreateCardRequest, CreateListRequest};
+use crate::handlers::{create_card_common, create_list_common, delete_card_common, move_card_common, CreateCardRequest, CreateListRequest};
 use crate::models::{Card, CardMoveEvent, List};
 use crate::state::ApplicationState;
 use crate::turbo::TurboStream;
 use askama::Template;
 use axum::extract::{Path, State};
 use axum::response::{Html, IntoResponse};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Form, Router};
 use sqlx::{AssertSqlSafe, Row};
 
@@ -17,6 +17,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/lists", post(post_list_form))
         .route("/lists/{list_id}/cards", post(post_card_form))
         .route("/lists/{list_id}/cards/{card_id}/move", post(post_move_card_action))
+        .route("/lists/{list_id}/cards/{card_id}", delete(delete_card_form))
 }
 
 #[derive(Debug, Template)]
@@ -133,4 +134,12 @@ pub async fn post_card_form(State(state): State<ApplicationState>, Path(list_id)
     let template = CreateCardTemplate { card };
 
     Ok(TurboStream(template.render()?))
+}
+
+pub async fn delete_card_form(State(state): State<ApplicationState>, Path((list_id, card_id)): Path<(u64, u64)>) -> Result<TurboStream, KanbanError> {
+    delete_card_common(State(state), card_id).await?;
+    
+    let response = format!("<turbo-stream action=\"remove\" target=\"card-{card_id}\"></turbo-stream>");
+    
+    Ok(TurboStream(response))
 }

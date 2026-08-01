@@ -1,12 +1,13 @@
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::{Json, Router};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::Row;
 use crate::errors::KanbanError;
-use crate::handlers::{create_card_common, create_list_common, move_card_common, CreateCardRequest, CreateListRequest, ListItemTemplate};
+use crate::handlers::{create_card_common, create_list_common, delete_card_common, move_card_common, CreateCardRequest, CreateListRequest, ListItemTemplate};
+use crate::handlers::web::delete_card_form;
 use crate::middleware::require_auth;
 use crate::state::ApplicationState;
 
@@ -17,6 +18,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/api/lists", post(post_list))
         .route("/api/lists/{id}/cards", post(post_card))
         .route("/api/lists/{list_id}/cards/{card_id}/move", post(post_move_card))
+        .route("/api/lists/{list_id}/cards/{card_id}", delete(delete_card))
         .route("/api/cards/search", get(get_card_search))
         .route("/api/cards/{card_id}", get(get_card_by_id))
         .layer(axum::middleware::from_fn(require_auth))
@@ -167,4 +169,10 @@ pub async fn get_card_search(
         .collect();
 
     Ok(Json(cards))
+}
+
+pub async fn delete_card(State(state): State<ApplicationState>, Path((_list_id, card_id)): Path<(u64, u64)>) -> Result<StatusCode, KanbanError> {
+    delete_card_common(State(state), card_id).await?;
+
+    Ok(StatusCode::OK)
 }

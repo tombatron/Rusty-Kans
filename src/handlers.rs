@@ -74,3 +74,12 @@ async fn create_card_common(State(state): State<ApplicationState>, list_id: u64,
         status: Status::Todo
     })
 }
+
+async fn delete_card_common(State(state): State<ApplicationState>, card_id: u64) -> Result<(), KanbanError> {
+    sqlx::query("DELETE FROM cards WHERE card_id = ?")
+        .bind(card_id as i64)
+        .execute(&state.db)
+        .await?;
+    
+    Ok(())
+}
