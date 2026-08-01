@@ -90,3 +90,14 @@ impl From<askama::Error> for KanbanError {
         KanbanError::TemplateError(value.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn list_not_found_message() {
+        let err = KanbanError::ListNotFound(42);
+        assert_eq!(err.to_string(), "List with ID (42) was not found.");
+    }
+}

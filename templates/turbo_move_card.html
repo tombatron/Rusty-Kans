@@ -1,14 +1,5 @@
+{% import "macros.html" as macros %}
 <turbo-stream action="remove" target="card-{{card_id}}"></turbo-stream>
 <turbo-stream action="append" target="list-cards-{{to_list_id}}">
-    <template>
-        <li id="card-{{ card.id }}" data-card-id="{{ card.id }}">
-            <h4>{{ card.title }}</h4>
-            <span class="badge badge-{{ card.status|lower }}">{{ card.status }}</span>
-            {% if let Some(desc) = card.description %}
-            <p>{{ desc }}</p>
-            {% else %}
-            <p class="no-desc">No description.</p>
-            {% endif %}
-        </li>
-    </template>
+{{ macros::list_item(card) }}
 </turbo-stream>

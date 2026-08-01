@@ -1,35 +1,81 @@
 use crate::handlers::*;
-use crate::ws::get_ws_handler;
 use crate::state::ApplicationState;
-use axum::routing::{get, post};
 use axum::Router;
-use crate::middleware::require_auth;
 
 pub fn create_router(application_state: ApplicationState) -> Router<()> {
-    let api = Router::new()
-        .route("/api/board", get(get_board))
-        .route("/api/lists/{id}", get(get_list_by_id))
-        .route("/api/lists", post(post_list))
-        .route("/api/lists/{id}/cards", post(post_card))
-        .route("/api/lists/{list_id}/cards/{card_id}/move", post(post_move_card))
-        .route("/api/cards/search", get(get_card_search))
-        .route("/api/cards/{card_id}", get(get_card_by_id))
-        .layer(axum::middleware::from_fn(require_auth));
+    let api = api::get_router_configuration();
+    let utility = utility::get_router_configuration();
+    let web = web::get_router_configuration();
+    let ws = ws::get_router_configuration();
     
     Router::new()
-        // Web Routes
-        .route("/", get(get_index))
-
-        // Web Routes - lists
-        .route("/lists", post(post_list_form))
-        .route("/lists/{list_id}/cards/{card_id}/move", post(post_move_card_action))
-        
-        // Web Sockets
-        .route("/ws", get(get_ws_handler))
-
-        // Diagnostic Routes
-        .route("/health", get(get_health))
-        // --------------------------------------------------------------------------------
         .merge(api)
+        .merge(utility)
+        .merge(web)
+        .merge(ws)
         .with_state(application_state)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::router::create_router;
+    use crate::state::create_application_state;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn health_check_returns_200() {
+        let state = create_application_state().await;
+        let app = create_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap()
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn api_rejects_unauthenticated_requests() {
+        let state = create_application_state().await;
+        let app = create_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/board")
+                    .body(Body::empty())
+                    .unwrap()
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn api_accepts_authenticated_requests() {
+        let state = create_application_state().await;
+        let app = create_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/board")
+                    .header("Authorization", "Bearer super-secret")
+                    .body(Body::empty())
+                    .unwrap()
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
 }
