@@ -71,8 +71,6 @@ pub async fn get_index(
     Ok(Html(response_template.render()?))
 }
 
-
-
 pub async fn post_list_form(
     State(state): State<ApplicationState>,
     Form(list_info): Form<CreateListRequest>,
@@ -138,8 +136,8 @@ pub async fn post_card_form(State(state): State<ApplicationState>, Path(list_id)
 
 pub async fn delete_card_form(State(state): State<ApplicationState>, Path((list_id, card_id)): Path<(u64, u64)>) -> Result<TurboStream, KanbanError> {
     delete_card_common(State(state), card_id).await?;
-    
+
     let response = format!("<turbo-stream action=\"remove\" target=\"card-{card_id}\"></turbo-stream>");
-    
+
     Ok(TurboStream(response))
 }
