@@ -65,7 +65,7 @@ async fn create_card_common(State(state): State<ApplicationState>, list_id: u64,
         .await?;
 
     let card_id = result.last_insert_rowid();
-    
+
     Ok(Card {
         id: card_id as u64,
         list_id,
@@ -80,6 +80,29 @@ async fn delete_card_common(State(state): State<ApplicationState>, card_id: u64)
         .bind(card_id as i64)
         .execute(&state.db)
         .await?;
-    
+
     Ok(())
+}
+
+async fn patch_card_common(State(state): State<ApplicationState>, card: Card) -> Result<Card, KanbanError> {
+    let update_result = sqlx::query("UPDATE cards SET title = ?, description = ?, status = ? WHERE card_id = ? AND title = ? AND description = ?;")
+        .bind(card.title.clone())
+        .bind(card.description.clone())
+        .bind(card.status)
+        .bind(card.id as i64)
+        .bind(card.title.clone())
+        .bind(card.description.clone())
+        .execute(&state.db)
+        .await?;
+
+    if update_result.rows_affected() != 1 {
+        return Err(KanbanError::DatabaseError("Update failed. Refresh and try again.".to_string()));
+    }
+    
+    let updated_card = sqlx::query_as::<_, Card>("SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?")
+        .bind(card.id as i64)
+        .fetch_one(&state.db)
+        .await?;
+
+    Ok(updated_card)
 }

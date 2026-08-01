@@ -1,15 +1,12 @@
 use crate::errors::KanbanError;
-use crate::handlers::{
-    CreateCardRequest, CreateListRequest, create_card_common, create_list_common,
-    delete_card_common, move_card_common,
-};
+use crate::handlers::{CreateCardRequest, CreateListRequest, create_card_common, create_list_common, delete_card_common, move_card_common, patch_card_common};
 use crate::models::{Card, CardMoveEvent, List};
 use crate::state::ApplicationState;
 use crate::turbo::TurboStream;
 use askama::Template;
 use axum::extract::{Path, State};
 use axum::response::{Html, IntoResponse};
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, patch, post};
 use axum::{Form, Router};
 use sqlx::{AssertSqlSafe, Row};
 
@@ -24,6 +21,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         )
         .route("/lists/{list_id}/cards/{card_id}", delete(delete_card_form))
         .route("/cards/{card_id}/edit", get(get_card_edit))
+        .route("/cards/{card_id}", patch(patch_card_form))
 }
 
 #[derive(Debug, Template)]
@@ -133,7 +131,7 @@ pub async fn post_move_card_action(
 
 #[derive(Debug, Template)]
 #[template(path = "turbo_card.html")]
-struct CreateCardTemplate {
+struct CardTemplate {
     card: Card,
 }
 
@@ -144,7 +142,7 @@ pub async fn post_card_form(
 ) -> Result<TurboStream, KanbanError> {
     let card = create_card_common(State(state), list_id, card).await?;
 
-    let template = CreateCardTemplate { card };
+    let template =  CardTemplate { card };
 
     Ok(TurboStream(template.render()?))
 }
@@ -181,5 +179,13 @@ pub async fn get_card_edit(
 
     let template = CardEditTemplate { card };
 
+    Ok(TurboStream(template.render()?))
+}
+
+pub async fn patch_card_form(State(state): State<ApplicationState>, Path(_card_id): Path<i64>, Form(card): Form<Card>) -> Result<TurboStream, KanbanError> {
+    let updated_card = patch_card_common(State(state), card).await?;
+    
+    let template = CardTemplate { card: updated_card };
+    
     Ok(TurboStream(template.render()?))
 }
