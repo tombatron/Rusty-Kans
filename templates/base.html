@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{% block title %}{{ title }} - Kanban!{% endblock %}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=DM+Sans:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg:           #0f0d0c;
+            --surface:      #181614;
+            --card:         #211f1d;
+            --card-hover:   #2a2725;
+            --border:       #2e2b29;
+            --text:         #e8e2dc;
+            --text-muted:   #6b6560;
+            --accent:       #e8a020;
+            --accent-dim:   rgba(232, 160, 32, 0.12);
+            --radius:       6px;
+            --col-width:    272px;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            min-height: 100vh;
+        }
+
+        body > div {
+            display: flex;
+            flex-direction: column;
+            padding: 1.75rem 2rem;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ── Board header ─────────────────────────────────── */
+        .board-header {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 1.75rem;
+            flex-shrink: 0;
+        }
+
+        .board-title {
+            font-family: 'Oswald', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--accent);
+            white-space: nowrap;
+        }
+
+        /* ── Form ─────────────────────────────────────────── */
+        form { display: flex; gap: 0.5rem; }
+
+        input[type="text"] {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            padding: 0.45rem 0.75rem;
+            outline: none;
+            transition: border-color 0.2s;
+            width: 180px;
+        }
+
+        input[type="text"]::placeholder { color: var(--text-muted); }
+        input[type="text"]:focus { border-color: var(--accent); }
+
+        button[type="submit"] {
+            background: var(--accent);
+            border: none;
+            border-radius: var(--radius);
+            color: #0f0d0c;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 0.45rem 0.9rem;
+            transition: opacity 0.15s;
+            white-space: nowrap;
+        }
+
+        button[type="submit"]:hover { opacity: 0.85; }
+
+        /* ── Column layout ────────────────────────────────── */
+        turbo-frame#lists {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            overflow-x: auto;
+            flex: 1;
+            padding-bottom: 1rem;
+        }
+
+        turbo-frame#lists::-webkit-scrollbar { height: 6px; }
+        turbo-frame#lists::-webkit-scrollbar-track { background: transparent; }
+        turbo-frame#lists::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        /* ── List column ──────────────────────────────────── */
+        .list {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            width: var(--col-width);
+            min-width: var(--col-width);
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            max-height: 100%;
+        }
+
+        .list-title {
+            font-family: 'Oswald', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            padding: 0.875rem 1rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .list ul {
+            list-style: none;
+            padding: 0.625rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            overflow-y: auto;
+            flex: 1;
+            min-height: 48px;
+        }
+
+        .list ul::-webkit-scrollbar { width: 4px; }
+        .list ul::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        /* ── Cards ────────────────────────────────────────── */
+        .list ul li {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.65rem 0.75rem;
+            cursor: grab;
+            transition: background 0.15s, box-shadow 0.15s, transform 0.15s;
+            user-select: none;
+        }
+
+        .list ul li:hover {
+            background: var(--card-hover);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            transform: translateY(-1px);
+        }
+
+        .list ul li:active { cursor: grabbing; }
+
+        .list ul li h4 {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text);
+            line-height: 1.4;
+            margin-bottom: 0.35rem;
+        }
+
+        .list ul li p {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            margin-top: 0.35rem;
+        }
+
+        .no-desc { font-style: italic; }
+
+        /* ── Status badges ────────────────────────────────── */
+        .badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 0.15rem 0.45rem;
+            border-radius: 3px;
+        }
+
+        .badge-todo  { background: rgba(107,101,96,0.2); color: #9a9490; }
+        .badge-doing { background: var(--accent-dim);    color: var(--accent); }
+        .badge-done  { background: rgba(16,136,90,0.15); color: #2db87a; }
+
+        /* Left border accent follows status */
+        .list ul li:has(.badge-todo)  { border-left-color: #3a3734; }
+        .list ul li:has(.badge-doing) { border-left-color: var(--accent); }
+        .list ul li:has(.badge-done)  { border-left-color: #1a8a5a; }
+
+        /* ── Sortable drag ghost ──────────────────────────── */
+        .sortable-ghost {
+            opacity: 0.3;
+            background: var(--accent-dim) !important;
+            border-color: var(--accent) !important;
+        }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8/dist/turbo.es2017-umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1/Sortable.min.js"></script>
+
+    <script type="module">
+    import { Application, Controller } from "https://cdn.jsdelivr.net/npm/@hotwired/stimulus@3/dist/stimulus.js";
+
+    const app = Application.start();
+
+    app.register("card-list", class extends Controller {
+       static values = { listId: Number }
+
+       connect() {
+           Sortable.create(this.element, {
+               group: "cards",
+               animation: 150,
+               onEnd: (event) => {
+                   const cardId = event.item.dataset.cardId;
+                   const toListId = event.to.dataset.cardListListIdValue;
+
+                   if (event.from === event.to) {
+                       return;
+                   }
+
+                   fetch(`/lists/${toListId}/cards/${cardId}/move`, {
+                      method: "POST",
+                      headers: { "Accept": "text/vnd.turbo-stream.html" }
+                   });
+               }
+           })
+       }
+    });
+    </script>
+
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div>
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

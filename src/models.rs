@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Type};
 use std::fmt::{Display, Formatter};
+use askama::Template;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Card {
@@ -55,4 +56,12 @@ impl Display for Status {
             Status::Done => write!(f, "Done")
         }
     }
+}
+
+#[derive(Debug, Clone, Template)]
+#[template(path = "turbo_move_card.html")]
+pub struct CardMoveEvent {
+    pub card_id: u64,
+    pub to_list_id: u64,
+    pub card: Card,
 }

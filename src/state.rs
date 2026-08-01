@@ -1,14 +1,24 @@
 use sqlx::SqlitePool;
+use crate::models::CardMoveEvent;
 
-pub type ApplicationState = SqlitePool;
+#[derive(Clone)]
+pub struct ApplicationState {
+    pub db: SqlitePool,
+    pub tx: tokio::sync::broadcast::Sender<CardMoveEvent>,
+}
 
 pub async fn create_application_state() -> ApplicationState {
-    let pool = SqlitePool::connect("sqlite:./kanban.db").await.unwrap();
+    let db = SqlitePool::connect("sqlite:./kanban.db").await.unwrap();
 
     sqlx::query("INSERT OR IGNORE INTO boards (board_id, name) VALUES (1, 'My Board')")
-        .execute(&pool)
+        .execute(&db)
         .await
         .unwrap();
 
-    pool
+    let (tx, _) = tokio::sync::broadcast::channel::<CardMoveEvent>(512);
+
+    ApplicationState {
+        db,
+        tx
+    }
 }

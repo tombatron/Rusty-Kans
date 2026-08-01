@@ -2,18 +2,20 @@
 GET http://localhost:3000/health
 
 ### Get the board
-GET http://localhost:3000/board
+GET http://localhost:3000/api/board
+Authorization: Bearer super-secret
 
 ### Add a list
-POST http://localhost:3000/lists
+POST http://localhost:3000/api/lists
 content-type: application/json
+Authorization: Bearer super-secret
 
 {
-    "name": "New Test List"
+    "name": "New Test List 2222"
 }
 
 ### Add a card with a description
-POST http://localhost:3000/lists/1/cards
+POST http://localhost:3000/api/lists/1/cards
 content-type: application/json
 
 {
@@ -22,7 +24,7 @@ content-type: application/json
 }
 
 ### Add a card without a description
-POST http://localhost:3000/lists/1/cards
+POST http://localhost:3000/api/lists/1/cards
 content-type: application/json
 
 {
@@ -30,16 +32,16 @@ content-type: application/json
 }
 
 ### Get a list that has cards
-GET http://localhost:3000/lists/1
+GET http://localhost:3000/api/lists/1
 accept: application/json
 
 ### Get another list that has cards
-GET http://localhost:3000/lists/2
+GET http://localhost:3000/api/lists/2
 accept: application/json
 
 
 ### Move an existing card to a new list
-POST http://localhost:3000/lists/2/cards/1/move
+POST http://localhost:3000/api/lists/2/cards/1/move
 
 ### Get an existing card by id
-GET http://localhost:3000/cards/2
+GET http://localhost:3000/api/cards/2

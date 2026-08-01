@@ -1,27 +1,47 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Board &mdash; {{ name }} ({{ id }})</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-<h2>Lists</h2>
-{% for list in lists %}
-    <h3>{{ list.name }}</h3>
+{% block title %}Board &mdash; {{ name }} ({{ id }}){% endblock %}
 
-    <ul>
-        {% for card in list.cards %}
-        <li id="card-{{ card.id }}">
-            <h4>{{ card.title }} - {{ card.status }}</h4>
-            {% if let Some(desc) = card.description %}
-            <p>{{ desc }}</p>
-            {% else %}
-            <p>No description.</p>
-            {% endif %}
-        </li>
+{% block head %}
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+       const proto = location.protocol === "https:" ? "wss:" : "ws:";
+       const src = `${proto}//${location.host}/ws`;
+       document.body.insertAdjacentHTML(
+           "beforeend",
+           `<turbo-stream-source src="${src}"></turbo-stream-source>`
+       );
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+    <header class="board-header">
+        <h1 class="board-title">{{ name }}</h1>
+        <form action="/lists" method="post">
+            <input type="text" name="name" placeholder="New list&hellip;">
+            <button type="submit">+ Add List</button>
+        </form>
+    </header>
+
+    <turbo-frame id="lists" data-turbo-action="advance">
+        {% for list in lists %}
+        <div class="list">
+            <h3 class="list-title">{{ list.name }}</h3>
+            <ul id="list-cards-{{ list.id }}" data-controller="card-list" data-card-list-list-id-value="{{ list.id }}">
+                {% for card in list.cards %}
+                <li id="card-{{ card.id }}" data-card-id="{{ card.id }}">
+                    <h4>{{ card.title }}</h4>
+                    <span class="badge badge-{{ card.status|lower }}">{{ card.status }}</span>
+                    {% if let Some(desc) = card.description %}
+                    <p>{{ desc }}</p>
+                    {% else %}
+                    <p class="no-desc">No description.</p>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
         {% endfor %}
-    </ul>
-{% endfor %}
-</body>
-</html>
+    </turbo-frame>
+{% endblock %}
