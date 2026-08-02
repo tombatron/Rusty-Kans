@@ -27,8 +27,9 @@
 
     <turbo-frame id="lists" data-turbo-action="advance">
         {% for list in lists %}
-        <div class="list">
-            <h3 class="list-title">{{ list.name }}</h3>
+        <div class="list" id="list-{{ list.id }}">
+            {{ macros::list_header(list) }}
+
             <ul id="list-cards-{{ list.id }}" data-controller="card-list" data-card-list-list-id-value="{{ list.id }}">
                 {% for card in list.cards %}
                 {{ macros::list_item(card) }}

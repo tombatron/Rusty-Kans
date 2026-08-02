@@ -1,3 +1,19 @@
+{% macro list_header(list) %}
+<turbo-frame id="list-title-{{ list.id }}" class="list-header">
+    <h3 class="list-title">{{ list.name }}</h3>
+    <div class="list-actions">
+        <a href="/lists/{{ list.id }}/edit" class="list-edit-btn">
+            <i data-lucide="pencil-line"></i>
+        </a>
+        <form class="card-delete-form" action="/lists/{{ list.id }}/delete" method="post">
+            <button type="submit" class="list-delete-btn">
+                <i data-lucide="trash-2"></i>
+            </button>
+        </form>
+    </div>
+</turbo-frame>
+{% endmacro %}
+
 {% macro is_selected(expected, actual) %}
 {% if actual == expected %}
 selected

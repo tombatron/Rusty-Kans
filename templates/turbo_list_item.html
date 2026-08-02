@@ -1,8 +1,20 @@
 {% import "macros.html" as macros %}
 <turbo-stream action="append" target="lists">
     <template>
-        <div class="list">
-            <h3 class="list-title">{{ name }}</h3>
+        <div class="list" id="list-{{ id }}">
+            <turbo-frame id="list-title-{{ id }}" class="list-header">
+                <h3 class="list-title">{{ name }}</h3>
+                <div class="list-actions">
+                    <a href="/lists/{{ id }}/edit" class="list-edit-btn">
+                        <i data-lucide="pencil-line"></i>
+                    </a>
+                    <form class="card-delete-form" action="/lists/{{ id }}/delete" method="post">
+                        <button type="submit" class="list-delete-btn">
+                            <i data-lucide="trash-2"></i>
+                        </button>
+                    </form>
+                </div>
+            </turbo-frame>
             <ul id="list-cards-{{ id }}" data-controller="card-list" data-card-list-list-id-value="{{ id }}"></ul>
             {{ macros::add_card(id) }}
         </div>

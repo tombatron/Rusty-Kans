@@ -8,6 +8,7 @@ use axum::extract::{Path, State};
 use axum::response::{Html, IntoResponse, Redirect};
 use axum::routing::{get, post};
 use axum::{Form, Router};
+use serde::Deserialize;
 use sqlx::{AssertSqlSafe, Row};
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
@@ -20,6 +21,12 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
             post(post_move_card_action),
         )
         .route("/lists/{list_id}/cards/{card_id}/delete", post(delete_card_form))
+
+        .route("/lists/{list_id}/edit", get(get_list_edit))
+        .route("/lists/{list_id}/rename", post(post_list_rename))
+        .route("/lists/{list_id}/header", get(get_list_header))
+        .route("/lists/{list_id}/delete", post(post_list_delete))
+
         .route("/cards/{card_id}/edit", get(get_card_edit).post(patch_card_form))
         .route("/cards/{card_id}/view", get(get_card_by_id))
 }
@@ -203,4 +210,68 @@ pub async fn get_card_by_id(State(state): State<ApplicationState>, Path(card_id)
     let template = CardTemplate { card};
 
     Ok(Html(template.render()?))
+}
+
+#[derive(Debug, Template)]
+#[template(path = "turbo_list_title.html")]
+struct ListHeader {
+    list: List
+}
+
+pub async fn get_list_header(State(state): State<ApplicationState>, Path(list_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+    let list = sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE list_id = ?;")
+        .bind(list_id as i64)
+        .fetch_one(&state.db)
+        .await?;
+
+    let template = ListHeader { list };
+
+    Ok(Html(template.render()?))
+}
+
+#[derive(Debug, Template)]
+#[template(path = "turbo_list_title_edit.html")]
+struct ListHeaderEdit {
+    list: List
+}
+
+pub async fn get_list_edit(State(state): State<ApplicationState>, Path(list_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+    let list = sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE list_id = ?;")
+        .bind(list_id as i64)
+        .fetch_one(&state.db)
+        .await?;
+
+    let template = ListHeaderEdit { list };
+
+    Ok(Html(template.render()?))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListRename {
+    name: String
+}
+
+pub async fn post_list_rename(State(state): State<ApplicationState>, Path(list_id): Path<u64>, Form(list_header): Form<ListRename>) -> Result<Redirect, KanbanError> {
+    let result = sqlx::query("UPDATE lists SET name = ? WHERE list_id = ?")
+        .bind(list_header.name)
+        .bind(list_id as i64)
+        .execute(&state.db)
+        .await?;
+
+    if result.rows_affected() != 1 {
+        return Err(KanbanError::DatabaseError("Update failed please try again.".to_string()));
+    }
+
+    Ok(Redirect::to(format!("/lists/{list_id}/header").as_str()))
+}
+
+pub async fn post_list_delete(State(state): State<ApplicationState>, Path(list_id): Path<u64>) -> Result<TurboStream, KanbanError> {
+    sqlx::query("DELETE FROM lists WHERE list_id = ?;")
+        .bind(list_id as i64)
+        .execute(&state.db)
+        .await?;
+
+    let result = format!("<turbo-stream action=\"remove\" target=\"list-{list_id}\"></turbo-stream>");
+
+    Ok(TurboStream(result))
 }

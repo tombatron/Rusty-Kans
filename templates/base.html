@@ -127,6 +127,16 @@
             max-height: 100%;
         }
 
+        /* ── List header ────────────────────────────────── */
+        .list-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.875rem 1rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
         .list-title {
             font-family: 'Oswald', sans-serif;
             font-size: 0.8rem;
@@ -134,8 +144,66 @@
             letter-spacing: 0.12em;
             text-transform: uppercase;
             color: var(--text-muted);
-            padding: 0.875rem 1rem 0.75rem;
-            border-bottom: 1px solid var(--border);
+        }
+
+        .list-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.2rem;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+
+        .list-header:hover .list-actions { opacity: 1; }
+
+        .list-edit-btn,
+        button.list-delete-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 4px;
+            color: var(--text-muted);
+            text-decoration: none;
+            background: transparent;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .list-edit-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+        button.list-delete-btn:hover { background: rgba(220,50,50,0.12); color: #e05555; }
+        .list-edit-btn svg, button.list-delete-btn svg { width: 13px; height: 13px; }
+
+        /* ── List rename inline form ─────────────────────── */
+        .list-header form {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+        }
+
+        .list-header input[type="text"] {
+            flex: 1;
+            background: var(--bg);
+            border: 1px solid var(--accent);
+            border-radius: var(--radius);
+            color: var(--text);
+            font-family: 'Oswald', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding: 0.2rem 0.4rem;
+            outline: none;
+        }
+
+        .list-edit-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
             flex-shrink: 0;
         }
 
@@ -298,28 +366,33 @@
 
         .btn-cancel:hover { color: var(--text); }
 
-        .card-delete-btn {
+        /* ── Card delete button (hover reveal) ───────────── */
+        .card-delete-form {
+            display: contents; /* removes the form box from layout */
+        }
+
+        button.card-delete-btn {
             position: absolute;
             top: 0.5rem;
-            right: 1.75rem; /* sit left of the edit button */
-
-            /* same base options as .card-edit-btn */
+            right: 1.75rem;
             display: flex;
             align-items: center;
             justify-content: center;
             width: 22px;
             height: 22px;
             border-radius: 4px;
+            background: transparent;
+            border: none;
             color: var(--text-muted);
-            text-decoration: none;
+            padding: 0;
+            cursor: pointer;
             opacity: 0;
             transition: opacity 0.15s, background 0.15s, color 0.15s;
         }
 
-        .card-delete-btn:hover {
-            background: rgba(220, 50, 50, 0.12);
-            color: #e05555;
-        }
+        .list ul li:hover button.card-delete-btn { opacity: 1; }
+        button.card-delete-btn:hover { background: rgba(220,50,50,0.12); color: #e05555; }
+        button.card-delete-btn svg { width: 13px; height: 13px; }
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8/dist/turbo.es2017-umd.js"></script>

@@ -1,0 +1,10 @@
+<turbo-frame id="list-title-{{ list.id }}" class="list-header">
+    <form action="/lists/{{ list.id }}/rename" method="post">
+        <input type="hidden" name="id" value="{{ list.id }}">
+        <input type="text" name="name" value="{{ list.name }}">
+        <div class="list-edit-actions">
+            <button type="submit">Save</button>
+            <a href="/lists/{{ list.id }}/header" class="btn-cancel">Cancel</a>
+        </div>
+    </form>
+</turbo-frame>
