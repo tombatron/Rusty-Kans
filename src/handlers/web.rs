@@ -1,12 +1,12 @@
 use crate::errors::KanbanError;
-use crate::handlers::{CreateCardRequest, CreateListRequest, create_card_common, create_list_common, delete_card_common, move_card_common, patch_card_common};
+use crate::handlers::{create_card_common, create_list_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest, CreateListRequest};
 use crate::models::{Card, CardMoveEvent, List};
 use crate::state::ApplicationState;
 use crate::turbo::TurboStream;
 use askama::Template;
 use axum::extract::{Path, State};
-use axum::response::{Html, IntoResponse};
-use axum::routing::{delete, get, patch, post};
+use axum::response::{Html, IntoResponse, Redirect};
+use axum::routing::{get, post};
 use axum::{Form, Router};
 use sqlx::{AssertSqlSafe, Row};
 
@@ -19,9 +19,9 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
             "/lists/{list_id}/cards/{card_id}/move",
             post(post_move_card_action),
         )
-        .route("/lists/{list_id}/cards/{card_id}", delete(delete_card_form))
-        .route("/cards/{card_id}/edit", get(get_card_edit))
-        .route("/cards/{card_id}", patch(patch_card_form))
+        .route("/lists/{list_id}/cards/{card_id}/delete", post(delete_card_form))
+        .route("/cards/{card_id}/edit", get(get_card_edit).post(patch_card_form))
+        .route("/cards/{card_id}/view", get(get_card_by_id))
 }
 
 #[derive(Debug, Template)]
@@ -130,8 +130,8 @@ pub async fn post_move_card_action(
 }
 
 #[derive(Debug, Template)]
-#[template(path = "turbo_card.html")]
-struct CardTemplate {
+#[template(path = "turbo_new_card.html")]
+struct NewCardTemplate {
     card: Card,
 }
 
@@ -142,7 +142,7 @@ pub async fn post_card_form(
 ) -> Result<TurboStream, KanbanError> {
     let card = create_card_common(State(state), list_id, card).await?;
 
-    let template =  CardTemplate { card };
+    let template =  NewCardTemplate { card };
 
     Ok(TurboStream(template.render()?))
 }
@@ -161,14 +161,14 @@ pub async fn delete_card_form(
 
 #[derive(Debug, Template)]
 #[template(path = "turbo_card_edit.html")]
-struct CardEditTemplate {
+struct EditCardTemplate {
     card: Card,
 }
 
 pub async fn get_card_edit(
     State(state): State<ApplicationState>,
     Path(card_id): Path<u64>,
-) -> Result<TurboStream, KanbanError> {
+) -> Result<Html<String>, KanbanError> {
     let card = sqlx::query_as::<_, Card>(
         "SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?",
     )
@@ -177,15 +177,30 @@ pub async fn get_card_edit(
     .await?
     .ok_or(KanbanError::CardNotFound(card_id))?;
 
-    let template = CardEditTemplate { card };
+    let template = EditCardTemplate { card };
 
-    Ok(TurboStream(template.render()?))
+    Ok(Html(template.render()?))
 }
 
-pub async fn patch_card_form(State(state): State<ApplicationState>, Path(_card_id): Path<i64>, Form(card): Form<Card>) -> Result<TurboStream, KanbanError> {
-    let updated_card = patch_card_common(State(state), card).await?;
-    
-    let template = CardTemplate { card: updated_card };
-    
-    Ok(TurboStream(template.render()?))
+#[derive(Debug, Template)]
+#[template(path = "turbo_card.html")]
+struct CardTemplate {
+    card: Card,
+}
+
+pub async fn patch_card_form(State(state): State<ApplicationState>, Path(card_id): Path<i64>, Form(card): Form<Card>) -> Result<Redirect, KanbanError> {
+    patch_card_common(State(state), card).await?;
+
+    Ok(Redirect::to(format!("/cards/{card_id}/view").as_str()))
+}
+
+pub async fn get_card_by_id(State(state): State<ApplicationState>, Path(card_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+    let card = sqlx::query_as::<_, Card>("SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;")
+        .bind(card_id as i64)
+        .fetch_one(&state.db)
+        .await?;
+
+    let template = CardTemplate { card};
+
+    Ok(Html(template.render()?))
 }

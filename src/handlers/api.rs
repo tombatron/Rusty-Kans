@@ -6,6 +6,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
+use axum::response::Redirect;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::Row;
@@ -179,10 +180,8 @@ pub async fn delete_card(State(state): State<ApplicationState>, Path((_list_id, 
     Ok(StatusCode::OK)
 }
 
-pub async fn patch_card(State(state): State<ApplicationState>, Path(card_id): Path<u64>, Json(card): Json<Card>) -> Result<Json<Value>, KanbanError> {
-    let updated_card = patch_card_common(State(state), card).await?;
+pub async fn patch_card(State(state): State<ApplicationState>, Path(card_id): Path<u64>, Json(card): Json<Card>) -> Result<Redirect, KanbanError> {
+    patch_card_common(State(state), card).await?;
 
-    let result = Json(json!(updated_card));
-
-    Ok(result)
+    Ok(Redirect::to(format!("/api/cards/{card_id}").as_str()))
 }

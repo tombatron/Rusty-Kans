@@ -58,6 +58,12 @@ impl Display for Status {
     }
 }
 
+impl PartialEq<&str> for Status {
+    fn eq(&self, other: &&str) -> bool {
+        self.to_string().as_str() == *other
+    }
+}
+
 #[derive(Debug, Clone, Template)]
 #[template(path = "turbo_move_card.html")]
 pub struct CardMoveEvent {

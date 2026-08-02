@@ -166,6 +166,7 @@
             cursor: grab;
             transition: background 0.15s, box-shadow 0.15s, transform 0.15s;
             user-select: none;
+            position: relative;
         }
 
         .list ul li:hover {
@@ -219,6 +220,106 @@
             background: var(--accent-dim) !important;
             border-color: var(--accent) !important;
         }
+
+        /* ── Turbo frame ──────────────────────────────────── */
+        turbo-frame { display: block; }
+
+        /* ── Card edit button (hover reveal) ─────────────── */
+        .card-edit-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 4px;
+            color: var(--text-muted);
+            text-decoration: none;
+            opacity: 0;
+            transition: opacity 0.15s, background 0.15s, color 0.15s;
+        }
+
+        .list ul li:hover .card-edit-btn { opacity: 1; }
+        .card-edit-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+        .card-edit-btn svg { width: 13px; height: 13px; }
+
+        /* ── Add card area ────────────────────────────────── */
+        .add-card {
+            padding: 0.5rem 0.625rem 0.625rem;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .add-card form { flex-direction: column; gap: 0.4rem; }
+        .add-card input[type="text"] { width: 100%; }
+        .add-card-actions { display: flex; }
+
+        /* ── Card edit form ───────────────────────────────── */
+        .card-edit-form {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .card-edit-form input[type="text"],
+        .card-edit-form textarea,
+        .card-edit-form select {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            padding: 0.4rem 0.6rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .card-edit-form input[type="text"]:focus,
+        .card-edit-form textarea:focus,
+        .card-edit-form select:focus { border-color: var(--accent); }
+
+        .card-edit-form textarea { resize: vertical; min-height: 64px; }
+        .card-edit-form select { appearance: none; cursor: pointer; }
+
+        .card-edit-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+        .btn-cancel {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: 0.3rem 0.4rem;
+            border-radius: var(--radius);
+            transition: color 0.15s;
+        }
+
+        .btn-cancel:hover { color: var(--text); }
+
+        .card-delete-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 1.75rem; /* sit left of the edit button */
+
+            /* same base options as .card-edit-btn */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 4px;
+            color: var(--text-muted);
+            text-decoration: none;
+            opacity: 0;
+            transition: opacity 0.15s, background 0.15s, color 0.15s;
+        }
+
+        .card-delete-btn:hover {
+            background: rgba(220, 50, 50, 0.12);
+            color: #e05555;
+        }
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8/dist/turbo.es2017-umd.js"></script>
@@ -265,6 +366,14 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => lucide.createIcons());
         document.addEventListener("turbo:render", () => lucide.createIcons());
+        document.addEventListener("turbo:frame-render", () => lucide.createIcons());
+        document.addEventListener("turbo:before-stream-render", (event) => {
+            const render = event.detail.render;
+            event.detail.render = async (streamElement) => {
+                await render(streamElement);
+                lucide.createIcons();
+            };
+        });
     </script>
 </body>
 </html>

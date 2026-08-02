@@ -1,6 +1,2 @@
 {% import "macros.html" as macros %}
-<turbo-stream action="append" target="list-cards-{{ card.list_id }}">
-    <template>
-    {{ macros::list_item(card) }}
-    </template>
-</turbo-stream>
+{{ macros::card(card) }}

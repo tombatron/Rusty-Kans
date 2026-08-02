@@ -1,5 +1,11 @@
-{% macro list_item(card:Card) %}
-<li id="card-{{ card.id }}" data-card-id="{{ card.id }}">
+{% macro is_selected(expected, actual) %}
+{% if actual == expected %}
+selected
+{% endif %}
+{% endmacro %}
+
+{% macro card(card:Card) %}
+<turbo-frame id="card-frame-{{ card.id }}">
     <h4>{{ card.title }}</h4>
     <span class="badge badge-{{ card.status|lower }}">{{ card.status }}</span>
     {% if let Some(desc) = card.description %}
@@ -7,6 +13,20 @@
     {% else %}
     <p class="no-desc">No description.</p>
     {% endif %}
+    <a href="/cards/{{ card.id }}/edit" class="card-edit-btn" aria-label="Edit card">
+        <i data-lucide="pencil-line"></i>
+    </a>
+    <form class="card-delete-form" action="/lists/{{ card.list_id }}/cards/{{ card.id }}/delete" method="post">
+        <button type="submit" class="card-delete-btn" aria-label="Delete card">
+            <i data-lucide="trash-2"></i>
+        </button>
+    </form>
+</turbo-frame>
+{% endmacro %}
+
+{% macro list_item(card:Card) %}
+<li id="card-{{ card.id }}" data-card-id="{{ card.id }}">
+    {{ card(card) }}
 </li>
 {% endmacro %}
 
