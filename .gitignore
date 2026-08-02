@@ -1,2 +1,16 @@
+# Rust build artifacts
 /target
+Cargo.lock
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Legacy
 board.json
