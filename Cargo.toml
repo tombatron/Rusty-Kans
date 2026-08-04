@@ -11,3 +11,4 @@ axum = { version = "0.8", features = ["ws"] }
 sqlx = { version = "0.9", features = ["sqlite", "runtime-tokio", "macros"] }
 askama = "0.16.0"
 tower = "0.5.3"
+tower-http = { version = "0.7.0", features = ["fs"] }

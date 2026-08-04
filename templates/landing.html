@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% import "macros.html" as macros %}
+
+{% block content %}
+<ul>
+    {% for board in boards %}
+    {{ macros::board_item(board.id, board.name) }}
+    {% endfor %}
+</ul>
+{% endblock %}

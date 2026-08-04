@@ -3,6 +3,13 @@ use sqlx::{FromRow, Type};
 use std::fmt::{Display, Formatter};
 use askama::Template;
 
+#[derive(Debug, FromRow)]
+pub struct Board {
+    #[sqlx(rename = "board_id")]
+    pub id: u64,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Card {
     #[sqlx(rename = "card_id")]

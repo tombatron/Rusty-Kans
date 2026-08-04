@@ -1,0 +1,4 @@
+{% import "macros.html" as macros %}
+<turbo-stream action="append" target="board">
+{{ macros::board_item(id, name) }}    
+</turbo-stream>

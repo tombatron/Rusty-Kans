@@ -5,6 +5,7 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Debug, PartialEq)]
 pub enum KanbanError {
+    BoardNotFound(u64),
     ListNotFound(u64),
     CardNotFound(u64),
     SerializationError(String),
@@ -16,6 +17,9 @@ pub enum KanbanError {
 impl Display for KanbanError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            KanbanError::BoardNotFound(board_id) => {
+                write!(f, "Board with ID ({}) was not found.", board_id)
+            }
             KanbanError::ListNotFound(list_id) => {
                 write!(f, "List with ID ({}) was not found.", list_id)
             }
@@ -57,6 +61,9 @@ impl From<std::io::Error> for KanbanError {
 impl IntoResponse for KanbanError {
     fn into_response(self) -> Response {
         match self {
+            KanbanError::BoardNotFound(_) => {
+                (StatusCode::NOT_FOUND, self.to_string()).into_response()
+            }
             KanbanError::ListNotFound(_) => {
                 (StatusCode::NOT_FOUND, self.to_string()).into_response()
             }

@@ -56,3 +56,7 @@ selected
     </form>
 </div>
 {% endmacro %}
+
+{% macro board_item(id, name) %}
+<li><a href="/lists/{{ id }}">{{ name }}</a></li>
+{% endmacro %}

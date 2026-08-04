@@ -1,6 +1,6 @@
 use crate::errors::KanbanError;
 use crate::handlers::{create_card_common, create_list_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest, CreateListRequest};
-use crate::models::{Card, CardMoveEvent, List};
+use crate::models::{Board, Card, CardMoveEvent, List};
 use crate::state::ApplicationState;
 use crate::turbo::TurboStream;
 use askama::Template;
@@ -13,7 +13,10 @@ use sqlx::{AssertSqlSafe, Row};
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
-        .route("/", get(get_index))
+        .route("/", get(get_landing))
+        .route("/boards", post(post_board_form))
+        .route("/boards/{board_id}", get(get_board))
+
         .route("/lists", post(post_list_form))
         .route("/lists/{list_id}/cards", post(post_card_form))
         .route(
@@ -32,17 +35,65 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 }
 
 #[derive(Debug, Template)]
+#[template(path = "landing.html")]
+struct LandingTemplate {
+    boards: Vec<Board>
+}
+
+async fn get_landing(State(state): State<ApplicationState>) -> Result<impl IntoResponse, KanbanError> {
+    let boards = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards;")
+        .fetch_all(&state.db)
+        .await?;
+
+    let template = LandingTemplate { boards };
+    
+    Ok(Html(template.render()?))
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateBoardRequest {
+    name: String,
+}
+
+#[derive(Debug, Template)]
+#[template(path = "turbo_new_board.html")]
+struct NewBoardTemplate {
+    id: u64,
+    name: String
+}
+
+async fn post_board_form(State(state): State<ApplicationState>, Form(board): Form<CreateBoardRequest>) -> Result<impl IntoResponse, KanbanError> {
+    let result = sqlx::query("INSERT INTO boards (name) VALUES (?);")
+        .bind(&board.name)
+        .execute(&state.db)
+        .await?;
+    
+    let board_id = result.last_insert_rowid();
+    
+    let template = NewBoardTemplate {
+        id: board_id as u64,
+        name: board.name,
+    };
+
+    Ok(TurboStream(template.render()?))
+}
+
+
+
+#[derive(Debug, Template)]
 #[template(path = "board.html")]
-struct IndexTemplate {
+struct BoardTemplate {
     id: u64,
     name: String,
     lists: Vec<List>,
 }
 
-pub async fn get_index(
+pub async fn get_board(
     State(state): State<ApplicationState>,
+    Path(board_id): Path<u64>
 ) -> Result<impl IntoResponse, KanbanError> {
-    let board = sqlx::query("SELECT board_id, name FROM boards LIMIT 1")
+    let board = sqlx::query("SELECT board_id, name FROM boards WHERE board_id = ?;")
+        .bind(board_id as i64)
         .fetch_one(&state.db)
         .await?;
 
@@ -73,13 +124,13 @@ pub async fn get_index(
             .collect()
     }
 
-    let response_template = IndexTemplate {
+    let response_template = BoardTemplate {
         id: board.get::<u64, _>("board_id"),
         name: board.get::<String, _>("name"),
         lists,
     };
 
-    Ok(Html(response_template.render()?))
+    Ok(response_template.render()?)
 }
 
 pub async fn post_list_form(
