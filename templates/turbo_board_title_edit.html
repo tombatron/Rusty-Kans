@@ -1,5 +1,4 @@
 <turbo-frame id="board-title-{{ board.id }}">
-    <a class="board-breadcrumb" href="/">&larr; Boards</a>
     <form action="/boards/{{ board.id }}/rename" method="post">
         <input type="hidden" name="id" value="{{ board.id }}">
         <input type="text" name="name" value="{{ board.name }}">

@@ -63,7 +63,6 @@ selected
 
 {% macro board_header(board) %}
 <turbo-frame id="board-title-{{ board.id }}">
-    <a class="board-breadcrumb" href="/" data-turbo="false">&larr; Boards</a>
     <h1 class="board-title">{{ board.name }}</h1>
     <div class="board-actions">
         <a href="/boards/{{ board.id }}/edit" class="board-edit-btn">

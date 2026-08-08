@@ -12,6 +12,8 @@ pub enum KanbanError {
     IoError(String),
     DatabaseError(String),
     TemplateError(String),
+    RequestError(String),
+    GenericError(String),
 }
 
 impl Display for KanbanError {
@@ -41,6 +43,12 @@ impl Display for KanbanError {
             }
             KanbanError::TemplateError(template_error) => {
                 write!(f, "There was a templating error: {}", template_error)
+            }
+            KanbanError::RequestError(request_error) => {
+                write!(f, "There was a request error: {}", request_error)
+            }
+            KanbanError::GenericError(error_message) => {
+                write!(f, "Generic Error: {}", error_message)
             }
         }
     }
@@ -80,6 +88,12 @@ impl IntoResponse for KanbanError {
                 (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
             }
             KanbanError::TemplateError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
+            },
+            KanbanError::RequestError(_) => {
+                (StatusCode::BAD_REQUEST, self.to_string()).into_response()
+            }
+            KanbanError::GenericError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
             }
         }

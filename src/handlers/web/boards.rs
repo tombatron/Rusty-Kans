@@ -143,10 +143,14 @@ struct BoardRename {
     name: String,
 }
 
-async fn post_board_rename(State(state): State<ApplicationState>, Path(_board_id):Path<u64>, Form(board): Form<BoardRename>) -> Result<impl IntoResponse, KanbanError> {
+async fn post_board_rename(State(state): State<ApplicationState>, Path(board_id):Path<u64>, Form(board): Form<BoardRename>) -> Result<impl IntoResponse, KanbanError> {
+    if board_id != board.id {
+        return Err(KanbanError::RequestError(format!("Ambiguous board specified, path says `{}` and the form says `{}", board_id, board.id)));
+    }
+
     let result = sqlx::query("UPDATE boards SET name = ? WHERE board_id = ?;")
         .bind(board.name)
-        .bind(board.id as i64)
+        .bind(board_id as i64)
         .execute(&state.db)
         .await?;
 
@@ -154,5 +158,5 @@ async fn post_board_rename(State(state): State<ApplicationState>, Path(_board_id
         return Err(KanbanError::DatabaseError("Update failed please try again.".to_string()));
     }
 
-    Ok(Redirect::to(format!("/boards/{}/header", board.id).as_str()))
+    Ok(Redirect::to(format!("/boards/{}/header", board_id).as_str()))
 }

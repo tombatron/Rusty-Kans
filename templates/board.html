@@ -17,26 +17,29 @@
 {% endblock %}
 
 {% block content %}
-    <header class="board-header">
-        {{ macros::board_header(board) }}
-        <form action="/boards/{{ board.id }}/lists" method="post">
-            <input type="text" name="name" placeholder="New list&hellip;">
-            <button type="submit">+ Add List</button>
-        </form>
-    </header>
+<header class="board-header">
+    <a class="board-breadcrumb" href="/" data-turbo="false">&larr; Boards</a>
 
-    <turbo-frame id="lists" data-turbo-action="advance">
-        {% for list in lists %}
-        <div class="list" id="list-{{ list.id }}">
-            {{ macros::list_header(list) }}
+    {{ macros::board_header(board) }}
 
-            <ul id="list-cards-{{ list.id }}" data-controller="card-list" data-card-list-list-id-value="{{ list.id }}">
-                {% for card in list.cards %}
-                {{ macros::list_item(card) }}
-                {% endfor %}
-            </ul>
-            {{ macros::add_card(list.id) }}
-        </div>
-        {% endfor %}
-    </turbo-frame>
+    <form action="/boards/{{ board.id }}/lists" method="post">
+        <input type="text" name="name" placeholder="New list&hellip;">
+        <button type="submit">+ Add List</button>
+    </form>
+</header>
+
+<turbo-frame id="lists" data-turbo-action="advance">
+    {% for list in lists %}
+    <div class="list" id="list-{{ list.id }}">
+        {{ macros::list_header(list) }}
+
+        <ul id="list-cards-{{ list.id }}" data-controller="card-list" data-card-list-list-id-value="{{ list.id }}">
+            {% for card in list.cards %}
+            {{ macros::list_item(card) }}
+            {% endfor %}
+        </ul>
+        {{ macros::add_card(list.id) }}
+    </div>
+    {% endfor %}
+</turbo-frame>
 {% endblock %}
