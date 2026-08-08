@@ -1,7 +1,7 @@
 use askama::Template;
 use axum::extract::{Path, State};
 use axum::{Form, Router};
-use axum::response::{Html, IntoResponse, Redirect};
+use axum::response::{Html, Redirect};
 use axum::routing::{get, post};
 use serde::Deserialize;
 use sqlx::AssertSqlSafe;
@@ -17,6 +17,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/boards/{board_id}/edit", get(get_board_edit))
         .route("/boards/{board_id}/header", get(get_board_header))
         .route("/boards/{board_id}/rename", post(post_board_rename))
+        .route("/boards/{board_id}/delete", post(post_board_delete))
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,7 +32,7 @@ struct NewBoardTemplate {
     name: String
 }
 
-async fn post_board_form(State(state): State<ApplicationState>, Form(board): Form<CreateBoardRequest>) -> Result<impl IntoResponse, KanbanError> {
+async fn post_board_form(State(state): State<ApplicationState>, Form(board): Form<CreateBoardRequest>) -> Result<TurboStream, KanbanError> {
     let result = sqlx::query("INSERT INTO boards (name) VALUES (?);")
         .bind(&board.name)
         .execute(&state.db)
@@ -57,7 +58,7 @@ struct BoardTemplate {
 pub async fn get_board(
     State(state): State<ApplicationState>,
     Path(board_id): Path<u64>
-) -> Result<impl IntoResponse, KanbanError> {
+) -> Result<Html<String>, KanbanError> {
     let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
         .bind(board_id as i64)
         .fetch_optional(&state.db)
@@ -107,7 +108,7 @@ struct BoardHeaderEdit {
     board: Board
 }
 
-async fn get_board_edit(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<impl IntoResponse, KanbanError> {
+async fn get_board_edit(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
     let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
         .bind(board_id as i64)
         .fetch_optional(&state.db)
@@ -125,7 +126,7 @@ struct BoardHeader {
     board: Board
 }
 
-async fn get_board_header(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<impl IntoResponse, KanbanError> {
+async fn get_board_header(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
     let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
         .bind(board_id as i64)
         .fetch_optional(&state.db)
@@ -143,7 +144,7 @@ struct BoardRename {
     name: String,
 }
 
-async fn post_board_rename(State(state): State<ApplicationState>, Path(board_id):Path<u64>, Form(board): Form<BoardRename>) -> Result<impl IntoResponse, KanbanError> {
+async fn post_board_rename(State(state): State<ApplicationState>, Path(board_id):Path<u64>, Form(board): Form<BoardRename>) -> Result<Redirect, KanbanError> {
     if board_id != board.id {
         return Err(KanbanError::RequestError(format!("Ambiguous board specified, path says `{}` and the form says `{}", board_id, board.id)));
     }
@@ -159,4 +160,17 @@ async fn post_board_rename(State(state): State<ApplicationState>, Path(board_id)
     }
 
     Ok(Redirect::to(format!("/boards/{}/header", board_id).as_str()))
+}
+
+async fn post_board_delete(State(state): State<ApplicationState>, Path(board_id):Path<u64>) -> Result<Redirect, KanbanError> {
+    let result = sqlx::query("DELETE FROM boards WHERE board_id = ?;")
+        .bind(board_id as i64)
+        .execute(&state.db)
+        .await?;
+
+    if result.rows_affected() != 1 {
+        return Err(KanbanError::BoardNotFound(board_id));
+    }
+
+    Ok(Redirect::to("/"))
 }
