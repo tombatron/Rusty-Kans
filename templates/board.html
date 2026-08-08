@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% import "macros.html" as macros %}
 
-{% block title %}Board &mdash; {{ name }} ({{ id }}){% endblock %}
+{% block title %}Board &mdash; {{ board.name }} ({{ board.id }}){% endblock %}
 
 {% block head %}
 <script>
@@ -18,11 +18,8 @@
 
 {% block content %}
     <header class="board-header">
-        <div>
-            <a class="board-breadcrumb" href="/">&larr; Boards</a>
-            <h1 class="board-title">{{ name }}</h1>
-        </div>
-        <form action="/boards/{{ id }}/lists" method="post">
+        {{ macros::board_header(board) }}
+        <form action="/boards/{{ board.id }}/lists" method="post">
             <input type="text" name="name" placeholder="New list&hellip;">
             <button type="submit">+ Add List</button>
         </form>

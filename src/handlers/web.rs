@@ -1,3 +1,5 @@
+pub mod boards;
+
 use crate::errors::KanbanError;
 use crate::handlers::{create_card_common, create_list_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest, CreateListRequest};
 use crate::models::{Board, Card, CardMoveEvent, List};
@@ -8,21 +10,22 @@ use axum::extract::{Path, State};
 use axum::response::{Html, IntoResponse, Redirect};
 use axum::routing::{get, post};
 use axum::{Form, Router};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::AssertSqlSafe;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
         .route("/", get(get_landing))
+
         .route("/boards", post(post_board_form))
         .route("/boards/{board_id}", get(get_board))
+        .route("/boards/{board_id}/edit", get(get_board_edit))
+        .route("/boards/{board_id}/header", get(get_board_header))
+        .route("/boards/{board_id}/rename", post(post_board_rename))
 
         .route("/boards/{board_id}/lists", post(post_list_form))
         .route("/lists/{list_id}/cards", post(post_card_form))
-        .route(
-            "/lists/{list_id}/cards/{card_id}/move",
-            post(post_move_card_action),
-        )
+        .route("/lists/{list_id}/cards/{card_id}/move", post(post_move_card_action))
         .route("/lists/{list_id}/cards/{card_id}/delete", post(delete_card_form))
 
         .route("/lists/{list_id}/edit", get(get_list_edit))
@@ -78,13 +81,10 @@ async fn post_board_form(State(state): State<ApplicationState>, Form(board): For
     Ok(TurboStream(template.render()?))
 }
 
-
-
 #[derive(Debug, Template)]
 #[template(path = "board.html")]
 struct BoardTemplate {
-    id: u64,
-    name: String,
+    board: Board,
     lists: Vec<List>,
 }
 
@@ -94,8 +94,9 @@ pub async fn get_board(
 ) -> Result<impl IntoResponse, KanbanError> {
     let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
         .bind(board_id as i64)
-        .fetch_one(&state.db)
-        .await?;
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(KanbanError::BoardNotFound(board_id))?;
 
     let mut lists: Vec<List> =
         sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE board_id = ?")
@@ -127,12 +128,67 @@ pub async fn get_board(
     }
 
     let response_template = BoardTemplate {
-        id: board.id,
-        name: board.name,
+        board,
         lists,
     };
 
     Ok(Html(response_template.render()?))
+}
+
+#[derive(Debug, Template)]
+#[template(path = "turbo_board_title_edit.html")]
+struct BoardHeaderEdit {
+    board: Board
+}
+
+async fn get_board_edit(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<impl IntoResponse, KanbanError> {
+    let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
+        .bind(board_id as i64)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(KanbanError::BoardNotFound(board_id))?;
+
+    let template = BoardHeaderEdit { board };
+
+    Ok(Html(template.render()?))
+}
+
+#[derive(Debug, Template)]
+#[template(path = "turbo_board_title.html")]
+struct BoardHeader {
+    board: Board
+}
+
+async fn get_board_header(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<impl IntoResponse, KanbanError> {
+    let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
+        .bind(board_id as i64)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(KanbanError::BoardNotFound(board_id))?;
+
+    let template = BoardHeader { board };
+
+    Ok(Html(template.render()?))
+}
+
+#[derive(Debug, Deserialize)]
+struct BoardRename {
+    id: u64,
+    name: String,
+}
+
+async fn post_board_rename(State(state): State<ApplicationState>, Path(_board_id):Path<u64>, Form(board): Form<BoardRename>) -> Result<impl IntoResponse, KanbanError> {
+    let result = sqlx::query("UPDATE boards SET name = ? WHERE board_id = ?;")
+        .bind(board.name)
+        .bind(board.id as i64)
+        .execute(&state.db)
+        .await?;
+
+    if result.rows_affected() != 1 {
+        return Err(KanbanError::DatabaseError("Update failed please try again.".to_string()));
+    }
+
+    Ok(Redirect::to(format!("/boards/{}/header", board.id).as_str()))
 }
 
 pub async fn post_list_form(
