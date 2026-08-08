@@ -1,22 +1,21 @@
 use crate::errors::KanbanError;
 use crate::handlers::{create_card_common, create_list_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest, CreateListRequest};
 use crate::middleware::require_auth;
+use crate::models::{Board, Card, List};
 use crate::state::ApplicationState;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
+use axum::response::Redirect;
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
-use axum::response::Redirect;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use sqlx::Row;
-use crate::models::Card;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
-        .route("/api/board", get(get_board))
+        .route("/api/board/{board_id}", get(get_board))
         .route("/api/lists/{id}", get(get_list_by_id))
-        .route("/api/lists", post(post_list))
+        .route("/api/board/{board_id}/lists", post(post_list))
         .route("/api/lists/{id}/cards", post(post_card))
         .route("/api/lists/{list_id}/cards/{card_id}/move", post(post_move_card))
         .route("/api/lists/{list_id}/cards/{card_id}", delete(delete_card))
@@ -27,29 +26,25 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .layer(axum::middleware::from_fn(require_auth))
 }
 
-pub async fn get_board(State(state): State<ApplicationState>) -> Result<Json<Value>, KanbanError> {
-    let board = sqlx::query("SELECT board_id, name FROM boards WHERE board_id = 1;")
+pub async fn get_board(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<Json<Value>, KanbanError> {
+    let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
+        .bind(board_id as i64)
         .fetch_one(&state.db)
         .await?;
 
-    let lists = sqlx::query("SELECT list_id, name FROM lists WHERE board_id = ?")
-        .bind(board.get::<i64, _>("board_id"))
+    let lists = sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE board_id = ?")
+        .bind(board_id as i64)
         .fetch_all(&state.db)
         .await?;
 
     let lists_json: Vec<Value> = lists
         .iter()
-        .map(|l| {
-            json!({
-                "id": l.get::<i64, _>("list_id"),
-                "name": l.get::<String, _>("name")
-            })
-        })
+        .map(|l| json!(l))
         .collect();
 
     Ok(Json(json!({
-        "id": board.get::<i64, _>("board_id"),
-        "name": board.get::<String, _>("name"),
+        "id": board.id,
+        "name": board.name,
         "lists": lists_json
     })))
 }
@@ -58,13 +53,13 @@ pub async fn get_list_by_id(
     State(state): State<ApplicationState>,
     Path(id): Path<u64>,
 ) -> Result<Json<Value>, KanbanError> {
-    let list = sqlx::query("SELECT list_id, board_id, name FROM lists WHERE list_id = ?")
+    let list = sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE list_id = ?")
         .bind(id as i64)
         .fetch_optional(&state.db)
         .await?
         .ok_or(KanbanError::ListNotFound(id))?;
 
-    let cards = sqlx::query(
+    let cards = sqlx::query_as::<_, Card>(
         "SELECT card_id, list_id, title, description, status FROM cards WHERE list_id = ?",
     )
         .bind(id as i64)
@@ -73,31 +68,23 @@ pub async fn get_list_by_id(
 
     let cards_json: Vec<Value> = cards
         .iter()
-        .map(|c| {
-            json!({
-                "card_id": c.get::<i64, _>("card_id"),
-                "title": c.get::<String, _>("title"),
-                "description": c.get::<Option<String>, _>("description"),
-                "status": c.get::<String, _>("status")
-            })
-        })
+        .map(|c| json!(c))
         .collect();
 
     Ok(Json(json!({
-        "list_id": list.get::<i64, _>("list_id"),
-        "board_id": list.get::<i64, _>("board_id"),
-        "name": list.get::<String, _>("name"),
+        "list_id": list.id,
+        "board_id": list.board_id,
+        "name": list.name,
         "cards": cards_json
     })))
 }
 
-
-
 pub async fn post_list(
     State(state): State<ApplicationState>,
+    Path(board_id): Path<u64>,
     Json(list): Json<CreateListRequest>,
 ) -> Result<Json<Value>, KanbanError> {
-    let created_list = create_list_common(State(state), list).await?;
+    let created_list = create_list_common(State(state), board_id, list).await?;
 
     Ok(Json(json!(created_list)))
 }
@@ -125,7 +112,7 @@ pub async fn get_card_by_id(
     State(state): State<ApplicationState>,
     Path(card_id): Path<u64>,
 ) -> Result<Json<Value>, KanbanError> {
-    let card_result = sqlx::query(
+    let card_result = sqlx::query_as::<_, Card>(
         "SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;",
     )
         .bind(card_id as i64)
@@ -133,13 +120,7 @@ pub async fn get_card_by_id(
         .await?
         .ok_or(KanbanError::CardNotFound(card_id))?;
 
-    Ok(Json(json!({
-        "card_id": card_result.get::<i64, _>("card_id"),
-        "list_id": card_result.get::<i64, _>("list_id"),
-        "title": card_result.get::<String, _>("title"),
-        "description": card_result.get::<Option<String>, _>("description"),
-        "status": card_result.get::<String, _>("status")
-    })))
+    Ok(Json(json!(card_result)))
 }
 
 #[derive(Deserialize)]
@@ -151,7 +132,7 @@ pub async fn get_card_search(
     State(state): State<ApplicationState>,
     Query(search_query): Query<SearchQuery>,
 ) -> Result<Json<Value>, KanbanError> {
-    let search_result = sqlx::query(
+    let search_result = sqlx::query_as::<_, Card>(
         "SELECT card_id, list_id, title, description, status FROM cards WHERE title LIKE ?;",
     )
         .bind(format!("%{}%", &search_query.keyword))
@@ -160,15 +141,7 @@ pub async fn get_card_search(
 
     let cards = search_result
         .iter()
-        .map(|c| {
-            json!({
-                "card_id": c.get::<i64, _>("card_id"),
-                "list_id": c.get::<i64, _>("list_id"),
-                "title": c.get::<String, _>("title"),
-                "description": c.get::<Option<String>, _>("description"),
-                "status": c.get::<String, _>("status")
-            })
-        })
+        .map(|c| json!(c))
         .collect();
 
     Ok(Json(cards))

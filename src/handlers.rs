@@ -24,10 +24,12 @@ pub struct CreateListRequest {
 
 async fn create_list_common(
     State(state): State<ApplicationState>,
+    board_id: u64,
     list_info: CreateListRequest,
 ) -> Result<ListItemTemplate, KanbanError> {
     let insert_list_result =
-        sqlx::query("INSERT INTO lists (board_id, name) SELECT board_id, ? FROM boards LIMIT 1;")
+        sqlx::query("INSERT INTO lists (board_id, name) VALUES (?, ?);")
+            .bind(board_id as i64)
             .bind(&list_info.name)
             .execute(&state.db)
             .await?;

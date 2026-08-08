@@ -49,6 +49,18 @@ body > div {
     white-space: nowrap;
 }
 
+.board-breadcrumb {
+    font-size: small;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+
+.board-breadcrumb:hover  {
+    color: var(--accent)
+}
+
+
 /* ── Form ─────────────────────────────────────────── */
 form { display: flex; gap: 0.5rem; }
 

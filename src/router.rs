@@ -52,7 +52,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/api/board")
+                    .uri("/api/board/1")
                     .body(Body::empty())
                     .unwrap()
             )
@@ -70,7 +70,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/api/board")
+                    .uri("/api/board/1")
                     .header("Authorization", "Bearer super-secret")
                     .body(Body::empty())
                     .unwrap()
@@ -90,6 +90,24 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .uri("/")
+                    .body(Body::empty())
+                    .unwrap()
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn board_view_returns_200() {
+        let state = create_application_state().await;
+        let app = create_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/boards/1")
                     .body(Body::empty())
                     .unwrap()
             )

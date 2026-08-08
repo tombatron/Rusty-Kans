@@ -30,6 +30,7 @@ impl Display for Card {
 pub struct List {
     #[sqlx(rename = "list_id")]
     pub id: u64,
+    pub board_id: u64,
     pub name: String,
     #[sqlx(skip)]
     pub cards: Vec<Card>,

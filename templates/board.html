@@ -18,8 +18,11 @@
 
 {% block content %}
     <header class="board-header">
-        <h1 class="board-title">{{ name }}</h1>
-        <form action="/lists" method="post">
+        <div>
+            <a class="board-breadcrumb" href="/">&larr; Boards</a>
+            <h1 class="board-title">{{ name }}</h1>
+        </div>
+        <form action="/boards/{{ id }}/lists" method="post">
             <input type="text" name="name" placeholder="New list&hellip;">
             <button type="submit">+ Add List</button>
         </form>

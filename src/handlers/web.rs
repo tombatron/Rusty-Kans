@@ -9,7 +9,7 @@ use axum::response::{Html, IntoResponse, Redirect};
 use axum::routing::{get, post};
 use axum::{Form, Router};
 use serde::Deserialize;
-use sqlx::{AssertSqlSafe, Row};
+use sqlx::AssertSqlSafe;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -17,7 +17,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/boards", post(post_board_form))
         .route("/boards/{board_id}", get(get_board))
 
-        .route("/lists", post(post_list_form))
+        .route("/boards/{board_id}/lists", post(post_list_form))
         .route("/lists/{list_id}/cards", post(post_card_form))
         .route(
             "/lists/{list_id}/cards/{card_id}/move",
@@ -67,9 +67,9 @@ async fn post_board_form(State(state): State<ApplicationState>, Form(board): For
         .bind(&board.name)
         .execute(&state.db)
         .await?;
-    
+
     let board_id = result.last_insert_rowid();
-    
+
     let template = NewBoardTemplate {
         id: board_id as u64,
         name: board.name,
@@ -92,52 +92,55 @@ pub async fn get_board(
     State(state): State<ApplicationState>,
     Path(board_id): Path<u64>
 ) -> Result<impl IntoResponse, KanbanError> {
-    let board = sqlx::query("SELECT board_id, name FROM boards WHERE board_id = ?;")
+    let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
         .bind(board_id as i64)
         .fetch_one(&state.db)
         .await?;
 
     let mut lists: Vec<List> =
-        sqlx::query_as::<_, List>("SELECT list_id, name FROM lists WHERE board_id = ?")
-            .bind(board.get::<i64, _>("board_id"))
+        sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE board_id = ?")
+            .bind(board.id as i64)
             .fetch_all(&state.db)
             .await?;
 
-    let list_ids_placeholders = lists.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
-    let query_text = format!(
-        "SELECT card_id, list_id, title, description, status FROM cards WHERE list_id in ({})",
-        list_ids_placeholders
-    );
-    let mut query = sqlx::query_as::<_, Card>(AssertSqlSafe(query_text));
+    if !lists.is_empty() {
+        let list_ids_placeholders = lists.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let query_text = format!(
+            "SELECT card_id, list_id, title, description, status FROM cards WHERE list_id in ({})",
+            list_ids_placeholders
+        );
+        let mut query = sqlx::query_as::<_, Card>(AssertSqlSafe(query_text));
 
-    for id in &lists {
-        query = query.bind(id.id as i64);
-    }
+        for id in &lists {
+            query = query.bind(id.id as i64);
+        }
 
-    let cards: Vec<Card> = query.fetch_all(&state.db).await?;
+        let cards: Vec<Card> = query.fetch_all(&state.db).await?;
 
-    for l in lists.iter_mut() {
-        l.cards = cards
-            .iter()
-            .filter(|c| c.list_id == l.id)
-            .cloned()
-            .collect()
+        for l in lists.iter_mut() {
+            l.cards = cards
+                .iter()
+                .filter(|c| c.list_id == l.id)
+                .cloned()
+                .collect()
+        }
     }
 
     let response_template = BoardTemplate {
-        id: board.get::<u64, _>("board_id"),
-        name: board.get::<String, _>("name"),
+        id: board.id,
+        name: board.name,
         lists,
     };
 
-    Ok(response_template.render()?)
+    Ok(Html(response_template.render()?))
 }
 
 pub async fn post_list_form(
     State(state): State<ApplicationState>,
+    Path(board_id): Path<u64>,
     Form(list_info): Form<CreateListRequest>,
 ) -> Result<TurboStream, KanbanError> {
-    let created_list = create_list_common(State(state), list_info).await?;
+    let created_list = create_list_common(State(state), board_id, list_info).await?;
 
     Ok(TurboStream(created_list.render()?))
 }
