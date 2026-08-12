@@ -84,3 +84,8 @@ pub struct BoardWithCards {
     pub board: Board,
     pub lists: Vec<List>,
 }
+
+pub struct ListWithCards {
+    pub list: List,
+    pub cards: Vec<Card>,
+}

@@ -1,13 +1,27 @@
 use crate::errors::KanbanError;
+use crate::models::{Board, BoardWithCards, Card, List, ListWithCards};
 use sqlx::{AssertSqlSafe, SqlitePool};
-use crate::models::{Board, BoardWithCards, Card, List};
 
 pub async fn get_card(db: &SqlitePool, card_id: u64) -> Result<Card, KanbanError> {
-    Ok(sqlx::query_as::<_, Card>("SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;")
-        .bind(card_id as i64)
-        .fetch_optional(db)
-        .await?
-        .ok_or(KanbanError::CardNotFound(card_id))?)
+    Ok(sqlx::query_as::<_, Card>(
+        "SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;",
+    )
+    .bind(card_id as i64)
+    .fetch_optional(db)
+    .await?
+    .ok_or(KanbanError::CardNotFound(card_id))?)
+}
+
+pub async fn get_cards_by_title_submatch(
+    db: &SqlitePool,
+    query: String,
+) -> Result<Vec<Card>, KanbanError> {
+    Ok(sqlx::query_as::<_, Card>(
+        "SELECT card_id, list_id, title, description, status FROM cards WHERE title LIKE ?;",
+    )
+    .bind(format!("%{}%", query))
+    .fetch_all(db)
+    .await?)
 }
 
 pub async fn insert_board(db: &SqlitePool, board_name: &String) -> Result<u64, KanbanError> {
@@ -17,19 +31,24 @@ pub async fn insert_board(db: &SqlitePool, board_name: &String) -> Result<u64, K
         .await?;
 
     let board_id = result.last_insert_rowid();
-    
+
     Ok(board_id as u64)
 }
 
 pub async fn get_board(db: &SqlitePool, board_id: u64) -> Result<Board, KanbanError> {
-    Ok(sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
-        .bind(board_id as i64)
-        .fetch_optional(db)
-        .await?
-        .ok_or(KanbanError::BoardNotFound(board_id))?)
+    Ok(
+        sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
+            .bind(board_id as i64)
+            .fetch_optional(db)
+            .await?
+            .ok_or(KanbanError::BoardNotFound(board_id))?,
+    )
 }
 
-pub async fn get_board_with_lists(db: &SqlitePool, board_id: u64) -> Result<BoardWithCards, KanbanError> {
+pub async fn get_board_with_lists(
+    db: &SqlitePool,
+    board_id: u64,
+) -> Result<BoardWithCards, KanbanError> {
     let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
         .bind(board_id as i64)
         .fetch_optional(db)
@@ -64,12 +83,9 @@ pub async fn get_board_with_lists(db: &SqlitePool, board_id: u64) -> Result<Boar
                 .collect()
         }
     }
-    
-    let result = BoardWithCards {
-        board,
-        lists,
-    };
-    
+
+    let result = BoardWithCards { board, lists };
+
     Ok(result)
 }
 
@@ -82,21 +98,48 @@ pub async fn delete_board(db: &SqlitePool, board_id: u64) -> Result<u64, KanbanE
     Ok(result.rows_affected())
 }
 
-pub async fn update_board(db: &SqlitePool, board_id: u64, name: String) -> Result<u64, KanbanError> {
+pub async fn update_board(
+    db: &SqlitePool,
+    board_id: u64,
+    name: String,
+) -> Result<u64, KanbanError> {
     let result = sqlx::query("UPDATE boards SET name = ? WHERE board_id = ?;")
-           .bind(&name)
-           .bind(board_id as i64)
-           .execute(db)
-           .await?;
+        .bind(&name)
+        .bind(board_id as i64)
+        .execute(db)
+        .await?;
 
     Ok(result.rows_affected())
 }
 
 pub async fn get_list_header(db: &SqlitePool, list_id: u64) -> Result<List, KanbanError> {
-    Ok(sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE list_id = ?;")
-        .bind(list_id as i64)
-        .fetch_one(db)
-        .await?)
+    Ok(
+        sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE list_id = ?;")
+            .bind(list_id as i64)
+            .fetch_one(db)
+            .await?,
+    )
+}
+
+pub async fn get_list_with_card(
+    db: &SqlitePool,
+    list_id: u64,
+) -> Result<ListWithCards, KanbanError> {
+    let list =
+        sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE list_id = ?")
+            .bind(list_id as i64)
+            .fetch_optional(db)
+            .await?
+            .ok_or(KanbanError::ListNotFound(list_id))?;
+
+    let cards = sqlx::query_as::<_, Card>(
+        "SELECT card_id, list_id, title, description, status FROM cards WHERE list_id = ?",
+    )
+    .bind(list_id as i64)
+    .fetch_all(db)
+    .await?;
+
+    Ok(ListWithCards { list, cards })
 }
 
 pub async fn delete_list(db: &SqlitePool, list_id: u64) -> Result<u64, KanbanError> {
@@ -104,7 +147,7 @@ pub async fn delete_list(db: &SqlitePool, list_id: u64) -> Result<u64, KanbanErr
         .bind(list_id as i64)
         .execute(db)
         .await?;
-    
+
     Ok(result.rows_affected())
 }
 
@@ -114,6 +157,6 @@ pub async fn update_list(db: &SqlitePool, list_id: u64, name: String) -> Result<
         .bind(list_id as i64)
         .execute(db)
         .await?;
-    
+
     Ok(result.rows_affected())
 }
