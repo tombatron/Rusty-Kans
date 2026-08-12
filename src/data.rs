@@ -1,5 +1,5 @@
 use crate::errors::KanbanError;
-use crate::models::{Board, BoardWithCards, Card, List, ListWithCards};
+use crate::models::{Board, BoardWithCards, Card, List, ListWithCards, Status};
 use sqlx::{AssertSqlSafe, SqlitePool};
 
 pub async fn get_card(db: &SqlitePool, card_id: u64) -> Result<Card, KanbanError> {
@@ -42,6 +42,14 @@ pub async fn get_board(db: &SqlitePool, board_id: u64) -> Result<Board, KanbanEr
             .fetch_optional(db)
             .await?
             .ok_or(KanbanError::BoardNotFound(board_id))?,
+    )
+}
+
+pub async fn get_all_boards(db: &SqlitePool) -> Result<Vec<Board>, KanbanError> {
+    Ok(
+        sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards;")
+            .fetch_all(db)
+            .await?
     )
 }
 
@@ -140,6 +148,58 @@ pub async fn get_list_with_card(
     .await?;
 
     Ok(ListWithCards { list, cards })
+}
+
+pub async fn delete_card(db: &SqlitePool, card_id: u64) -> Result<u64, KanbanError> {
+    let result = sqlx::query("DELETE FROM cards WHERE card_id = ?")
+        .bind(card_id as i64)
+        .execute(db)
+        .await?;
+    
+    Ok(result.rows_affected())
+}
+
+pub async fn insert_card(db: &SqlitePool, list_id: u64, title: &String, description: &Option<String>) -> Result<u64, KanbanError> {
+    let result = sqlx::query("INSERT INTO cards (list_id, title, description) VALUES (?, ?, ?);")
+        .bind(list_id as i64)
+        .bind(title)
+        .bind(description)
+        .execute(db)
+        .await?;
+    
+    Ok(result.last_insert_rowid() as u64)
+}
+
+pub async fn update_card(db: &SqlitePool, card_id: u64, title: String, description: Option<String>, status: Status) -> Result<u64, KanbanError> {
+    let result = sqlx::query("UPDATE cards SET title = ?, description = ?, status = ? WHERE card_id = ?;")
+        .bind(title)
+        .bind(description)
+        .bind(status)
+        .bind(card_id as i64)
+        .execute(db)
+        .await?;
+    
+    Ok(result.rows_affected())
+}
+
+pub async fn update_card_list(db: &SqlitePool, target_list_id: u64, card_id: u64) -> Result<u64, KanbanError> {
+    let result = sqlx::query("UPDATE cards SET list_id = ? WHERE card_id = ?;")
+        .bind(target_list_id as i64)
+        .bind(card_id as i64)
+        .execute(db)
+        .await?;
+    
+    Ok(result.rows_affected())
+}
+
+pub async fn insert_list(db: &SqlitePool, board_id: u64, list_name: &String) -> Result<u64, KanbanError> {
+    let result = sqlx::query("INSERT INTO lists (board_id, name) VALUES (?, ?);")
+        .bind(board_id as i64)
+        .bind(list_name)
+        .execute(db)
+        .await?;
+    
+    Ok(result.last_insert_rowid() as u64)
 }
 
 pub async fn delete_list(db: &SqlitePool, list_id: u64) -> Result<u64, KanbanError> {

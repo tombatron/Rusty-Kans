@@ -1,6 +1,7 @@
 use askama::Template;
 use axum::extract::State;
 use serde::{Deserialize, Serialize};
+use crate::data;
 use crate::errors::KanbanError;
 use crate::models::{Card, Status};
 use crate::state::ApplicationState;
@@ -27,27 +28,16 @@ async fn create_list_common(
     board_id: u64,
     list_info: CreateListRequest,
 ) -> Result<ListItemTemplate, KanbanError> {
-    let insert_list_result =
-        sqlx::query("INSERT INTO lists (board_id, name) VALUES (?, ?);")
-            .bind(board_id as i64)
-            .bind(&list_info.name)
-            .execute(&state.db)
-            .await?;
-
-    let list_id = insert_list_result.last_insert_rowid();
+    let list_id = data::insert_list(&state.db, board_id, &list_info.name).await?;
 
     Ok(ListItemTemplate {
-        id: list_id as u64,
+        id: list_id,
         name: list_info.name,
     })
 }
 
 async fn move_card_common(State(state): State<ApplicationState>, list_id: u64, card_id: u64) -> Result<(), KanbanError> {
-    sqlx::query("UPDATE cards SET list_id = ? WHERE card_id = ?;")
-        .bind(list_id as i64)
-        .bind(card_id as i64)
-        .execute(&state.db)
-        .await?;
+    data::update_card_list(&state.db, list_id, card_id).await?;
 
     Ok(())
 }
@@ -59,17 +49,10 @@ pub struct CreateCardRequest {
 }
 
 async fn create_card_common(State(state): State<ApplicationState>, list_id: u64, card: CreateCardRequest) -> Result<Card, KanbanError> {
-    let result = sqlx::query("INSERT INTO cards (list_id, title, description) VALUES (?, ?, ?);")
-        .bind(list_id as i64)
-        .bind(&card.title)
-        .bind(&card.description)
-        .execute(&state.db)
-        .await?;
-
-    let card_id = result.last_insert_rowid();
+    let card_id = data::insert_card(&state.db, list_id, &card.title, &card.description).await?;
 
     Ok(Card {
-        id: card_id as u64,
+        id: card_id,
         list_id,
         title: card.title,
         description: card.description,
@@ -78,24 +61,15 @@ async fn create_card_common(State(state): State<ApplicationState>, list_id: u64,
 }
 
 async fn delete_card_common(State(state): State<ApplicationState>, card_id: u64) -> Result<(), KanbanError> {
-    sqlx::query("DELETE FROM cards WHERE card_id = ?")
-        .bind(card_id as i64)
-        .execute(&state.db)
-        .await?;
+    data::delete_card(&state.db, card_id).await?;
 
     Ok(())
 }
 
 async fn patch_card_common(State(state): State<ApplicationState>, card: Card) -> Result<(), KanbanError> {
-    let update_result = sqlx::query("UPDATE cards SET title = ?, description = ?, status = ? WHERE card_id = ?;")
-        .bind(card.title)
-        .bind(card.description)
-        .bind(card.status)
-        .bind(card.id as i64)
-        .execute(&state.db)
-        .await?;
+    let result = data::update_card(&state.db, card.id, card.title, card.description, card.status).await?;
 
-    if update_result.rows_affected() != 1 {
+    if result != 1 {
         return Err(KanbanError::DatabaseError("Update failed. Refresh and try again.".to_string()));
     }
 

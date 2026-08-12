@@ -10,6 +10,7 @@ use axum::extract::State;
 use axum::response::{Html, IntoResponse};
 use axum::routing::get;
 use axum::Router;
+use crate::data;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -27,9 +28,7 @@ struct LandingTemplate {
 }
 
 async fn get_landing(State(state): State<ApplicationState>) -> Result<impl IntoResponse, KanbanError> {
-    let boards = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards;")
-        .fetch_all(&state.db)
-        .await?;
+    let boards = data::get_all_boards(&state.db).await?;
 
     let template = LandingTemplate { boards };
     
