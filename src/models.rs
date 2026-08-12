@@ -79,3 +79,8 @@ pub struct CardMoveEvent {
     pub to_list_id: u64,
     pub card: Card,
 }
+
+pub struct BoardWithCards {
+    pub board: Board,
+    pub lists: Vec<List>,
+}

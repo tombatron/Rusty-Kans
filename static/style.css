@@ -31,6 +31,37 @@ body > div {
 }
 
 /* ── Board header ─────────────────────────────────── */
+.boards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.board-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.board-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+}
+
+.board-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.board-card-header:hover .board-actions { opacity: 1; }
+
 .board-header {
     display: flex;
     align-items: center;
@@ -60,6 +91,39 @@ body > div {
     color: var(--accent)
 }
 
+.board-name {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.board-name:hover { color: var(--accent); }
+
+.board-edit-btn,
+button.board-delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    text-decoration: none;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.board-edit-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+button.board-delete-btn:hover { background: rgba(220,50,50,0.12); color: #e05555; }
+.board-edit-btn svg, button.board-delete-btn svg { width: 13px; height: 13px; }
 
 /* ── Form ─────────────────────────────────────────── */
 form { display: flex; gap: 0.5rem; }
@@ -392,3 +456,61 @@ button.card-delete-btn {
 .list ul li:hover button.card-delete-btn { opacity: 1; }
 button.card-delete-btn:hover { background: rgba(220,50,50,0.12); color: #e05555; }
 button.card-delete-btn svg { width: 13px; height: 13px; }
+
+.delete-dialog {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    padding: 1.5rem;
+    max-width: 360px;
+    width: 100%;
+}
+
+.delete-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+}
+
+.delete-dialog p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+}
+
+.delete-dialog strong { color: var(--text); }
+
+.delete-dialog input[type="text"] {
+    width: 100%;
+    margin-bottom: 1rem;
+    box-sizing: border-box;
+}
+
+.dialog-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.btn-danger {
+    background: rgba(220, 50, 50, 0.15);
+    border: 1px solid rgba(220, 50, 50, 0.3);
+    border-radius: var(--radius);
+    color: #e05555;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: rgba(220, 50, 50, 0.25);
+    border-color: rgba(220, 50, 50, 0.5);
+}
+
+.btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }

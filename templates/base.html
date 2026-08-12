@@ -53,6 +53,8 @@
     <div>
         {% block content %}{% endblock %}
     </div>
+    {% block bottom_scripts %}
+    {% endblock %}
     <script>
         document.addEventListener("DOMContentLoaded", () => lucide.createIcons());
         document.addEventListener("turbo:render", () => lucide.createIcons());

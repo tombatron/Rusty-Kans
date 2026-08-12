@@ -3,9 +3,26 @@
 {% import "macros.html" as macros %}
 
 {% block content %}
-<ul>
+<form action="/boards" method="post">
+    <input type="text" name="name" placeholder="New board&hellip;">
+    <button type="submit">+ Add Board</button>
+</form>
+
+<div id="boards" class="boards-grid">
     {% for board in boards %}
     {{ macros::board_item(board.id, board.name) }}
     {% endfor %}
-</ul>
+</div>
+{% endblock %}
+
+{% block bottom_scripts %}
+<script>
+    document.addEventListener('input', e => {
+        if (!e.target.matches('[id^="delete-input-"]')) return;
+        const boardId = e.target.id.replace('delete-input-', '');
+        const btn = document.getElementById(`delete-confirm-${boardId}`);
+        const expected = document.querySelector(`#delete-dialog-${boardId} strong`).textContent;
+        btn.disabled = e.target.value !== expected;
+    });
+</script>
 {% endblock %}

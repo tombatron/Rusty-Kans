@@ -4,7 +4,7 @@ use axum::{Form, Router};
 use axum::response::{Html, Redirect};
 use axum::routing::{get, post};
 use serde::Deserialize;
-use sqlx::AssertSqlSafe;
+use crate::data;
 use crate::errors::KanbanError;
 use crate::models::{Board, Card, List};
 use crate::state::ApplicationState;
@@ -33,12 +33,7 @@ struct NewBoardTemplate {
 }
 
 async fn post_board_form(State(state): State<ApplicationState>, Form(board): Form<CreateBoardRequest>) -> Result<TurboStream, KanbanError> {
-    let result = sqlx::query("INSERT INTO boards (name) VALUES (?);")
-        .bind(&board.name)
-        .execute(&state.db)
-        .await?;
-
-    let board_id = result.last_insert_rowid();
+    let board_id = data::insert_board(&state.db, &board.name).await?;
 
     let template = NewBoardTemplate {
         id: board_id as u64,
@@ -59,44 +54,11 @@ pub async fn get_board(
     State(state): State<ApplicationState>,
     Path(board_id): Path<u64>
 ) -> Result<Html<String>, KanbanError> {
-    let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
-        .bind(board_id as i64)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(KanbanError::BoardNotFound(board_id))?;
-
-    let mut lists: Vec<List> =
-        sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE board_id = ?")
-            .bind(board.id as i64)
-            .fetch_all(&state.db)
-            .await?;
-
-    if !lists.is_empty() {
-        let list_ids_placeholders = lists.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
-        let query_text = format!(
-            "SELECT card_id, list_id, title, description, status FROM cards WHERE list_id in ({})",
-            list_ids_placeholders
-        );
-        let mut query = sqlx::query_as::<_, Card>(AssertSqlSafe(query_text));
-
-        for id in &lists {
-            query = query.bind(id.id as i64);
-        }
-
-        let cards: Vec<Card> = query.fetch_all(&state.db).await?;
-
-        for l in lists.iter_mut() {
-            l.cards = cards
-                .iter()
-                .filter(|c| c.list_id == l.id)
-                .cloned()
-                .collect()
-        }
-    }
+    let board = data::get_board_with_lists(&state.db, board_id).await?;
 
     let response_template = BoardTemplate {
-        board,
-        lists,
+        board: board.board,
+        lists: board.lists,
     };
 
     Ok(Html(response_template.render()?))
@@ -109,11 +71,7 @@ struct BoardHeaderEdit {
 }
 
 async fn get_board_edit(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
-    let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
-        .bind(board_id as i64)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(KanbanError::BoardNotFound(board_id))?;
+    let board = data::get_board(&state.db, board_id).await?;
 
     let template = BoardHeaderEdit { board };
 
@@ -127,11 +85,7 @@ struct BoardHeader {
 }
 
 async fn get_board_header(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
-    let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
-        .bind(board_id as i64)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(KanbanError::BoardNotFound(board_id))?;
+    let board = data::get_board(&state.db, board_id).await?;
 
     let template = BoardHeader { board };
 
@@ -149,13 +103,9 @@ async fn post_board_rename(State(state): State<ApplicationState>, Path(board_id)
         return Err(KanbanError::RequestError(format!("Ambiguous board specified, path says `{}` and the form says `{}", board_id, board.id)));
     }
 
-    let result = sqlx::query("UPDATE boards SET name = ? WHERE board_id = ?;")
-        .bind(board.name)
-        .bind(board_id as i64)
-        .execute(&state.db)
-        .await?;
+    let result = data::update_board(&state.db, board_id, board.name).await?;
 
-    if result.rows_affected() != 1 {
+    if result != 1 {
         return Err(KanbanError::DatabaseError("Update failed please try again.".to_string()));
     }
 
@@ -163,12 +113,9 @@ async fn post_board_rename(State(state): State<ApplicationState>, Path(board_id)
 }
 
 async fn post_board_delete(State(state): State<ApplicationState>, Path(board_id):Path<u64>) -> Result<Redirect, KanbanError> {
-    let result = sqlx::query("DELETE FROM boards WHERE board_id = ?;")
-        .bind(board_id as i64)
-        .execute(&state.db)
-        .await?;
+    let result = data::delete_board(&state.db, board_id).await?;
 
-    if result.rows_affected() != 1 {
+    if result != 1 {
         return Err(KanbanError::BoardNotFound(board_id));
     }
 

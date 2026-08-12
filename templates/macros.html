@@ -58,7 +58,37 @@ selected
 {% endmacro %}
 
 {% macro board_item(id, name) %}
-<li><a href="/boards/{{ id }}">{{ name }}</a></li>
+<div class="board-card" id="board-{{ id }}">
+
+    <!-- turbo-frame: the rename-able header -->
+    <turbo-frame id="board-title-{{ id }}" class="board-card-header">
+        <a href="/boards/{{ id }}" class="board-name" data-turbo-frame="_top">{{ name }}</a>
+        <div class="board-actions">
+            <a href="/boards/{{ id }}/edit" class="board-edit-btn">
+                <i data-lucide="pencil-line"></i>
+            </a>
+            <button type="button" class="board-delete-btn"
+                    onclick="document.getElementById('delete-dialog-{{ id }}').showModal()">
+                <i data-lucide="trash-2"></i>
+            </button>
+        </div>
+    </turbo-frame>
+
+    <!-- dialog lives outside the frame so rename doesn't wipe it -->
+    <dialog id="delete-dialog-{{ id }}" class="delete-dialog">
+        <p>Type <strong>{{ name }}</strong> to confirm deletion.</p>
+        <input type="text" id="delete-input-{{ id }}" autocomplete="off">
+        <div class="dialog-actions">
+            <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+            <form action="/boards/{{ id }}/delete" method="post">
+                <button type="submit" id="delete-confirm-{{ id }}" disabled class="btn-danger">
+                    Delete
+                </button>
+            </form>
+        </div>
+    </dialog>
+
+</div>
 {% endmacro %}
 
 {% macro board_header(board) %}
