@@ -4,6 +4,7 @@ use axum::{Form, Router};
 use axum::response::{Html, Redirect};
 use axum::routing::{get, post};
 use serde::Deserialize;
+use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::{create_list_common, CreateListRequest};
 use crate::models::List;
@@ -36,10 +37,7 @@ struct ListHeader {
 }
 
 async fn get_list_header(State(state): State<ApplicationState>, Path(list_id): Path<u64>) -> Result<Html<String>, KanbanError> {
-    let list = sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE list_id = ?;")
-        .bind(list_id as i64)
-        .fetch_one(&state.db)
-        .await?;
+    let list = data::get_list_header(&state.db, list_id).await?;
 
     let template = ListHeader { list };
 
@@ -53,10 +51,7 @@ struct ListHeaderEdit {
 }
 
 async fn get_list_edit(State(state): State<ApplicationState>, Path(list_id): Path<u64>) -> Result<Html<String>, KanbanError> {
-    let list = sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE list_id = ?;")
-        .bind(list_id as i64)
-        .fetch_one(&state.db)
-        .await?;
+    let list = data::get_list_header(&state.db, list_id).await?;
 
     let template = ListHeaderEdit { list };
 
@@ -69,13 +64,9 @@ struct ListRename {
 }
 
 async fn post_list_rename(State(state): State<ApplicationState>, Path(list_id): Path<u64>, Form(list_header): Form<ListRename>) -> Result<Redirect, KanbanError> {
-    let result = sqlx::query("UPDATE lists SET name = ? WHERE list_id = ?")
-        .bind(list_header.name)
-        .bind(list_id as i64)
-        .execute(&state.db)
-        .await?;
+    let result = data::update_list(&state.db, list_id, list_header.name).await?;
 
-    if result.rows_affected() != 1 {
+    if result != 1 {
         return Err(KanbanError::DatabaseError("Update failed please try again.".to_string()));
     }
 
@@ -83,10 +74,7 @@ async fn post_list_rename(State(state): State<ApplicationState>, Path(list_id): 
 }
 
 async fn post_list_delete(State(state): State<ApplicationState>, Path(list_id): Path<u64>) -> Result<TurboStream, KanbanError> {
-    sqlx::query("DELETE FROM lists WHERE list_id = ?;")
-        .bind(list_id as i64)
-        .execute(&state.db)
-        .await?;
+    data::delete_list(&state.db, list_id).await?;
 
     let result = format!("<turbo-stream action=\"remove\" target=\"list-{list_id}\"></turbo-stream>");
 

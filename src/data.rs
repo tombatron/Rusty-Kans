@@ -91,3 +91,29 @@ pub async fn update_board(db: &SqlitePool, board_id: u64, name: String) -> Resul
 
     Ok(result.rows_affected())
 }
+
+pub async fn get_list_header(db: &SqlitePool, list_id: u64) -> Result<List, KanbanError> {
+    Ok(sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE list_id = ?;")
+        .bind(list_id as i64)
+        .fetch_one(db)
+        .await?)
+}
+
+pub async fn delete_list(db: &SqlitePool, list_id: u64) -> Result<u64, KanbanError> {
+    let result = sqlx::query("DELETE FROM lists WHERE list_id = ?;")
+        .bind(list_id as i64)
+        .execute(db)
+        .await?;
+    
+    Ok(result.rows_affected())
+}
+
+pub async fn update_list(db: &SqlitePool, list_id: u64, name: String) -> Result<u64, KanbanError> {
+    let result = sqlx::query("UPDATE lists SET name = ? WHERE list_id = ?")
+        .bind(name)
+        .bind(list_id as i64)
+        .execute(db)
+        .await?;
+    
+    Ok(result.rows_affected())
+}
