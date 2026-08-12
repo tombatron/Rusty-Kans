@@ -1,7 +1,8 @@
+use crate::data;
 use crate::errors::KanbanError;
-use crate::handlers::{create_card_common, create_list_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest, CreateListRequest};
+use crate::handlers::{CreateCardRequest, CreateListRequest, create_card_common, create_list_common, delete_card_common, move_card_common, patch_card_common};
 use crate::middleware::require_auth;
-use crate::models::{Board, Card, List};
+use crate::models::Card;
 use crate::state::ApplicationState;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -9,8 +10,7 @@ use axum::response::Redirect;
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
 use serde::Deserialize;
-use serde_json::{json, Value};
-use crate::data;
+use serde_json::{Value, json};
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()

@@ -2,16 +2,6 @@ use crate::errors::KanbanError;
 use crate::models::{Board, BoardWithCards, Card, List, ListWithCards, Status};
 use sqlx::{AssertSqlSafe, SqlitePool};
 
-pub async fn get_card(db: &SqlitePool, card_id: u64) -> Result<Card, KanbanError> {
-    Ok(sqlx::query_as::<_, Card>(
-        "SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;",
-    )
-    .bind(card_id as i64)
-    .fetch_optional(db)
-    .await?
-    .ok_or(KanbanError::CardNotFound(card_id))?)
-}
-
 pub async fn get_cards_by_title_submatch(
     db: &SqlitePool,
     query: String,
@@ -47,7 +37,7 @@ pub async fn get_board(db: &SqlitePool, board_id: u64) -> Result<Board, KanbanEr
 
 pub async fn get_all_boards(db: &SqlitePool) -> Result<Vec<Board>, KanbanError> {
     Ok(
-        sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards;")
+        sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards ORDER BY board_id;")
             .fetch_all(db)
             .await?
     )
@@ -64,7 +54,7 @@ pub async fn get_board_with_lists(
         .ok_or(KanbanError::BoardNotFound(board_id))?;
 
     let mut lists: Vec<List> =
-        sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE board_id = ?")
+        sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE board_id = ? ORDER BY list_id;")
             .bind(board_id as i64)
             .fetch_all(db)
             .await?;
@@ -150,12 +140,23 @@ pub async fn get_list_with_card(
     Ok(ListWithCards { list, cards })
 }
 
+pub async fn get_card(db: &SqlitePool, card_id: u64) -> Result<Card, KanbanError> {
+    Ok(sqlx::query_as::<_, Card>(
+        "SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;",
+    )
+        .bind(card_id as i64)
+        .fetch_optional(db)
+        .await?
+        .ok_or(KanbanError::CardNotFound(card_id))?)
+}
+
+
 pub async fn delete_card(db: &SqlitePool, card_id: u64) -> Result<u64, KanbanError> {
     let result = sqlx::query("DELETE FROM cards WHERE card_id = ?")
         .bind(card_id as i64)
         .execute(db)
         .await?;
-    
+
     Ok(result.rows_affected())
 }
 
@@ -166,7 +167,7 @@ pub async fn insert_card(db: &SqlitePool, list_id: u64, title: &String, descript
         .bind(description)
         .execute(db)
         .await?;
-    
+
     Ok(result.last_insert_rowid() as u64)
 }
 
@@ -178,7 +179,7 @@ pub async fn update_card(db: &SqlitePool, card_id: u64, title: String, descripti
         .bind(card_id as i64)
         .execute(db)
         .await?;
-    
+
     Ok(result.rows_affected())
 }
 
@@ -188,7 +189,7 @@ pub async fn update_card_list(db: &SqlitePool, target_list_id: u64, card_id: u64
         .bind(card_id as i64)
         .execute(db)
         .await?;
-    
+
     Ok(result.rows_affected())
 }
 
@@ -198,7 +199,7 @@ pub async fn insert_list(db: &SqlitePool, board_id: u64, list_name: &String) -> 
         .bind(list_name)
         .execute(db)
         .await?;
-    
+
     Ok(result.last_insert_rowid() as u64)
 }
 
@@ -219,4 +220,67 @@ pub async fn update_list(db: &SqlitePool, list_id: u64, name: String) -> Result<
         .await?;
 
     Ok(result.rows_affected())
+}
+
+#[cfg(test)]
+mod tests {
+    use sqlx::SqlitePool;
+    use crate::data;
+    use crate::models::Board;
+
+    #[sqlx::test]
+    async fn insert_board_returns_new_id(pool: SqlitePool) -> sqlx::Result<()> {
+        let test_board_name = String::from("test is a test");
+
+        let result = data::insert_board(&pool, &test_board_name).await.unwrap();
+
+        let inserted_item = sqlx::query_as::<_, Board>("SELECT * FROM boards WHERE board_id = ?;")
+            .bind(result as i64)
+            .fetch_one(&pool)
+            .await?;
+
+        assert!(result > 0);
+        assert_eq!(test_board_name, inserted_item.name);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn get_board_returns_result(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::get_board(&pool, 1).await.unwrap();
+
+        assert_eq!(1, result.id);
+        assert_eq!(String::from("Whatever"), result.name);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn get_all_boards_returns_all_boards(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::get_all_boards(&pool).await.unwrap();
+
+        assert_eq!(3, result.len());
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn get_board_with_lists_returns_boards_with_lists(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::get_board_with_lists(&pool, 3).await.unwrap();
+
+        assert_eq!("A third board?!", result.board.name);
+        assert_eq!(2, result.lists.len());
+        assert_eq!("Card 12", result.lists[0].cards[0].title);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn delete_board_deletes_board(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::delete_board(&pool,1).await.unwrap();
+
+        assert_eq!(1, result);
+
+        Ok(())
+    }
 }
