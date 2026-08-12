@@ -3,6 +3,7 @@ use axum::extract::{Path, State};
 use axum::{Form, Router};
 use axum::response::{Html, Redirect};
 use axum::routing::{get, post};
+use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::{create_card_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest};
 use crate::models::{Card, CardMoveEvent};
@@ -42,13 +43,7 @@ async fn post_move_card_action(
 ) -> Result<TurboStream, KanbanError> {
     move_card_common(State(state.clone()), list_id, card_id).await?;
 
-    let card = sqlx::query_as::<_, Card>(
-        "SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;",
-    )
-        .bind(card_id as i64)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(KanbanError::CardNotFound(card_id))?;
+    let card = data::get_card(&state.db, card_id).await?;
 
     let response = MoveCardTemplate {
         card_id,
@@ -103,13 +98,7 @@ async fn get_card_edit(
     State(state): State<ApplicationState>,
     Path(card_id): Path<u64>,
 ) -> Result<Html<String>, KanbanError> {
-    let card = sqlx::query_as::<_, Card>(
-        "SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?",
-    )
-        .bind(card_id as i64)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(KanbanError::CardNotFound(card_id))?;
+    let card = data::get_card(&state.db, card_id).await?;
 
     let template = EditCardTemplate { card };
 
@@ -129,10 +118,7 @@ async fn patch_card_form(State(state): State<ApplicationState>, Path(card_id): P
 }
 
 async fn get_card_by_id(State(state): State<ApplicationState>, Path(card_id): Path<u64>) -> Result<Html<String>, KanbanError> {
-    let card = sqlx::query_as::<_, Card>("SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;")
-        .bind(card_id as i64)
-        .fetch_one(&state.db)
-        .await?;
+    let card = data::get_card(&state.db, card_id).await?;
 
     let template = CardTemplate { card};
 

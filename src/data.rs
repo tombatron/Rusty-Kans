@@ -2,6 +2,14 @@ use crate::errors::KanbanError;
 use sqlx::{AssertSqlSafe, SqlitePool};
 use crate::models::{Board, BoardWithCards, Card, List};
 
+pub async fn get_card(db: &SqlitePool, card_id: u64) -> Result<Card, KanbanError> {
+    Ok(sqlx::query_as::<_, Card>("SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;")
+        .bind(card_id as i64)
+        .fetch_optional(db)
+        .await?
+        .ok_or(KanbanError::CardNotFound(card_id))?)
+}
+
 pub async fn insert_board(db: &SqlitePool, board_name: &String) -> Result<u64, KanbanError> {
     let result = sqlx::query("INSERT INTO boards (name) VALUES (?);")
         .bind(board_name)
@@ -70,7 +78,7 @@ pub async fn delete_board(db: &SqlitePool, board_id: u64) -> Result<u64, KanbanE
         .bind(board_id as i64)
         .execute(db)
         .await?;
-    
+
     Ok(result.rows_affected())
 }
 
@@ -80,6 +88,6 @@ pub async fn update_board(db: &SqlitePool, board_id: u64, name: String) -> Resul
            .bind(board_id as i64)
            .execute(db)
            .await?;
-    
+
     Ok(result.rows_affected())
 }
