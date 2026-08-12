@@ -2,18 +2,6 @@ use crate::errors::KanbanError;
 use crate::models::{Board, BoardWithCards, Card, List, ListWithCards, Status};
 use sqlx::{AssertSqlSafe, SqlitePool};
 
-pub async fn get_cards_by_title_submatch(
-    db: &SqlitePool,
-    query: String,
-) -> Result<Vec<Card>, KanbanError> {
-    Ok(sqlx::query_as::<_, Card>(
-        "SELECT card_id, list_id, title, description, status FROM cards WHERE title LIKE ?;",
-    )
-    .bind(format!("%{}%", query))
-    .fetch_all(db)
-    .await?)
-}
-
 pub async fn insert_board(db: &SqlitePool, board_name: &String) -> Result<u64, KanbanError> {
     let result = sqlx::query("INSERT INTO boards (name) VALUES (?);")
         .bind(board_name)
@@ -119,7 +107,7 @@ pub async fn get_list_header(db: &SqlitePool, list_id: u64) -> Result<List, Kanb
     )
 }
 
-pub async fn get_list_with_card(
+pub async fn get_list_with_cards(
     db: &SqlitePool,
     list_id: u64,
 ) -> Result<ListWithCards, KanbanError> {
@@ -150,6 +138,17 @@ pub async fn get_card(db: &SqlitePool, card_id: u64) -> Result<Card, KanbanError
         .ok_or(KanbanError::CardNotFound(card_id))?)
 }
 
+pub async fn get_cards_by_title_submatch(
+    db: &SqlitePool,
+    query: String,
+) -> Result<Vec<Card>, KanbanError> {
+    Ok(sqlx::query_as::<_, Card>(
+        "SELECT card_id, list_id, title, description, status FROM cards WHERE title LIKE ?;",
+    )
+        .bind(format!("%{}%", query))
+        .fetch_all(db)
+        .await?)
+}
 
 pub async fn delete_card(db: &SqlitePool, card_id: u64) -> Result<u64, KanbanError> {
     let result = sqlx::query("DELETE FROM cards WHERE card_id = ?")
@@ -224,9 +223,9 @@ pub async fn update_list(db: &SqlitePool, list_id: u64, name: String) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use sqlx::SqlitePool;
     use crate::data;
     use crate::models::Board;
+    use sqlx::SqlitePool;
 
     #[sqlx::test]
     async fn insert_board_returns_new_id(pool: SqlitePool) -> sqlx::Result<()> {
@@ -280,6 +279,76 @@ mod tests {
         let result = data::delete_board(&pool,1).await.unwrap();
 
         assert_eq!(1, result);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn update_board_updates_board(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::update_board(&pool, 1, String::from("This is a test!!!")).await.unwrap();
+
+        let updated_board = data::get_board(&pool, 1).await.unwrap();
+
+        assert_eq!(1, result);
+        assert_eq!("This is a test!!!", updated_board.name);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn get_list_header_returns_list_header(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::get_list_header(&pool, 1).await.unwrap();
+
+        assert_eq!(1, result.id);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn get_list_with_cards_returns_that(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::get_list_with_cards(&pool, 1).await.unwrap();
+
+        assert_eq!(1, result.list.id);
+        assert_eq!(3, result.cards.len());
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn get_card_returns_card(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::get_card(&pool, 1).await.unwrap();
+
+        assert_eq!(1, result.id);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn get_cards_by_title_submatch_returns_expected_cards(pool: SqlitePool) -> sqlx::Result<()> {
+        let results = data::get_cards_by_title_submatch(&pool, String::from("card")).await.unwrap();
+
+        assert_eq!(18, results.len());
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn delete_card_does_that(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::delete_card(&pool, 1).await.unwrap();
+
+        assert_eq!(1, result);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn insert_card_does_that(pool: SqlitePool) -> sqlx::Result<()> {
+        let title = String::from("This is just a test");
+        let description: Option<String> = Some(String::from("whatever"));
+
+        let result = data::insert_card(&pool, 1, &title, &description).await.unwrap();
+
+        assert_eq!(19, result);
 
         Ok(())
     }
