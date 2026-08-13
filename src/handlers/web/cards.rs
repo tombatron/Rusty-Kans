@@ -124,3 +124,50 @@ async fn get_card_by_id(State(state): State<ApplicationState>, Path(card_id): Pa
 
     Ok(Html(template.render()?))
 }
+
+#[cfg(test)]
+mod tests {
+    use sqlx::SqlitePool;
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn post_move_card_action_returns_turbo_directives(db: SqlitePool) -> sqlx::Result<()> {
+        todo!();
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn post_card_form_adds_new_card(db: SqlitePool) -> sqlx::Result<()> {
+        todo!();
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn get_card_edit_returns_card_edit_form(db: SqlitePool) -> sqlx::Result<()> {
+        todo!();
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn delete_card_form_delets_the_card(db: SqlitePool) -> sqlx::Result<()> {
+        todo!();
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn patch_card_form_updates_a_card(db: SqlitePool) -> sqlx::Result<()> {
+        todo!();
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn get_card_by_id_returns_card(db: SqlitePool) -> sqlx::Result<()> {
+        todo!();
+
+        Ok(())
+    }
+}

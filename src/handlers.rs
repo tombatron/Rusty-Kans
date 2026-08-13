@@ -75,3 +75,16 @@ async fn patch_card_common(State(state): State<ApplicationState>, card: Card) ->
 
     Ok(())
 }
+
+#[cfg(test)]
+pub mod tests {
+    use sqlx::SqlitePool;
+    use crate::models::CardMoveEvent;
+    use crate::state::ApplicationState;
+
+    pub fn get_fake_application_state(db: SqlitePool) -> ApplicationState {
+        let (tx, _) = tokio::sync::broadcast::channel::<CardMoveEvent>(512);
+
+        ApplicationState { db, tx }
+    }
+}
