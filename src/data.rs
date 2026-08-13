@@ -224,7 +224,7 @@ pub async fn update_list(db: &SqlitePool, list_id: u64, name: String) -> Result<
 #[cfg(test)]
 mod tests {
     use crate::data;
-    use crate::models::Board;
+    use crate::models::{Board, Status};
     use sqlx::SqlitePool;
 
     #[sqlx::test]
@@ -349,6 +349,59 @@ mod tests {
         let result = data::insert_card(&pool, 1, &title, &description).await.unwrap();
 
         assert_eq!(19, result);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn update_card_updates_card(pool: SqlitePool) -> sqlx::Result<()> {
+        let new_title = String::from("New Title");
+        let new_description = String::from("New Description");
+        let new_status = Status::Doing;
+
+        let result = data::update_card(&pool, 1, new_title, Some(new_description), new_status).await.unwrap();
+        let updated_card = data::get_card(&pool, 1).await.unwrap();
+
+        assert_eq!(1, result);
+        assert_eq!("New Title", updated_card.title);
+        assert_eq!("New Description", updated_card.description.unwrap().to_string());
+        assert!(matches!(updated_card.status, Status::Doing));
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn update_card_list_does_that(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::update_card_list(&pool, 2, 1).await.unwrap();
+
+        let updated_card = data::get_card(&pool, 1).await.unwrap();
+
+        assert_eq!(1, result);
+        assert_eq!(2, updated_card.list_id);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn insert_list_does_that(pool: SqlitePool) -> sqlx::Result<()> {
+        let new_list_name = String::from("This is a new list");
+
+        let result = data::insert_list(&pool, 1, &new_list_name).await.unwrap();
+
+        let board = data::get_board_with_lists(&pool, 1).await.unwrap();
+        let new_list = board.lists.iter().find(|l| l.id == result).unwrap();
+
+        assert_eq!(7, result);
+        assert_eq!(result, new_list.id);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn delete_list_deletes_list(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::delete_list(&pool, 1).await.unwrap();
+
+        assert_eq!(1, result);
 
         Ok(())
     }
