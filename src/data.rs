@@ -405,4 +405,17 @@ mod tests {
 
         Ok(())
     }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn update_list_does_the_thing(pool: SqlitePool) -> sqlx::Result<()> {
+        let new_list_name = String::from("This is a new list name.");
+        let result = data::update_list(&pool, 1, new_list_name.clone()).await.unwrap();
+
+        let updated_list = data::get_list_header(&pool, 1).await.unwrap();
+
+        assert_eq!(1, result);
+        assert_eq!(new_list_name, updated_list.name);
+
+        Ok(())
+    }
 }
