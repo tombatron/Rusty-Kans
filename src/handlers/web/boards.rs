@@ -121,3 +121,57 @@ async fn post_board_delete(State(state): State<ApplicationState>, Path(board_id)
 
     Ok(Redirect::to("/"))
 }
+
+#[cfg(test)]
+mod tests {
+    use axum::extract::{Path, State};
+    use axum::Form;
+    use sqlx::SqlitePool;
+    use crate::handlers::web::boards::*;
+    use crate::models::CardMoveEvent;
+    use crate::state::ApplicationState;
+
+    fn get_fake_application_state(db: SqlitePool) -> ApplicationState {
+        let (tx, _) = tokio::sync::broadcast::channel::<CardMoveEvent>(512);
+
+        ApplicationState { db, tx }
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn post_board_form_creates_a_new_board(db: SqlitePool) -> sqlx::Result<()> {
+        let state = get_fake_application_state(db);
+
+        let request = CreateBoardRequest {
+            name: String::from("New Board Dude.")
+        };
+
+        let response = post_board_form(State(state), Form(request)).await.unwrap().0;
+
+        assert!(response.contains("New Board Dude."));
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn get_board_returns_a_board_page(db: SqlitePool) -> sqlx::Result<()> {
+        let state = State(get_fake_application_state(db));
+
+        let response = get_board(state, Path(2)).await.unwrap().0;
+
+        assert!(response.contains("Another Board"));
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn get_board_edit_returns_edit_form(db: SqlitePool) -> sqlx::Result<()> {
+        let state = State(get_fake_application_state(db));
+
+        let response = get_board_edit(state, Path(1)).await.unwrap().0;
+
+        assert!(response.contains("Whatever"));
+        assert!(response.contains("board-title-1"));
+
+        Ok(())
+    }
+}
