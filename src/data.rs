@@ -35,11 +35,7 @@ pub async fn get_board_with_lists(
     db: &SqlitePool,
     board_id: u64,
 ) -> Result<BoardWithCards, KanbanError> {
-    let board = sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards WHERE board_id = ?;")
-        .bind(board_id as i64)
-        .fetch_optional(db)
-        .await?
-        .ok_or(KanbanError::BoardNotFound(board_id))?;
+    let board = get_board(db, board_id).await?;
 
     let mut lists: Vec<List> =
         sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE board_id = ? ORDER BY list_id;")
@@ -111,12 +107,7 @@ pub async fn get_list_with_cards(
     db: &SqlitePool,
     list_id: u64,
 ) -> Result<ListWithCards, KanbanError> {
-    let list =
-        sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE list_id = ?")
-            .bind(list_id as i64)
-            .fetch_optional(db)
-            .await?
-            .ok_or(KanbanError::ListNotFound(list_id))?;
+    let list = get_list_header(db, list_id).await?;
 
     let cards = sqlx::query_as::<_, Card>(
         "SELECT card_id, list_id, title, description, status FROM cards WHERE list_id = ?",
