@@ -127,46 +127,105 @@ async fn get_card_by_id(State(state): State<ApplicationState>, Path(card_id): Pa
 
 #[cfg(test)]
 mod tests {
+    use axum::extract::{Path, State};
     use sqlx::SqlitePool;
+    use crate::data;
+    use crate::handlers::tests::get_fake_application_state;
+    use crate::handlers::web::cards::*;
+    use crate::models::Status::Done;
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_move_card_action_returns_turbo_directives(db: SqlitePool) -> sqlx::Result<()> {
-        todo!();
+        let state = State(get_fake_application_state(db.clone()));
+
+        let response = post_move_card_action(state, Path((2, 1))).await.unwrap().0;
+
+        let card = data::get_card(&db, 1).await.unwrap();
+
+        assert!(response.contains("card-1"));
+        assert!(response.contains("list-cards-2"));
+        assert_eq!(2, card.list_id);
 
         Ok(())
     }
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_card_form_adds_new_card(db: SqlitePool) -> sqlx::Result<()> {
-        todo!();
+        let state = State(get_fake_application_state(db));
+
+        let request = CreateCardRequest {
+            title: String::from("Super New Card"),
+            description: Some(String::from("Super New Description"))
+        };
+
+        let response = post_card_form(state, Path(1), Form(request)).await.unwrap().0;
+
+        assert!(response.contains("card-19"));
+        assert!(response.contains("Super New Card"));
+        assert!(response.contains("Super New Description"));
 
         Ok(())
     }
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn get_card_edit_returns_card_edit_form(db: SqlitePool) -> sqlx::Result<()> {
-        todo!();
+        let state = State(get_fake_application_state(db));
+
+        let response = get_card_edit(state, Path(1)).await.unwrap().0;
+
+        assert!(response.contains("card-frame-1"));
+        assert!(response.contains("Card 1"));
+        assert!(response.contains("This is a description"));
+        assert!(response.contains("Todo"));
 
         Ok(())
     }
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
-    async fn delete_card_form_delets_the_card(db: SqlitePool) -> sqlx::Result<()> {
-        todo!();
+    async fn delete_card_form_deletes_the_card(db: SqlitePool) -> sqlx::Result<()> {
+        let state = State(get_fake_application_state(db.clone()));
+
+        let response = delete_card_form(state, Path((1, 1))).await.unwrap().0;
+
+        let card = data::get_card(&db, 1).await;
+
+        assert!(response.contains("card-1"));
+        assert!(card.is_err()); // We expect there to be no "card 1".
 
         Ok(())
     }
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn patch_card_form_updates_a_card(db: SqlitePool) -> sqlx::Result<()> {
-        todo!();
+        let state = State(get_fake_application_state(db.clone()));
+
+        let request = Card {
+            id: 1,
+            list_id: 1,
+            title: String::from("Patched Card"),
+            description: Some(String::from("Patched Description")),
+            status: Done
+        };
+
+        let response = patch_card_form(state, Path(1), Form(request)).await.unwrap();
+
+        let card = data::get_card(&db, 1).await.unwrap();
+
+        assert_eq!("/cards/1/view", response.location());
+        assert_eq!("Patched Card", card.title);
+        assert_eq!("Patched Description", card.description.unwrap());
 
         Ok(())
     }
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn get_card_by_id_returns_card(db: SqlitePool) -> sqlx::Result<()> {
-        todo!();
+        let state = State(get_fake_application_state(db));
+
+        let response = get_card_by_id(state, Path(1)).await.unwrap().0;
+
+        assert!(response.contains("card-frame-1"));
+        assert!(response.contains("This is a description"));
 
         Ok(())
     }
