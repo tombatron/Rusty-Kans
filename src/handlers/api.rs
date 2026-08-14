@@ -1,3 +1,7 @@
+pub mod boards;
+pub mod cards;
+pub mod lists;
+
 use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::{CreateCardRequest, CreateListRequest, create_card_common, create_list_common, delete_card_common, move_card_common, patch_card_common};
@@ -14,6 +18,10 @@ use serde_json::{Value, json};
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
+        .merge(boards::get_router_configuration())
+        .merge(cards::get_router_configuration())
+        .merge(lists::get_router_configuration())
+        
         .route("/api/board/{board_id}", get(get_board))
         .route("/api/lists/{id}", get(get_list_by_id))
         .route("/api/board/{board_id}/lists", post(post_list))
