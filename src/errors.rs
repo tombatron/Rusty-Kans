@@ -107,11 +107,74 @@ impl From<askama::Error> for KanbanError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::fs;
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+    use sqlx::SqlitePool;
+    use crate::errors::KanbanError;
+    use test_case::test_case;
+
+    #[test_case(KanbanError::BoardNotFound(67), "Board with ID (67) was not found.".to_string())]
+    #[test_case(KanbanError::ListNotFound(67), "List with ID (67) was not found.".to_string())]
+    #[test_case(KanbanError::CardNotFound(67), "Card with ID (67) was not found.".to_string())]
+    #[test_case(KanbanError::SerializationError("Something totally went wrong.".to_string()), "There was an error during serialization: Something totally went wrong.".to_string())]
+    #[test_case(KanbanError::IoError("I can't even read this thing.".to_string()), "There was an IO error: I can't even read this thing.".to_string())]
+    #[test_case(KanbanError::DatabaseError("Tables be locked yo.".to_string()), "There was a database error: Tables be locked yo.".to_string())]
+    #[test_case(KanbanError::TemplateError("Template is totally messed up man.".to_string()), "There was a templating error: Template is totally messed up man.".to_string())]
+    #[test_case(KanbanError::RequestError("We don't even speak that language.".to_string()), "There was a request error: We don't even speak that language.".to_string())]
+    fn kanban_display_impl_verification(error: KanbanError, expected: String) {
+        assert_eq!(error.to_string(), expected);
+    }
 
     #[test]
-    fn list_not_found_message() {
-        let err = KanbanError::ListNotFound(42);
-        assert_eq!(err.to_string(), "List with ID (42) was not found.");
+    fn can_create_kanban_error_from_serde_error() {
+        let error = serde_json::from_str::<serde_json::Value>("whatever").unwrap_err();
+
+        let result = KanbanError::from(error);
+
+        assert!(matches!(result, KanbanError::SerializationError(_)));
+    }
+
+    #[test]
+    fn can_create_kanban_error_from_io_error() {
+        let error = fs::read("/this/doesnt/exists/probably").unwrap_err();
+
+        let result = KanbanError::from(error);
+
+        assert!(matches!(result, KanbanError::IoError(_)))
+    }
+
+    #[test_case(KanbanError::BoardNotFound(67), StatusCode::NOT_FOUND)]
+    #[test_case(KanbanError::ListNotFound(67), StatusCode::NOT_FOUND)]
+    #[test_case(KanbanError::CardNotFound(67), StatusCode::NOT_FOUND)]
+    #[test_case(KanbanError::SerializationError("Couldn't serialize.".to_string()), StatusCode::BAD_REQUEST)]
+    #[test_case(KanbanError::IoError("Couldn't read the file.".to_string()), StatusCode::INTERNAL_SERVER_ERROR)]
+    #[test_case(KanbanError::DatabaseError("Tables be locked yo.".to_string()), StatusCode::INTERNAL_SERVER_ERROR)]
+    #[test_case(KanbanError::TemplateError("I'm not even supposed to be here today.".to_string()), StatusCode::INTERNAL_SERVER_ERROR)]
+    #[test_case(KanbanError::RequestError("I'm not ready to receive you.".to_string()), StatusCode::BAD_REQUEST)]
+    fn kanban_into_response_impl_verification(error: KanbanError, status_code: StatusCode) {
+        let result = error.into_response();
+
+        assert_eq!(status_code, result.status());
+    }
+
+    #[sqlx::test]
+    async fn can_create_kanban_error_from_sql_error(db: SqlitePool) -> sqlx::Result<()> {
+        let result = sqlx::query("SELECT FACE FROM YOUR").execute(&db).await.unwrap_err();
+
+        let kb_error = KanbanError::from(result);
+
+        assert!(matches!(kb_error, KanbanError::DatabaseError(_)));
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    fn can_create_kanban_error_from_askama_error() {
+        let error = askama::Error::from(std::fmt::Error);
+
+        let result = KanbanError::from(error);
+
+        assert!(matches!(result, KanbanError::TemplateError(_)));
     }
 }
