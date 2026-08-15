@@ -201,4 +201,23 @@ pub mod tests {
 
         Ok(())
     }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn patch_card_common_returns_err_if_card_not_updated(db: SqlitePool) -> sqlx::Result<()> {
+        let state = State(get_fake_application_state(db));
+
+        let request = Card {
+            id: 1000,
+            list_id: 1,
+            title: "Whatever".to_string(),
+            description: None,
+            status: Status::Doing,
+        };
+
+        let response = patch_card_common(state, request).await.unwrap_err();
+
+        assert!(matches!(response, KanbanError::DatabaseError(_)));
+
+        Ok(())
+    }
 }
