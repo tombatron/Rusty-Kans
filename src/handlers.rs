@@ -14,7 +14,7 @@ pub mod ws;
 #[derive(Debug, Serialize, Template)]
 #[template(path = "turbo_list_item.html")]
 struct ListItemTemplate {
-    id: u64,
+    list_id: u64,
     name: String,
 }
 
@@ -31,7 +31,7 @@ async fn create_list_common(
     let list_id = data::insert_list(&state.db, board_id, &list_info.name).await?;
 
     Ok(ListItemTemplate {
-        id: list_id,
+        list_id,
         name: list_info.name,
     })
 }

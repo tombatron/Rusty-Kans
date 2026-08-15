@@ -41,3 +41,43 @@ async fn post_list(
 
     Ok(Json(json!(created_list)))
 }
+
+#[cfg(test)]
+mod tests {
+    use axum::extract::{Path, State};
+    use axum::Json;
+    use sqlx::SqlitePool;
+    use crate::handlers::api::lists::{get_list_by_id, post_list};
+    use crate::handlers::CreateListRequest;
+    use crate::handlers::tests::get_fake_application_state;
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn get_list_by_id_returns_list(db: SqlitePool) -> sqlx::Result<()> {
+        let state = State(get_fake_application_state(db));
+
+        let response = get_list_by_id(state, Path(1)).await.unwrap().0;
+
+        assert_eq!(1, response["list_id"]);
+        assert_eq!(1, response["board_id"]);
+        assert_eq!("First List", response["name"]);
+        assert_eq!(3, response["cards"].as_array().unwrap().len());
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn post_list_creates_list(db: SqlitePool) -> sqlx::Result<()> {
+        let state = State(get_fake_application_state(db));
+
+        let request = CreateListRequest {
+            name: "This is a totally new list.".to_string()
+        };
+
+        let response = post_list(state, Path(1), Json(request)).await.unwrap();
+
+        assert_eq!(7, response["list_id"]);
+        assert_eq!("This is a totally new list.", response["name"]);
+
+        Ok(())
+    }
+}
