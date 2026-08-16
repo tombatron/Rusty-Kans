@@ -28,7 +28,7 @@ struct LandingTemplate {
 }
 
 async fn get_landing(State(state): State<ApplicationState>) -> Result<Html<String>, KanbanError> {
-    let boards = data::get_all_boards(&state.db).await?;
+    let boards = data::get_all_boards(state.db).await?;
 
     let template = LandingTemplate { boards };
     

@@ -12,7 +12,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 }
 
 async fn get_board(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<Json<Value>, KanbanError> {
-    let result = data::get_board_with_lists(&state.db, board_id).await?;
+    let result = data::get_board_with_lists(state.db, board_id).await?;
 
     Ok(Json(json!({
         "id": board_id,

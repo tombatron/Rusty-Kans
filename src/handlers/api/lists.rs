@@ -17,7 +17,7 @@ async fn get_list_by_id(
     State(state): State<ApplicationState>,
     Path(id): Path<u64>,
 ) -> Result<Json<Value>, KanbanError> {
-    let result = data::get_list_with_cards(&state.db, id).await?;
+    let result = data::get_list_with_cards(state.db, id).await?;
 
     let cards_json: Vec<Value> = result.cards
         .iter()

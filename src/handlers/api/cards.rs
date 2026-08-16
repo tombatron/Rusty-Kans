@@ -49,7 +49,7 @@ pub async fn get_card_by_id(
     State(state): State<ApplicationState>,
     Path(card_id): Path<u64>,
 ) -> Result<Json<Value>, KanbanError> {
-    let result = data::get_card(&state.db, card_id).await?;
+    let result = data::get_card(state.db, card_id).await?;
 
     Ok(Json(json!(result)))
 }
@@ -63,7 +63,7 @@ pub async fn get_card_search(
     State(state): State<ApplicationState>,
     Query(search_query): Query<SearchQuery>,
 ) -> Result<Json<Value>, KanbanError> {
-    let search_result = data::get_cards_by_title_submatch(&state.db, search_query.keyword).await?;
+    let search_result = data::get_cards_by_title_submatch(state.db, search_query.keyword).await?;
 
     let cards = search_result.iter().map(|c| json!(c)).collect();
 
@@ -127,7 +127,7 @@ mod tests {
 
         let response = post_move_card(state, Path((2, 1))).await.unwrap();
 
-        let card = data::get_card(&db, 1).await.unwrap();
+        let card = data::get_card(db, 1).await.unwrap();
 
         assert_eq!(StatusCode::OK, response);
         assert_eq!(2, card.list_id);
@@ -170,7 +170,7 @@ mod tests {
 
         let response = delete_card(state, Path((1, 1))).await.unwrap();
 
-        let card = data::get_card(&db, 1).await;
+        let card = data::get_card(db, 1).await;
 
         assert_eq!(StatusCode::OK, response);
         assert!(card.is_err()); // This should be an error because we just deleted it.
@@ -192,7 +192,7 @@ mod tests {
 
         let response = patch_card(state, Path(1), request).await.unwrap();
 
-        let updated_card = data::get_card(&db, 1).await.unwrap();
+        let updated_card = data::get_card(db, 1).await.unwrap();
 
         assert_eq!("/api/cards/1", response.location());
         assert_eq!(1, updated_card.id);

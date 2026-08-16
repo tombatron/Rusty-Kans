@@ -28,7 +28,7 @@ async fn create_list_common(
     board_id: u64,
     list_info: CreateListRequest,
 ) -> Result<ListItemTemplate, KanbanError> {
-    let list_id = data::insert_list(&state.db, board_id, &list_info.name).await?;
+    let list_id = data::insert_list(state.db, board_id, &list_info.name).await?;
 
     Ok(ListItemTemplate {
         list_id,
@@ -41,7 +41,7 @@ async fn move_card_common(
     list_id: u64,
     card_id: u64,
 ) -> Result<(), KanbanError> {
-    data::update_card_list(&state.db, list_id, card_id).await?;
+    data::update_card_list(state.db, list_id, card_id).await?;
 
     Ok(())
 }
@@ -57,7 +57,7 @@ async fn create_card_common(
     list_id: u64,
     card: CreateCardRequest,
 ) -> Result<Card, KanbanError> {
-    let card_id = data::insert_card(&state.db, list_id, &card.title, &card.description).await?;
+    let card_id = data::insert_card(state.db, list_id, &card.title, &card.description).await?;
 
     Ok(Card {
         id: card_id,
@@ -72,7 +72,7 @@ async fn delete_card_common(
     State(state): State<ApplicationState>,
     card_id: u64,
 ) -> Result<(), KanbanError> {
-    data::delete_card(&state.db, card_id).await?;
+    data::delete_card(state.db, card_id).await?;
 
     Ok(())
 }
@@ -82,7 +82,7 @@ async fn patch_card_common(
     card: Card,
 ) -> Result<(), KanbanError> {
     let result = data::update_card(
-        &state.db,
+        state.db,
         card.id,
         card.title,
         card.description,
@@ -133,11 +133,11 @@ pub mod tests {
     async fn move_card_common_moves_a_card(db: SqlitePool) -> sqlx::Result<()> {
         let state = State(get_fake_application_state(db.clone()));
 
-        let card = data::get_card(&db, 1).await.unwrap();
+        let card = data::get_card(db.clone(), 1).await.unwrap();
 
         move_card_common(state, 2, 1).await.unwrap();
 
-        let moved_card = data::get_card(&db, 1).await.unwrap();
+        let moved_card = data::get_card(db, 1).await.unwrap();
 
         assert_eq!(1, card.list_id);
         assert_eq!(2, moved_card.list_id);
@@ -170,7 +170,7 @@ pub mod tests {
 
         delete_card_common(state, 1).await.unwrap();
 
-        let result = data::get_card(&db, 1).await.unwrap_err();
+        let result = data::get_card(db, 1).await.unwrap_err();
 
         assert!(matches!(result, KanbanError::CardNotFound(_)));
 
@@ -191,7 +191,7 @@ pub mod tests {
 
         patch_card_common(state, request).await.unwrap();
 
-        let updated_card = data::get_card(&db, 1).await.unwrap();
+        let updated_card = data::get_card(db, 1).await.unwrap();
 
         assert_eq!(1, updated_card.id);
         assert_eq!(1, updated_card.list_id);

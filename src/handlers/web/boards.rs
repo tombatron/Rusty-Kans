@@ -33,7 +33,7 @@ struct NewBoardTemplate {
 }
 
 async fn post_board_form(State(state): State<ApplicationState>, Form(board): Form<CreateBoardRequest>) -> Result<TurboStream, KanbanError> {
-    let board_id = data::insert_board(&state.db, &board.name).await?;
+    let board_id = data::insert_board(state.db, &board.name).await?;
 
     let template = NewBoardTemplate {
         id: board_id as u64,
@@ -54,7 +54,7 @@ pub async fn get_board(
     State(state): State<ApplicationState>,
     Path(board_id): Path<u64>
 ) -> Result<Html<String>, KanbanError> {
-    let board = data::get_board_with_lists(&state.db, board_id).await?;
+    let board = data::get_board_with_lists(state.db, board_id).await?;
 
     let response_template = BoardTemplate {
         board: board.board,
@@ -71,7 +71,7 @@ struct BoardHeaderEdit {
 }
 
 async fn get_board_edit(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
-    let board = data::get_board(&state.db, board_id).await?;
+    let board = data::get_board(state.db, board_id).await?;
 
     let template = BoardHeaderEdit { board };
 
@@ -85,7 +85,7 @@ struct BoardHeader {
 }
 
 async fn get_board_header(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
-    let board = data::get_board(&state.db, board_id).await?;
+    let board = data::get_board(state.db, board_id).await?;
 
     let template = BoardHeader { board };
 
@@ -103,7 +103,7 @@ async fn post_board_rename(State(state): State<ApplicationState>, Path(board_id)
         return Err(KanbanError::RequestError(format!("Ambiguous board specified, path says `{}` and the form says `{}", board_id, board.id)));
     }
 
-    let result = data::update_board(&state.db, board_id, board.name).await?;
+    let result = data::update_board(state.db, board_id, board.name).await?;
 
     if result != 1 {
         return Err(KanbanError::DatabaseError("Update failed please try again.".to_string()));
@@ -113,7 +113,7 @@ async fn post_board_rename(State(state): State<ApplicationState>, Path(board_id)
 }
 
 async fn post_board_delete(State(state): State<ApplicationState>, Path(board_id):Path<u64>) -> Result<Redirect, KanbanError> {
-    let result = data::delete_board(&state.db, board_id).await?;
+    let result = data::delete_board(state.db, board_id).await?;
 
     if result != 1 {
         return Err(KanbanError::BoardNotFound(board_id));
@@ -189,7 +189,7 @@ mod tests {
         };
 
         let response = post_board_rename(state, Path(1), Form(request)).await.unwrap();
-        let board = data::get_board(&db, 1).await.unwrap();
+        let board = data::get_board(db, 1).await.unwrap();
 
         assert_eq!("/boards/1/header", response.location());
         assert_eq!("New Name Brah", board.name);

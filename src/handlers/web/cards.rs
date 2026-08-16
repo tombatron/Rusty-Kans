@@ -43,7 +43,7 @@ async fn post_move_card_action(
 ) -> Result<TurboStream, KanbanError> {
     move_card_common(State(state.clone()), list_id, card_id).await?;
 
-    let card = data::get_card(&state.db, card_id).await?;
+    let card = data::get_card(state.db, card_id).await?;
 
     let response = MoveCardTemplate {
         card_id,
@@ -98,7 +98,7 @@ async fn get_card_edit(
     State(state): State<ApplicationState>,
     Path(card_id): Path<u64>,
 ) -> Result<Html<String>, KanbanError> {
-    let card = data::get_card(&state.db, card_id).await?;
+    let card = data::get_card(state.db, card_id).await?;
 
     let template = EditCardTemplate { card };
 
@@ -118,7 +118,7 @@ async fn patch_card_form(State(state): State<ApplicationState>, Path(card_id): P
 }
 
 async fn get_card_by_id(State(state): State<ApplicationState>, Path(card_id): Path<u64>) -> Result<Html<String>, KanbanError> {
-    let card = data::get_card(&state.db, card_id).await?;
+    let card = data::get_card(state.db, card_id).await?;
 
     let template = CardTemplate { card};
 
@@ -140,7 +140,7 @@ mod tests {
 
         let response = post_move_card_action(state, Path((2, 1))).await.unwrap().0;
 
-        let card = data::get_card(&db, 1).await.unwrap();
+        let card = data::get_card(db, 1).await.unwrap();
 
         assert!(response.contains("card-1"));
         assert!(response.contains("list-cards-2"));
@@ -187,7 +187,7 @@ mod tests {
 
         let response = delete_card_form(state, Path((1, 1))).await.unwrap().0;
 
-        let card = data::get_card(&db, 1).await;
+        let card = data::get_card(db, 1).await;
 
         assert!(response.contains("card-1"));
         assert!(card.is_err()); // We expect there to be no "card 1".
@@ -209,7 +209,7 @@ mod tests {
 
         let response = patch_card_form(state, Path(1), Form(request)).await.unwrap();
 
-        let card = data::get_card(&db, 1).await.unwrap();
+        let card = data::get_card(db, 1).await.unwrap();
 
         assert_eq!("/cards/1/view", response.location());
         assert_eq!("Patched Card", card.title);
