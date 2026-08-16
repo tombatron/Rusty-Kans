@@ -89,3 +89,56 @@ pub struct ListWithCards {
     pub list: List,
     pub cards: Vec<Card>,
 }
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use test_case::test_case;
+
+    #[test]
+    fn card_display_impl_validation() {
+        let card = Card {
+            id: 1,
+            list_id: 2,
+            title: "TITLE".to_string(),
+            description: None,
+            status: Status::Todo,
+        };
+
+        let string_result = card.to_string();
+
+        assert_eq!("    [1] TITLE", string_result);
+    }
+
+    #[test]
+    fn list_display_impl_validation() {
+        let card = Card {
+            id: 1,
+            list_id: 1,
+            title: "TITLE".to_string(),
+            description: None,
+            status: Status::Todo,
+        };
+
+        let list = List {
+            id: 1,
+            board_id: 1,
+            name: "NAME".to_string(),
+            cards: vec!(card)
+        };
+
+        let string_result = list.to_string();
+
+        assert!(string_result.contains("List: NAME (id: 1)"));
+        assert!(string_result.contains("    [1] TITLE"));
+    }
+
+    #[test_case(Status::Todo, "Todo".to_string())]
+    #[test_case(Status::Doing, "Doing".to_string())]
+    #[test_case(Status::Done, "Done".to_string())]
+    fn status_display_impl_validation(status: Status, expected_result: String) {
+        let result = status.to_string();
+
+        assert_eq!(expected_result, result);
+    }
+}
