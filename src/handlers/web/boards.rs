@@ -100,7 +100,7 @@ struct BoardRename {
 
 async fn post_board_rename(State(state): State<ApplicationState>, Path(board_id):Path<u64>, Form(board): Form<BoardRename>) -> Result<Redirect, KanbanError> {
     if board_id != board.id {
-        return Err(KanbanError::RequestError(format!("Ambiguous board specified, path says `{}` and the form says `{}", board_id, board.id)));
+        return Err(KanbanError::RequestError(format!("Ambiguous board specified, path says `{}` and the form says `{}`", board_id, board.id)));
     }
 
     let result = data::update_board(state.db, board_id, board.name).await?;
@@ -204,6 +204,49 @@ mod tests {
         let response = post_board_delete(state, Path(1)).await.unwrap();
 
         assert_eq!("/", response.location());
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn post_board_rename_request_error_if_path_and_form_ref_different_boards(db: SqlitePool) -> sqlx::Result<()> {
+        let state = State(get_fake_application_state(db));
+
+        let request = BoardRename {
+            id: 1000,
+            name: "This will fail anyway.".to_string(),
+        };
+
+        let response = post_board_rename(state, Path(1), Form(request)).await.unwrap_err();
+
+        assert_eq!(response, KanbanError::RequestError("Ambiguous board specified, path says `1` and the form says `1000`".to_string()));
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn post_board_rename_database_error_if_board_doesnt_exist(db: SqlitePool) -> sqlx::Result<()> {
+        let state = State(get_fake_application_state(db));
+
+        let request = BoardRename {
+            id: 1000,
+            name: "This will still fail anyway.".to_string(),
+        };
+
+        let response = post_board_rename(state, Path(1000), Form(request)).await.unwrap_err();
+
+        assert_eq!(response, KanbanError::DatabaseError("Update failed please try again.".to_string()));
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn post_board_delete_board_not_found_error_if_board_doesnt_exist(db: SqlitePool) -> sqlx::Result<()> {
+        let state = State(get_fake_application_state(db));
+
+        let response = post_board_delete(state, Path(1000)).await.unwrap_err();
+
+        assert_eq!(response, KanbanError::BoardNotFound(1000));
 
         Ok(())
     }
