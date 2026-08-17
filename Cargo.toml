@@ -12,6 +12,10 @@ sqlx = { version = "0.9", features = ["sqlite", "runtime-tokio", "macros", "migr
 askama = "0.16.0"
 tower = "0.5.3"
 tower-http = { version = "0.7.0", features = ["fs"] }
+tower-sessions = "0.15"
+oauth2 = "5"
+dotenvy = "0.15"
+reqwest = "0.13"
 
 [dev-dependencies]
 test-case = "3"
