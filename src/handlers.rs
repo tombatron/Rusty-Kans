@@ -103,14 +103,24 @@ async fn patch_card_common(
 pub mod tests {
     use super::*;
     use crate::models::CardMoveEvent;
-    use crate::state::ApplicationState;
+    use crate::state::{ApplicationState, GitHubOAuthClient};
     use axum::extract::State;
+    use oauth2::basic::BasicClient;
+    use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
     use sqlx::SqlitePool;
 
     pub fn get_fake_application_state(db: SqlitePool) -> ApplicationState {
         let (tx, _) = tokio::sync::broadcast::channel::<CardMoveEvent>(512);
 
-        ApplicationState { db, tx }
+        let oauth_client = BasicClient::new(ClientId::new("github_client_id".to_string()))
+            .set_client_secret(ClientSecret::new("github_client_secret".to_string()))
+            .set_auth_uri(AuthUrl::new("https://example.com/login/oauth/authorize".to_string()).unwrap())
+            .set_token_uri(
+                TokenUrl::new("https://example.com/login/oauth/access_token".to_string()).unwrap(),
+            )
+            .set_redirect_uri(RedirectUrl::new("http://example.com".to_string()).unwrap());
+
+        ApplicationState { db, tx, oauth_client }
     }
 
     #[sqlx::test(fixtures("boards"))]
