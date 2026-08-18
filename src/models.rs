@@ -1,3 +1,5 @@
+pub mod security;
+
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Type};
 use std::fmt::{Display, Formatter};
