@@ -10,15 +10,23 @@ use axum::extract::State;
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
+use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
+use tower_sessions::cookie::time::Duration;
 use crate::data;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
+    let session_store = MemoryStore::default(); // Probably swap this for Redis later.
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_secure(false)// This needs to be `true` for production.
+        .with_expiry(Expiry::OnInactivity(Duration::minutes(30)));
+
     Router::new()
         .route("/", get(get_landing))
 
         .merge(boards::get_router_configuration())
         .merge(lists::get_router_configuration())
         .merge(cards::get_router_configuration())
+        .layer(session_layer)
 }
 
 #[derive(Debug, Template)]
