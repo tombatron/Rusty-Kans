@@ -10,6 +10,7 @@ pub mod api;
 pub mod utility;
 pub mod web;
 pub mod ws;
+pub mod auth;
 
 #[derive(Debug, Serialize, Template)]
 #[template(path = "turbo_list_item.html")]
