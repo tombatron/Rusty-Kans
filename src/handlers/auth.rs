@@ -11,7 +11,7 @@ use tower_sessions::Session;
 
 const CSRF_TOKEN_KEY: &str = "CSRF_TOKEN";
 const PKCE_VERIFIER_KEY: &str = "PKCE_VERIFIER";
-const GITHUB_USER_KEY: &str = "GITHUB_USER";
+pub const GITHUB_USER_KEY: &str = "GITHUB_USER";
 const GITHUB_USER_API_URL: &str = "https://api.github.com/user";
 
 pub fn get_router_configuration() -> Router<ApplicationState> {

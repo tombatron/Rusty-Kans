@@ -11,6 +11,7 @@ use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
 use crate::data;
+use crate::middleware::require_web_auth;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -18,6 +19,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .merge(boards::get_router_configuration())
         .merge(lists::get_router_configuration())
         .merge(cards::get_router_configuration())
+        .layer(axum::middleware::from_fn(require_web_auth))
 }
 
 #[derive(Debug, Template)]
