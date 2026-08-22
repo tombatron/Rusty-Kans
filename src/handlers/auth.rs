@@ -104,7 +104,7 @@ pub mod tests {
     async fn post_logout_deletes_sessions(db: SqlitePool) {
         let store = MemoryStore::default();
         let state = get_fake_application_state(db);
-        
+
         let server = TestServer::builder()
             .save_cookies()
             .build(create_router_with_session(state, store.clone()));
