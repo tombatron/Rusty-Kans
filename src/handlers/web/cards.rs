@@ -132,7 +132,9 @@ mod tests {
     use crate::data;
     use crate::handlers::tests::get_fake_application_state;
     use crate::handlers::web::cards::*;
+    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion};
     use crate::models::Status::Done;
+    use test_case::test_case;
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_move_card_action_returns_turbo_directives(db: SqlitePool) -> sqlx::Result<()> {
@@ -228,5 +230,20 @@ mod tests {
         assert!(response.contains("This is a description"));
 
         Ok(())
+    }
+
+    #[test_case("/cards/1/edit")]
+    #[test_case("/cards/1/view")]
+    #[tokio::test]
+    async fn authed_get_pages_redirect_when_anonymous(path: &str) {
+        base_auth_get_assertion(path).await;
+    }
+
+    #[test_case("/lists/1/cards")]
+    #[test_case("/lists/1/cards/1/move")]
+    #[test_case("/lists/1/cards/1/delete")]
+    #[tokio::test]
+    async fn authed_post_pages_redirect_when_anonymous(path: &str) {
+        base_auth_post_assertion(path).await;
     }
 }

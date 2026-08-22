@@ -101,35 +101,4 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
     }
-
-    #[tokio::test]
-    async fn landing_page_returns_200() {
-        let state = create_application_state().await;
-        let app = create_router(state);
-
-        let response = app
-            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-    }
-
-    #[tokio::test]
-    async fn board_view_returns_200() {
-        let state = create_application_state().await;
-        let app = create_router(state);
-
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/boards/1")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-    }
 }

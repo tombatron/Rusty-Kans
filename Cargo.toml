@@ -16,6 +16,7 @@ tower-sessions = "0.15"
 oauth2 = "5"
 dotenvy = "0.15"
 reqwest = { version = "0.13", features = ["json"] }
+dashmap = "6"
 
 
 [dev-dependencies]

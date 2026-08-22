@@ -39,10 +39,36 @@ async fn get_landing(State(state): State<ApplicationState>) -> Result<Html<Strin
 #[cfg(test)]
 mod tests {
     use axum::extract::State;
+    use axum::http::StatusCode;
+    use axum_test::TestServer;
     use sqlx::SqlitePool;
     use crate::handlers::tests::get_fake_application_state;
     use crate::handlers::web::get_landing;
+    use crate::router::create_router;
+    use crate::state::create_application_state;
 
+    pub async fn base_auth_get_assertion(path: &str) {
+        let state = create_application_state().await;
+
+        let server = TestServer::builder().build(create_router(state));
+
+        let response = server.get(path).await;
+
+        response.assert_status(StatusCode::SEE_OTHER);
+        response.assert_header("location", "/auth/login");
+    }
+
+    pub async fn base_auth_post_assertion(path: &str) {
+        let state = create_application_state().await;
+
+        let server = TestServer::builder().build(create_router(state));
+
+        let response = server.post(path).await;
+
+        response.assert_status(StatusCode::SEE_OTHER);
+        response.assert_header("location", "/auth/login");
+    }   
+    
     #[sqlx::test(fixtures(path="../fixtures", scripts("boards")))]
     async fn get_landing_returns_all_boards(db: SqlitePool) -> sqlx::Result<()> {
         let state = State(get_fake_application_state(db));

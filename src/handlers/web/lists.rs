@@ -85,7 +85,9 @@ async fn post_list_delete(State(state): State<ApplicationState>, Path(list_id): 
 pub mod tests {
     use sqlx::SqlitePool;
     use crate::handlers::tests::get_fake_application_state;
+    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion};
     use super::*;
+    use test_case::test_case;
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_list_form_adds_new_list(db: SqlitePool) -> sqlx::Result<()> {
@@ -161,7 +163,7 @@ pub mod tests {
     }
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
-    async fn post_list_delete_delets_the_list(db: SqlitePool) -> sqlx::Result<()> {
+    async fn post_list_delete_deletes_the_list(db: SqlitePool) -> sqlx::Result<()> {
         let state = State(get_fake_application_state(db));
 
         let response = post_list_delete(state, Path(1)).await.unwrap().0;
@@ -169,5 +171,20 @@ pub mod tests {
         assert!(response.contains("<turbo-stream action=\"remove\" target=\"list-1\"></turbo-stream>"));
 
         Ok(())
+    }
+
+    #[test_case("/lists/1/edit")]
+    #[test_case("/lists/1/header")]
+    #[tokio::test]
+    async fn authed_get_pages_redirect_when_anonymous(path: &str) {
+        base_auth_get_assertion(path).await;
+    }
+
+    #[test_case("/boards/1/lists")]
+    #[test_case("/lists/1/rename")]
+    #[test_case("/lists/1/delete")]
+    #[tokio::test]
+    async fn authed_post_pages_redirect_when_anonymous(path: &str) {
+        base_auth_post_assertion(path).await;
     }
 }
