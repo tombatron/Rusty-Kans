@@ -107,11 +107,11 @@ impl From<askama::Error> for KanbanError {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
+    use crate::errors::KanbanError;
     use axum::http::StatusCode;
     use axum::response::IntoResponse;
     use sqlx::SqlitePool;
-    use crate::errors::KanbanError;
+    use std::fs;
     use test_case::test_case;
 
     #[test_case(KanbanError::BoardNotFound(67), "Board with ID (67) was not found.".to_string())]
