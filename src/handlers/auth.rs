@@ -94,5 +94,42 @@ async fn post_logout(session: Session) -> Result<Redirect, KanbanError> {
 
 #[cfg(test)]
 pub mod tests {
+    use crate::handlers::tests::get_fake_application_state;
+    use crate::router::create_router_with_session;
+    use axum_test::TestServer;
+    use sqlx::SqlitePool;
+    use tower_sessions::{MemoryStore, SessionStore};
 
+    #[sqlx::test]
+    async fn post_logout_deletes_sessions(db: SqlitePool) {
+        let store = MemoryStore::default();
+        let state = get_fake_application_state(db);
+        
+        let server = TestServer::builder()
+            .save_cookies()
+            .build(create_router_with_session(state, store.clone()));
+
+        // Establish a session...
+        let response = server.get("/auth/login").await;
+
+        // Pull the session ID out of the cookie.
+        let cookie = response.cookie("id");
+        let session_id = cookie.value().parse().unwrap();
+
+        // Load the record and insert user data directly into the store.
+        let mut record = store.load(&session_id).await.unwrap().unwrap();
+        record.data.insert(
+            "GITHUB_USER".to_string(),
+            serde_json::json!({ "id": 1, "login": "testuser" })
+        );
+        store.save(&record).await.unwrap();
+
+        // Logout - axum-test carries the cookie automatically.
+        server.post("/auth/logout").await;
+
+        // Verify the session record is gone
+        let result = store.load(&session_id).await.unwrap();
+
+        assert!(result.is_none());
+    }
 }

@@ -2,21 +2,32 @@ use crate::handlers::*;
 use crate::state::ApplicationState;
 use axum::Router;
 use tower_http::services::ServeDir;
-use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 use tower_sessions::cookie::time::Duration;
+use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer, SessionStore};
 
 pub fn create_router(application_state: ApplicationState) -> Router<()> {
+    let session_store = MemoryStore::default();
+
+    create_router_with_session(application_state, session_store)
+}
+
+pub fn create_router_with_session<S>(
+    application_state: ApplicationState,
+    session_store: S,
+) -> Router<()>
+where
+    S: SessionStore + Clone,
+{
     let auth = auth::get_router_configuration();
     let api = api::get_router_configuration();
     let utility = utility::get_router_configuration();
     let web = web::get_router_configuration();
     let ws = ws::get_router_configuration();
 
-    let session_store = MemoryStore::default(); // Probably swap this for Redis later.
     let session_layer = SessionManagerLayer::new(session_store)
-        .with_secure(false)// This needs to be `true` for production.
-        .with_expiry(Expiry::OnInactivity(Duration::minutes(30)));    
-    
+        .with_secure(false) // This needs to be `true` for production.
+        .with_expiry(Expiry::OnInactivity(Duration::minutes(30)));
+
     Router::new()
         .nest_service("/static", ServeDir::new("static"))
         .merge(auth)
@@ -25,7 +36,6 @@ pub fn create_router(application_state: ApplicationState) -> Router<()> {
         .layer(session_layer)
         .merge(api)
         .merge(utility)
-
         .with_state(application_state)
 }
 
@@ -47,7 +57,7 @@ mod tests {
                 Request::builder()
                     .uri("/health")
                     .body(Body::empty())
-                    .unwrap()
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -65,7 +75,7 @@ mod tests {
                 Request::builder()
                     .uri("/api/board/1")
                     .body(Body::empty())
-                    .unwrap()
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -84,7 +94,7 @@ mod tests {
                     .uri("/api/board/1")
                     .header("Authorization", "Bearer super-secret")
                     .body(Body::empty())
-                    .unwrap()
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -98,12 +108,7 @@ mod tests {
         let app = create_router(state);
 
         let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/")
-                    .body(Body::empty())
-                    .unwrap()
-            )
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
             .await
             .unwrap();
 
@@ -120,7 +125,7 @@ mod tests {
                 Request::builder()
                     .uri("/boards/1")
                     .body(Body::empty())
-                    .unwrap()
+                    .unwrap(),
             )
             .await
             .unwrap();

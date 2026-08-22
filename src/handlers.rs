@@ -7,10 +7,10 @@ use axum::extract::State;
 use serde::{Deserialize, Serialize};
 
 pub mod api;
+pub mod auth;
 pub mod utility;
 pub mod web;
 pub mod ws;
-pub mod auth;
 
 #[derive(Debug, Serialize, Template)]
 #[template(path = "turbo_list_item.html")]
@@ -82,14 +82,8 @@ async fn patch_card_common(
     State(state): State<ApplicationState>,
     card: Card,
 ) -> Result<(), KanbanError> {
-    let result = data::update_card(
-        state.db,
-        card.id,
-        card.title,
-        card.description,
-        card.status,
-    )
-    .await?;
+    let result =
+        data::update_card(state.db, card.id, card.title, card.description, card.status).await?;
 
     if result != 1 {
         return Err(KanbanError::DatabaseError(
@@ -104,7 +98,7 @@ async fn patch_card_common(
 pub mod tests {
     use super::*;
     use crate::models::CardMoveEvent;
-    use crate::state::{ApplicationState, GitHubOAuthClient};
+    use crate::state::ApplicationState;
     use axum::extract::State;
     use oauth2::basic::BasicClient;
     use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
@@ -115,13 +109,19 @@ pub mod tests {
 
         let oauth_client = BasicClient::new(ClientId::new("github_client_id".to_string()))
             .set_client_secret(ClientSecret::new("github_client_secret".to_string()))
-            .set_auth_uri(AuthUrl::new("https://example.com/login/oauth/authorize".to_string()).unwrap())
+            .set_auth_uri(
+                AuthUrl::new("https://example.com/login/oauth/authorize".to_string()).unwrap(),
+            )
             .set_token_uri(
                 TokenUrl::new("https://example.com/login/oauth/access_token".to_string()).unwrap(),
             )
             .set_redirect_uri(RedirectUrl::new("http://example.com".to_string()).unwrap());
 
-        ApplicationState { db, tx, oauth_client }
+        ApplicationState {
+            db,
+            tx,
+            oauth_client,
+        }
     }
 
     #[sqlx::test(fixtures("boards"))]
@@ -197,7 +197,7 @@ pub mod tests {
             list_id: 1,
             title: "This is an updated title.".to_string(),
             description: Some("This is an updated description.".to_string()),
-            status: Status::Done
+            status: Status::Done,
         };
 
         patch_card_common(state, request).await.unwrap();
@@ -207,7 +207,10 @@ pub mod tests {
         assert_eq!(1, updated_card.id);
         assert_eq!(1, updated_card.list_id);
         assert_eq!("This is an updated title.", updated_card.title);
-        assert_eq!("This is an updated description.", updated_card.description.unwrap());
+        assert_eq!(
+            "This is an updated description.",
+            updated_card.description.unwrap()
+        );
         assert!(matches!(updated_card.status, Status::Done));
 
         Ok(())

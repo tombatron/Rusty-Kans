@@ -17,5 +17,7 @@ oauth2 = "5"
 dotenvy = "0.15"
 reqwest = { version = "0.13", features = ["json"] }
 
+
 [dev-dependencies]
 test-case = "3"
+axum-test = "21"
