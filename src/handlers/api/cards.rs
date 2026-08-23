@@ -4,7 +4,7 @@ use crate::handlers::{
     CreateCardRequest, create_card_common, delete_card_common, move_card_common, patch_card_common,
 };
 use crate::models::Card;
-use crate::state::ApplicationState;
+use crate::state::{ApplicationState, UserDb};
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::Redirect;
@@ -27,29 +27,29 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 }
 
 pub async fn post_card(
-    State(state): State<ApplicationState>,
+    UserDb(db): UserDb,
     Path(list_id): Path<u64>,
     Json(card): Json<CreateCardRequest>,
 ) -> Result<Json<Value>, KanbanError> {
-    let card = create_card_common(State(state), list_id, card).await?;
+    let card = create_card_common(db, list_id, card).await?;
 
     Ok(Json(json!(card)))
 }
 
 pub async fn post_move_card(
-    State(state): State<ApplicationState>,
+    UserDb(db): UserDb,
     Path((list_id, card_id)): Path<(u64, u64)>,
 ) -> Result<StatusCode, KanbanError> {
-    move_card_common(State(state), list_id, card_id).await?;
+    move_card_common(db, list_id, card_id).await?;
 
     Ok(StatusCode::OK)
 }
 
 pub async fn get_card_by_id(
-    State(state): State<ApplicationState>,
+    UserDb(db): UserDb,
     Path(card_id): Path<u64>,
 ) -> Result<Json<Value>, KanbanError> {
-    let result = data::get_card(state.db, card_id).await?;
+    let result = data::get_card(db, card_id).await?;
 
     Ok(Json(json!(result)))
 }
@@ -60,10 +60,10 @@ pub struct SearchQuery {
 }
 
 pub async fn get_card_search(
-    State(state): State<ApplicationState>,
+    UserDb(db): UserDb,
     Query(search_query): Query<SearchQuery>,
 ) -> Result<Json<Value>, KanbanError> {
-    let search_result = data::get_cards_by_title_submatch(state.db, search_query.keyword).await?;
+    let search_result = data::get_cards_by_title_submatch(db, search_query.keyword).await?;
 
     let cards = search_result.iter().map(|c| json!(c)).collect();
 
@@ -71,20 +71,20 @@ pub async fn get_card_search(
 }
 
 pub async fn delete_card(
-    State(state): State<ApplicationState>,
+    UserDb(db): UserDb,
     Path((_list_id, card_id)): Path<(u64, u64)>,
 ) -> Result<StatusCode, KanbanError> {
-    delete_card_common(State(state), card_id).await?;
+    delete_card_common(db, card_id).await?;
 
     Ok(StatusCode::OK)
 }
 
 pub async fn patch_card(
-    State(state): State<ApplicationState>,
+    UserDb(db): UserDb,
     Path(card_id): Path<u64>,
     Json(card): Json<Card>,
 ) -> Result<Redirect, KanbanError> {
-    patch_card_common(State(state), card).await?;
+    patch_card_common(db, card).await?;
 
     Ok(Redirect::to(format!("/api/cards/{card_id}").as_str()))
 }
@@ -103,14 +103,14 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_card_adds_a_card(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
         let request = Json(CreateCardRequest {
             title: "This is a new card.".to_string(),
             description: Some("This is a nice description.".to_string()),
         });
 
-        let response = post_card(state, Path(1), request).await.unwrap().0;
+        let response = post_card(db, Path(1), request).await.unwrap().0;
 
         assert_eq!(19, response["id"]);
         assert_eq!(1, response["list_id"]);
@@ -123,11 +123,11 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_move_card_moves_card(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db.clone()));
+        let db = UserDb(db);
 
-        let response = post_move_card(state, Path((2, 1))).await.unwrap();
+        let response = post_move_card(db.clone(), Path((2, 1))).await.unwrap();
 
-        let card = data::get_card(db, 1).await.unwrap();
+        let card = data::get_card(db.0, 1).await.unwrap();
 
         assert_eq!(StatusCode::OK, response);
         assert_eq!(2, card.list_id);
@@ -137,9 +137,9 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_card_by_id_gets_card_by_id(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
-        let response = get_card_by_id(state, Path(1)).await.unwrap().0;
+        let response = get_card_by_id(db, Path(1)).await.unwrap().0;
 
         assert_eq!(1, response["id"]);
         assert_eq!("Card 1", response["title"]);
@@ -151,13 +151,13 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_card_by_search_does_that(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
         let request = Query(SearchQuery {
             keyword: "Card 1".to_string(),
         });
 
-        let response = get_card_search(state, request).await.unwrap().0;
+        let response = get_card_search(db, request).await.unwrap().0;
 
         assert_eq!(9, response.as_array().unwrap().len());
 
@@ -166,11 +166,11 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn delete_card_does_it(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db.clone()));
+        let db = UserDb(db);
 
-        let response = delete_card(state, Path((1, 1))).await.unwrap();
+        let response = delete_card(db.clone(), Path((1, 1))).await.unwrap();
 
-        let card = data::get_card(db, 1).await;
+        let card = data::get_card(db.0, 1).await;
 
         assert_eq!(StatusCode::OK, response);
         assert!(card.is_err()); // This should be an error because we just deleted it.
@@ -180,7 +180,7 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn patch_card_updates_card(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db.clone()));
+        let db = UserDb(db);
 
         let request = Json(Card {
             id: 1,
@@ -190,9 +190,9 @@ mod tests {
             status: Status::Done,
         });
 
-        let response = patch_card(state, Path(1), request).await.unwrap();
+        let response = patch_card(db.clone(), Path(1), request).await.unwrap();
 
-        let updated_card = data::get_card(db, 1).await.unwrap();
+        let updated_card = data::get_card(db.0, 1).await.unwrap();
 
         assert_eq!("/api/cards/1", response.location());
         assert_eq!(1, updated_card.id);
