@@ -1,11 +1,11 @@
-use axum::extract::{Path, State};
-use axum::{Json, Router};
-use axum::routing::{get, post};
-use serde_json::{json, Value};
 use crate::data;
 use crate::errors::KanbanError;
-use crate::handlers::{create_list_common, CreateListRequest};
-use crate::state::ApplicationState;
+use crate::handlers::{CreateListRequest, create_list_common};
+use crate::state::{ApplicationState, UserDb};
+use axum::extract::Path;
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use serde_json::{Value, json};
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -14,10 +14,10 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 }
 
 async fn get_list_by_id(
-    State(state): State<ApplicationState>,
+    UserDb(db): UserDb,
     Path(id): Path<u64>,
 ) -> Result<Json<Value>, KanbanError> {
-    let result = data::get_list_with_cards(state.db, id).await?;
+    let result = data::get_list_with_cards(db, id).await?;
 
     let cards_json: Vec<Value> = result.cards
         .iter()
@@ -33,29 +33,29 @@ async fn get_list_by_id(
 }
 
 async fn post_list(
-    State(state): State<ApplicationState>,
+    UserDb(db): UserDb,
     Path(board_id): Path<u64>,
     Json(list): Json<CreateListRequest>,
 ) -> Result<Json<Value>, KanbanError> {
-    let created_list = create_list_common(State(state), board_id, list).await?;
+    let created_list = create_list_common(db, board_id, list).await?;
 
     Ok(Json(json!(created_list)))
 }
 
 #[cfg(test)]
 mod tests {
-    use axum::extract::{Path, State};
-    use axum::Json;
-    use sqlx::SqlitePool;
-    use crate::handlers::api::lists::{get_list_by_id, post_list};
     use crate::handlers::CreateListRequest;
-    use crate::handlers::tests::get_fake_application_state;
+    use crate::handlers::api::lists::{get_list_by_id, post_list};
+    use crate::state::UserDb;
+    use axum::Json;
+    use axum::extract::Path;
+    use sqlx::SqlitePool;
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_list_by_id_returns_list(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
-        let response = get_list_by_id(state, Path(1)).await.unwrap().0;
+        let response = get_list_by_id(db, Path(1)).await.unwrap().0;
 
         assert_eq!(1, response["list_id"]);
         assert_eq!(1, response["board_id"]);
@@ -67,13 +67,13 @@ mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_list_creates_list(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
         let request = CreateListRequest {
             name: "This is a totally new list.".to_string()
         };
 
-        let response = post_list(state, Path(1), Json(request)).await.unwrap();
+        let response = post_list(db, Path(1), Json(request)).await.unwrap();
 
         assert_eq!(7, response["list_id"]);
         assert_eq!("This is a totally new list.", response["name"]);
