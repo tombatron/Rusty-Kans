@@ -14,6 +14,7 @@ use std::{env, fs};
 use std::str::FromStr;
 use std::sync::Arc;
 use tower_sessions::Session;
+use tower_sessions_redis_store::{fred::prelude::*, RedisStore};
 
 pub type GitHubOAuthClient = oauth2::Client<
     BasicErrorResponse,
@@ -33,6 +34,7 @@ pub struct ApplicationState {
     pub db_pools: Arc<DashMap<i64, SqlitePool>>,
     pub tx: tokio::sync::broadcast::Sender<CardMoveEvent>,
     pub oauth_client: GitHubOAuthClient,
+    pub redis_pool: Option<Pool>
 }
 
 #[derive(Clone)]
@@ -155,9 +157,13 @@ pub async fn create_application_state() -> ApplicationState {
 
     let (tx, _) = tokio::sync::broadcast::channel::<CardMoveEvent>(512);
 
+    let redis_pool = Pool::new(Config::default(), None, None, None, 6).unwrap();
+    redis_pool.wait_for_connect().await.unwrap();
+
     ApplicationState {
         db_pools,
         tx,
         oauth_client,
+        redis_pool: Some(redis_pool)
     }
 }

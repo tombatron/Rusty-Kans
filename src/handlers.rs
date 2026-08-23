@@ -123,6 +123,7 @@ pub mod tests {
             db_pools,
             tx,
             oauth_client,
+            redis_pool: None
         }
     }
 

@@ -4,11 +4,14 @@ use axum::Router;
 use tower_http::services::ServeDir;
 use tower_sessions::cookie::time::Duration;
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer, SessionStore};
+use tower_sessions_redis_store::RedisStore;
 
 pub fn create_router(application_state: ApplicationState) -> Router<()> {
-    let session_store = MemoryStore::default();
+    match application_state.clone().redis_pool {
+        Some(pool) => create_router_with_session(application_state, RedisStore::new(pool)),
 
-    create_router_with_session(application_state, session_store)
+        None => create_router_with_session(application_state, MemoryStore::default())
+    }
 }
 
 pub fn create_router_with_session<S>(
