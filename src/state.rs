@@ -12,6 +12,7 @@ use sqlx::{AssertSqlSafe, SqlitePool};
 use sqlx::sqlite::SqliteConnectOptions;
 use std::{env, fs};
 use std::str::FromStr;
+use std::sync::Arc;
 use tower_sessions::Session;
 
 pub type GitHubOAuthClient = oauth2::Client<
@@ -29,7 +30,7 @@ pub type GitHubOAuthClient = oauth2::Client<
 
 #[derive(Clone)]
 pub struct ApplicationState {
-    pub db_pools: DashMap<i64, SqlitePool>,
+    pub db_pools: Arc<DashMap<i64, SqlitePool>>,
     pub tx: tokio::sync::broadcast::Sender<CardMoveEvent>,
     pub oauth_client: GitHubOAuthClient,
 }
@@ -150,7 +151,7 @@ pub async fn create_application_state() -> ApplicationState {
         )
         .set_redirect_uri(github_redirect_url.unwrap());
 
-    let db_pools = DashMap::new();
+    let db_pools = Arc::new(DashMap::new());
 
     let (tx, _) = tokio::sync::broadcast::channel::<CardMoveEvent>(512);
 

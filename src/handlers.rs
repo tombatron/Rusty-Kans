@@ -95,6 +95,7 @@ async fn patch_card_common(
 
 #[cfg(test)]
 pub mod tests {
+    use std::sync::Arc;
     use super::*;
     use crate::models::CardMoveEvent;
     use crate::state::ApplicationState;
@@ -116,7 +117,7 @@ pub mod tests {
             )
             .set_redirect_uri(RedirectUrl::new("http://example.com".to_string()).unwrap());
         
-        let db_pools = DashMap::<i64, SqlitePool>::new();
+        let db_pools = Arc::new(DashMap::<i64, SqlitePool>::new());
 
         ApplicationState {
             db_pools,
