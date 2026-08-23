@@ -1,15 +1,15 @@
-use askama::Template;
-use axum::extract::{Path, State};
-use axum::{Form, Router};
-use axum::response::{Html, Redirect};
-use axum::routing::{get, post};
-use serde::Deserialize;
 use crate::data;
 use crate::errors::KanbanError;
-use crate::handlers::{create_list_common, CreateListRequest};
+use crate::handlers::{CreateListRequest, create_list_common};
 use crate::models::List;
 use crate::state::{ApplicationState, UserDb};
 use crate::turbo::TurboStream;
+use askama::Template;
+use axum::extract::Path;
+use axum::response::{Html, Redirect};
+use axum::routing::{get, post};
+use axum::{Form, Router};
+use serde::Deserialize;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -83,13 +83,12 @@ async fn post_list_delete(UserDb(db): UserDb, Path(list_id): Path<u64>) -> Resul
 
 #[cfg(test)]
 pub mod tests {
-    use sqlx::SqlitePool;
-    use crate::handlers::tests::get_fake_application_state;
-    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion};
     use super::*;
+    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion};
+    use sqlx::SqlitePool;
     use test_case::test_case;
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_list_form_adds_new_list(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 

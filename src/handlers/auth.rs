@@ -97,7 +97,6 @@ pub mod tests {
     use crate::handlers::tests::get_fake_application_state;
     use crate::router::create_router_with_session;
     use axum_test::TestServer;
-    use sqlx::SqlitePool;
     use tower_sessions::{MemoryStore, SessionStore};
 
     #[tokio::test]

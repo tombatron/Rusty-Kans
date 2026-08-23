@@ -5,7 +5,7 @@ use crate::handlers::{
 };
 use crate::models::Card;
 use crate::state::{ApplicationState, UserDb};
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, Query};
 use axum::http::StatusCode;
 use axum::response::Redirect;
 use axum::routing::{delete, get, patch, post};
@@ -94,10 +94,9 @@ mod tests {
     use crate::data;
     use crate::handlers::CreateCardRequest;
     use crate::handlers::api::cards::*;
-    use crate::handlers::tests::get_fake_application_state;
     use crate::models::Status;
     use axum::Json;
-    use axum::extract::{Path, State};
+    use axum::extract::Path;
     use axum::http::StatusCode;
     use sqlx::SqlitePool;
 

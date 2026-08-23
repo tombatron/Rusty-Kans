@@ -4,7 +4,7 @@ use crate::models::{Board, Card, List};
 use crate::state::{ApplicationState, UserDb};
 use crate::turbo::TurboStream;
 use askama::Template;
-use axum::extract::{Path, State};
+use axum::extract::Path;
 use axum::response::{Html, Redirect};
 use axum::routing::{get, post};
 use axum::{Form, Router};
@@ -124,11 +124,10 @@ async fn post_board_delete(UserDb(db): UserDb, Path(board_id):Path<u64>) -> Resu
 
 #[cfg(test)]
 mod tests {
-    use crate::handlers::tests::get_fake_application_state;
     use crate::handlers::web::boards::*;
     use crate::handlers::web::tests::*;
     use axum::Form;
-    use axum::extract::{Path, State};
+    use axum::extract::Path;
     use sqlx::SqlitePool;
     use test_case::test_case;
 

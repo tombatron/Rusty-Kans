@@ -1,7 +1,7 @@
 use crate::data;
 use crate::errors::KanbanError;
 use crate::state::{ApplicationState, UserDb};
-use axum::extract::{Path, State};
+use axum::extract::Path;
 use axum::routing::get;
 use axum::{Json, Router};
 use serde_json::{Value, json};

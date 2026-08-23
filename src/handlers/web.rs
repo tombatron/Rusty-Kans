@@ -2,16 +2,15 @@ pub mod boards;
 pub mod lists;
 pub mod cards;
 
+use crate::data;
 use crate::errors::KanbanError;
+use crate::middleware::require_web_auth;
 use crate::models::Board;
 use crate::state::{ApplicationState, UserDb};
 use askama::Template;
-use axum::extract::State;
+use axum::Router;
 use axum::response::Html;
 use axum::routing::get;
-use axum::Router;
-use crate::data;
-use crate::middleware::require_web_auth;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -38,14 +37,12 @@ async fn get_landing(UserDb(db): UserDb) -> Result<Html<String>, KanbanError> {
 
 #[cfg(test)]
 mod tests {
-    use axum::extract::State;
+    use crate::handlers::web::get_landing;
+    use crate::router::create_router;
+    use crate::state::{UserDb, create_application_state};
     use axum::http::StatusCode;
     use axum_test::TestServer;
     use sqlx::SqlitePool;
-    use crate::handlers::tests::get_fake_application_state;
-    use crate::handlers::web::get_landing;
-    use crate::router::create_router;
-    use crate::state::{create_application_state, UserDb};
 
     pub async fn base_auth_get_assertion(path: &str) {
         let state = create_application_state().await;
