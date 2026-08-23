@@ -6,7 +6,7 @@ use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
 use std::env;
 use std::str::FromStr;
-use axum::extract::{FromRef, FromRequestParts};
+use axum::extract::{FromRef, FromRequest, FromRequestParts, Request};
 use axum::http::request::Parts;
 use axum::http::StatusCode;
 use dashmap::DashMap;
@@ -29,7 +29,7 @@ pub type GitHubOAuthClient = oauth2::Client<
 
 #[derive(Clone)]
 pub struct ApplicationState {
-    pub db_pools: DashMap<u64, SqlitePool>,
+    pub db_pools: DashMap<i64, SqlitePool>,
     pub tx: tokio::sync::broadcast::Sender<CardMoveEvent>,
     pub oauth_client: GitHubOAuthClient,
 }
@@ -55,7 +55,7 @@ where
             .map_err(|_| unauthed_response)?
             .ok_or(unauthed_response)?;
 
-        let user_db_pool = state.db_pools.get(&(current_user.id as u64));
+        let user_db_pool = state.db_pools.get(&(current_user.id));
 
         match user_db_pool {
             Some(db) => Ok(UserDb(db.clone())),
@@ -66,9 +66,49 @@ where
 
                 let db_pool = SqlitePool::connect_with(options).await.unwrap();
 
-                state.db_pools.insert(current_user.id as u64, db_pool.clone());
+                state.db_pools.insert(current_user.id, db_pool.clone());
 
                 Ok(UserDb(db_pool))
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct ApiDb(pub SqlitePool);
+
+impl<S> FromRequest<S> for ApiDb
+where
+    ApplicationState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, &'static str);
+
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        let unauthed_response = (StatusCode::UNAUTHORIZED, "There doesn't seem to be a delegated user...");
+
+        let state = ApplicationState::from_ref(state);
+        let user_id: i64 = req.headers()
+            .get("delegated-user-id")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.parse::<i64>().unwrap())
+            .ok_or(unauthed_response)
+            .map_err(|_| unauthed_response)?;
+
+        let user_db_pool = state.db_pools.get(&user_id);
+
+        match user_db_pool {
+            Some(db) => Ok(ApiDb(db.clone())),
+            None => {
+                let options = SqliteConnectOptions::from_str(format!("sqlite:./database/{}.kanban.db", user_id)
+                    .as_str()).unwrap()
+                    .foreign_keys(true);
+
+                let db_pool = SqlitePool::connect_with(options).await.unwrap();
+
+                state.db_pools.insert(user_id, db_pool.clone());
+
+                Ok(ApiDb(db_pool))
             }
         }
     }
