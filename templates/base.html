@@ -51,6 +51,9 @@
 </head>
 <body>
     <div>
+        <form method="post" action="/auth/logout" data-turbo="false">
+            <button type="submit">Logout</button>
+        </form>
         {% block content %}{% endblock %}
     </div>
     {% block bottom_scripts %}

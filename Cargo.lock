@@ -1421,28 +1421,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kanban"
-version = "0.1.0"
-dependencies = [
- "askama",
- "axum",
- "axum-test",
- "dashmap",
- "dotenvy",
- "oauth2",
- "reqwest 0.13.4",
- "serde",
- "serde_json",
- "sqlx",
- "test-case",
- "tokio",
- "tower",
- "tower-http 0.7.0",
- "tower-sessions",
- "tower-sessions-redis-store",
-]
-
-[[package]]
 name = "libc"
 version = "0.2.186"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2197,6 +2175,28 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+
+[[package]]
+name = "rusty-kans"
+version = "0.1.0"
+dependencies = [
+ "askama",
+ "axum",
+ "axum-test",
+ "dashmap",
+ "dotenvy",
+ "oauth2",
+ "reqwest 0.13.4",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "test-case",
+ "tokio",
+ "tower",
+ "tower-http 0.7.0",
+ "tower-sessions",
+ "tower-sessions-redis-store",
+]
 
 [[package]]
 name = "ryu"

@@ -34,7 +34,7 @@ async fn get_login(State(state): State<ApplicationState>, session: Session) -> R
         .set_pkce_challenge(pkce_challenge)
         .url();
 
-    session.insert(CSRF_TOKEN_KEY, csrf_token).await.unwrap();
+    session.insert(CSRF_TOKEN_KEY, csrf_token.secret()).await.unwrap();
     session.insert(PKCE_VERIFIER_KEY, pkce_verifier.into_secret()).await.unwrap();
 
     Ok(Redirect::to(auth_url.as_str()))

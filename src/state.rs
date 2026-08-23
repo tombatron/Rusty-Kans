@@ -14,7 +14,7 @@ use std::{env, fs};
 use std::str::FromStr;
 use std::sync::Arc;
 use tower_sessions::Session;
-use tower_sessions_redis_store::{fred::prelude::*, RedisStore};
+use tower_sessions_redis_store::fred::prelude::*;
 
 pub type GitHubOAuthClient = oauth2::Client<
     BasicErrorResponse,
@@ -35,6 +35,17 @@ pub struct ApplicationState {
     pub tx: tokio::sync::broadcast::Sender<CardMoveEvent>,
     pub oauth_client: GitHubOAuthClient,
     pub redis_pool: Option<Pool>
+}
+
+async fn get_or_create_pool(db_pools: &Arc<DashMap<i64, SqlitePool>>, user_id: i64) -> SqlitePool {
+    if let Some(pool) = db_pools.get(&user_id) {
+        return pool.clone();
+    }
+
+    let db_pool = get_database(user_id).await;
+    db_pools.insert(user_id, db_pool.clone());
+
+    db_pool
 }
 
 #[derive(Clone)]
@@ -58,18 +69,9 @@ where
             .map_err(|_| unauthed_response)?
             .ok_or(unauthed_response)?;
 
-        let user_db_pool = state.db_pools.get(&(current_user.id));
+        let db_pool = get_or_create_pool(&state.db_pools, current_user.id).await;
 
-        match user_db_pool {
-            Some(db) => Ok(UserDb(db.clone())),
-            None => {
-                let db_pool = get_database(current_user.id).await;
-
-                state.db_pools.insert(current_user.id, db_pool.clone());
-
-                Ok(UserDb(db_pool))
-            }
-        }
+        Ok(UserDb(db_pool))
     }
 }
 
@@ -96,18 +98,9 @@ where
             .ok_or(unauthed_response)
             .map_err(|_| unauthed_response)?;
 
-        let user_db_pool = state.db_pools.get(&user_id);
+        let user_db_pool = get_or_create_pool(&state.db_pools, user_id).await;
 
-        match user_db_pool {
-            Some(db) => Ok(ApiDb(db.clone())),
-            None => {
-                let db_pool = get_database(user_id).await;
-
-                state.db_pools.insert(user_id, db_pool.clone());
-
-                Ok(ApiDb(db_pool))
-            }
-        }
+        Ok(ApiDb(user_db_pool))
     }
 }
 
@@ -157,13 +150,24 @@ pub async fn create_application_state() -> ApplicationState {
 
     let (tx, _) = tokio::sync::broadcast::channel::<CardMoveEvent>(512);
 
-    let redis_pool = Pool::new(Config::default(), None, None, None, 6).unwrap();
-    redis_pool.wait_for_connect().await.unwrap();
+    let redis_connection_string = env::var("REDIS_CONNECTION_STRING");
+
+    let redis_pool: Option<Pool> = match redis_connection_string {
+        Ok(conn_string) => {
+            let config = Config::from_url(conn_string.as_str()).unwrap();
+            let pool = Pool::new(config, None, None, None, 6).unwrap();
+            pool.connect();
+            pool.wait_for_connect().await.unwrap();
+
+            Some(pool)
+        },
+        Err(_) => None
+    };
 
     ApplicationState {
         db_pools,
         tx,
         oauth_client,
-        redis_pool: Some(redis_pool)
+        redis_pool
     }
 }
