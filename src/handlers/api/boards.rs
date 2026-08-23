@@ -1,6 +1,6 @@
 use crate::data;
 use crate::errors::KanbanError;
-use crate::state::ApplicationState;
+use crate::state::{ApplicationState, UserDb};
 use axum::extract::{Path, State};
 use axum::routing::get;
 use axum::{Json, Router};
@@ -11,8 +11,8 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/api/board/{board_id}", get(get_board))
 }
 
-async fn get_board(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<Json<Value>, KanbanError> {
-    let result = data::get_board_with_lists(state.db, board_id).await?;
+async fn get_board(UserDb(db): UserDb, Path(board_id): Path<u64>) -> Result<Json<Value>, KanbanError> {
+    let result = data::get_board_with_lists(db, board_id).await?;
 
     Ok(Json(json!({
         "id": board_id,
@@ -24,15 +24,15 @@ async fn get_board(State(state): State<ApplicationState>, Path(board_id): Path<u
 #[cfg(test)]
 mod tests {
     use crate::handlers::api::boards::get_board;
-    use crate::handlers::tests::get_fake_application_state;
-    use axum::extract::{Path, State};
+    use crate::state::UserDb;
+    use axum::extract::Path;
     use sqlx::SqlitePool;
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_board_returns_a_board(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
-        let response = get_board(state, Path(1)).await.unwrap();
+        let response = get_board(db, Path(1)).await.unwrap();
 
         assert_eq!(1, response["id"]);
         assert_eq!("Whatever", response["name"]);
