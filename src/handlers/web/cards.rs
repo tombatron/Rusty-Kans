@@ -7,7 +7,7 @@ use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::{create_card_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest};
 use crate::models::{Card, CardMoveEvent};
-use crate::state::ApplicationState;
+use crate::state::{ApplicationState, UserDb};
 use crate::turbo::TurboStream;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
@@ -38,12 +38,13 @@ impl Into<CardMoveEvent> for MoveCardTemplate {
 }
 
 async fn post_move_card_action(
+    UserDb(db): UserDb,
     State(state): State<ApplicationState>,
     Path((list_id, card_id)): Path<(u64, u64)>,
 ) -> Result<TurboStream, KanbanError> {
-    move_card_common(State(state.clone()), list_id, card_id).await?;
+    move_card_common(db.clone(), list_id, card_id).await?;
 
-    let card = data::get_card(state.db, card_id).await?;
+    let card = data::get_card(db, card_id).await?;
 
     let response = MoveCardTemplate {
         card_id,
@@ -65,11 +66,11 @@ struct NewCardTemplate {
 }
 
 async fn post_card_form(
-    State(state): State<ApplicationState>,
+    UserDb(db): UserDb,
     Path(list_id): Path<u64>,
     Form(card): Form<CreateCardRequest>,
 ) -> Result<TurboStream, KanbanError> {
-    let card = create_card_common(State(state), list_id, card).await?;
+    let card = create_card_common(db, list_id, card).await?;
 
     let template =  NewCardTemplate { card };
 
@@ -77,10 +78,10 @@ async fn post_card_form(
 }
 
 async fn delete_card_form(
-    State(state): State<ApplicationState>,
+    UserDb(db): UserDb,
     Path((_list_id, card_id)): Path<(u64, u64)>,
 ) -> Result<TurboStream, KanbanError> {
-    delete_card_common(State(state), card_id).await?;
+    delete_card_common(db, card_id).await?;
 
     let response =
         format!("<turbo-stream action=\"remove\" target=\"card-{card_id}\"></turbo-stream>");
@@ -111,8 +112,8 @@ struct CardTemplate {
     card: Card,
 }
 
-async fn patch_card_form(State(state): State<ApplicationState>, Path(card_id): Path<i64>, Form(card): Form<Card>) -> Result<Redirect, KanbanError> {
-    patch_card_common(State(state), card).await?;
+async fn patch_card_form(UserDb(db): UserDb, Path(card_id): Path<i64>, Form(card): Form<Card>) -> Result<Redirect, KanbanError> {
+    patch_card_common(db, card).await?;
 
     Ok(Redirect::to(format!("/cards/{card_id}/view").as_str()))
 }

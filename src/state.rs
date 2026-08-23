@@ -6,6 +6,13 @@ use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
 use std::env;
 use std::str::FromStr;
+use axum::extract::{FromRef, FromRequestParts};
+use axum::http::request::Parts;
+use axum::http::StatusCode;
+use dashmap::DashMap;
+use tower_sessions::Session;
+use crate::handlers::auth::GITHUB_USER_KEY;
+use crate::models::security::GitHubUser;
 
 pub type GitHubOAuthClient = oauth2::Client<
     BasicErrorResponse,
@@ -22,9 +29,49 @@ pub type GitHubOAuthClient = oauth2::Client<
 
 #[derive(Clone)]
 pub struct ApplicationState {
-    pub db: SqlitePool,
+    pub db_pools: DashMap<u64, SqlitePool>,
     pub tx: tokio::sync::broadcast::Sender<CardMoveEvent>,
     pub oauth_client: GitHubOAuthClient,
+}
+
+#[derive(Clone)]
+pub struct UserDb(pub SqlitePool);
+
+impl<S> FromRequestParts<S> for UserDb
+where
+    ApplicationState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, &'static str);
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let unauthed_response = (StatusCode::UNAUTHORIZED, "There doesn't seem to be anyone logged in...");
+
+        let session = Session::from_request_parts(parts, state).await?;
+        let state = ApplicationState::from_ref(state);
+
+        let current_user = session.get::<GitHubUser>(GITHUB_USER_KEY)
+            .await
+            .map_err(|_| unauthed_response)?
+            .ok_or(unauthed_response)?;
+
+        let user_db_pool = state.db_pools.get(&(current_user.id as u64));
+
+        match user_db_pool {
+            Some(db) => Ok(UserDb(db.clone())),
+            None => {
+                let options = SqliteConnectOptions::from_str(format!("sqlite:./database/{}.kanban.db", current_user.id)
+                    .as_str()).unwrap()
+                    .foreign_keys(true);
+
+                let db_pool = SqlitePool::connect_with(options).await.unwrap();
+
+                state.db_pools.insert(current_user.id as u64, db_pool.clone());
+
+                Ok(UserDb(db_pool))
+            }
+        }
+    }
 }
 
 pub async fn create_application_state() -> ApplicationState {
@@ -43,16 +90,17 @@ pub async fn create_application_state() -> ApplicationState {
         )
         .set_redirect_uri(github_redirect_url.unwrap());
 
-    let options = SqliteConnectOptions::from_str("sqlite:./kanban.db")
-        .unwrap()
-        .foreign_keys(true);
+    // let options = SqliteConnectOptions::from_str("sqlite:./kanban.db")
+    //     .unwrap()
+    //     .foreign_keys(true);
 
-    let db = SqlitePool::connect_with(options).await.unwrap();
+    //let db = SqlitePool::connect_with(options).await.unwrap();
+    let db_pools = DashMap::new();
 
     let (tx, _) = tokio::sync::broadcast::channel::<CardMoveEvent>(512);
 
     ApplicationState {
-        db,
+        db_pools,
         tx,
         oauth_client,
     }

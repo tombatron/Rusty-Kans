@@ -100,10 +100,10 @@ pub mod tests {
     use sqlx::SqlitePool;
     use tower_sessions::{MemoryStore, SessionStore};
 
-    #[sqlx::test]
-    async fn post_logout_deletes_sessions(db: SqlitePool) {
+    #[tokio::test]
+    async fn post_logout_deletes_sessions() {
         let store = MemoryStore::default();
-        let state = get_fake_application_state(db);
+        let state = get_fake_application_state();
 
         let server = TestServer::builder()
             .save_cookies()

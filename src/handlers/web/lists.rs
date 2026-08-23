@@ -8,7 +8,7 @@ use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::{create_list_common, CreateListRequest};
 use crate::models::List;
-use crate::state::ApplicationState;
+use crate::state::{ApplicationState, UserDb};
 use crate::turbo::TurboStream;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
@@ -21,11 +21,11 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 }
 
 async fn post_list_form(
-    State(state): State<ApplicationState>,
+    UserDb(db): UserDb,
     Path(board_id): Path<u64>,
     Form(list_info): Form<CreateListRequest>,
 ) -> Result<TurboStream, KanbanError> {
-    let created_list = create_list_common(State(state), board_id, list_info).await?;
+    let created_list = create_list_common(db, board_id, list_info).await?;
 
     Ok(TurboStream(created_list.render()?))
 }
@@ -36,8 +36,8 @@ struct ListHeader {
     list: List
 }
 
-async fn get_list_header(State(state): State<ApplicationState>, Path(list_id): Path<u64>) -> Result<Html<String>, KanbanError> {
-    let list = data::get_list_header(state.db, list_id).await?;
+async fn get_list_header(UserDb(db): UserDb, Path(list_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+    let list = data::get_list_header(db, list_id).await?;
 
     let template = ListHeader { list };
 
@@ -50,8 +50,8 @@ struct ListHeaderEdit {
     list: List
 }
 
-async fn get_list_edit(State(state): State<ApplicationState>, Path(list_id): Path<u64>) -> Result<Html<String>, KanbanError> {
-    let list = data::get_list_header(state.db, list_id).await?;
+async fn get_list_edit(UserDb(db): UserDb, Path(list_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+    let list = data::get_list_header(db, list_id).await?;
 
     let template = ListHeaderEdit { list };
 
@@ -63,8 +63,8 @@ struct ListRename {
     name: String
 }
 
-async fn post_list_rename(State(state): State<ApplicationState>, Path(list_id): Path<u64>, Form(list_header): Form<ListRename>) -> Result<Redirect, KanbanError> {
-    let result = data::update_list(state.db, list_id, list_header.name).await?;
+async fn post_list_rename(UserDb(db): UserDb, Path(list_id): Path<u64>, Form(list_header): Form<ListRename>) -> Result<Redirect, KanbanError> {
+    let result = data::update_list(db, list_id, list_header.name).await?;
 
     if result != 1 {
         return Err(KanbanError::DatabaseError("Update failed please try again.".to_string()));
@@ -73,8 +73,8 @@ async fn post_list_rename(State(state): State<ApplicationState>, Path(list_id): 
     Ok(Redirect::to(format!("/lists/{list_id}/header").as_str()))
 }
 
-async fn post_list_delete(State(state): State<ApplicationState>, Path(list_id): Path<u64>) -> Result<TurboStream, KanbanError> {
-    data::delete_list(state.db, list_id).await?;
+async fn post_list_delete(UserDb(db): UserDb, Path(list_id): Path<u64>) -> Result<TurboStream, KanbanError> {
+    data::delete_list(db, list_id).await?;
 
     let result = format!("<turbo-stream action=\"remove\" target=\"list-{list_id}\"></turbo-stream>");
 
@@ -91,13 +91,13 @@ pub mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_list_form_adds_new_list(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
         let request = CreateListRequest {
             name: "This is a new list".to_string()
         };
 
-        let response = post_list_form(state, Path(1), Form(request)).await.unwrap().0;
+        let response = post_list_form(db, Path(1), Form(request)).await.unwrap().0;
 
         assert!(response.contains("list-7"));
         assert!(response.contains("<h3 class=\"list-title\">This is a new list</h3>"));
@@ -107,9 +107,9 @@ pub mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn get_list_header_returns_list_header(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
-        let response = get_list_header(state, Path(1)).await.unwrap().0;
+        let response = get_list_header(db, Path(1)).await.unwrap().0;
 
         assert!(response.contains("list-title-1"));
         assert!(response.contains("<h3 class=\"list-title\">First List</h3>"));
@@ -119,9 +119,9 @@ pub mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn get_list_edit_returns_edit_html(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
-        let response = get_list_edit(state, Path(1)).await.unwrap().0;
+        let response = get_list_edit(db, Path(1)).await.unwrap().0;
 
         assert!(response.contains("<input type=\"hidden\" name=\"id\" value=\"1\">"));
         assert!(response.contains("<input type=\"text\" name=\"name\" value=\"First List\">"));
@@ -131,15 +131,15 @@ pub mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_list_rename_renames_list(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db.clone()));
+        let db = UserDb(db);
 
         let request = ListRename {
             name: "Renamed list".to_string()
         };
 
-        let response = post_list_rename(state, Path(1), Form(request)).await.unwrap();
+        let response = post_list_rename(db.clone(), Path(1), Form(request)).await.unwrap();
 
-        let renamed_list = data::get_list_header(db, 1).await.unwrap();
+        let renamed_list = data::get_list_header(db.0, 1).await.unwrap();
 
         assert_eq!("/lists/1/header", response.location());
         assert_eq!("Renamed list", renamed_list.name);
@@ -149,13 +149,13 @@ pub mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_list_rename_fails_when_delete_affects_nothing(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db.clone()));
+        let db = UserDb(db);
 
         let request = ListRename {
             name: "Renamed list".to_string()
         };
 
-        let response = post_list_rename(state, Path(1000), Form(request)).await.unwrap_err();
+        let response = post_list_rename(db, Path(1000), Form(request)).await.unwrap_err();
 
         assert!(matches!(response, KanbanError::DatabaseError(_)));
 
@@ -164,9 +164,9 @@ pub mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_list_delete_deletes_the_list(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
-        let response = post_list_delete(state, Path(1)).await.unwrap().0;
+        let response = post_list_delete(db, Path(1)).await.unwrap().0;
 
         assert!(response.contains("<turbo-stream action=\"remove\" target=\"list-1\"></turbo-stream>"));
 
