@@ -1,7 +1,7 @@
 use crate::data;
 use crate::errors::KanbanError;
 use crate::models::{Board, Card, List};
-use crate::state::ApplicationState;
+use crate::state::{ApplicationState, UserDb};
 use crate::turbo::TurboStream;
 use askama::Template;
 use axum::extract::{Path, State};
@@ -32,8 +32,8 @@ struct NewBoardTemplate {
     name: String
 }
 
-async fn post_board_form(State(state): State<ApplicationState>, Form(board): Form<CreateBoardRequest>) -> Result<TurboStream, KanbanError> {
-    let board_id = data::insert_board(state.db, &board.name).await?;
+async fn post_board_form(UserDb(db): UserDb, Form(board): Form<CreateBoardRequest>) -> Result<TurboStream, KanbanError> {
+    let board_id = data::insert_board(db, &board.name).await?;
 
     let template = NewBoardTemplate {
         id: board_id as u64,
@@ -51,10 +51,10 @@ struct BoardTemplate {
 }
 
 pub async fn get_board(
-    State(state): State<ApplicationState>,
+    UserDb(db): UserDb,
     Path(board_id): Path<u64>
 ) -> Result<Html<String>, KanbanError> {
-    let board = data::get_board_with_lists(state.db, board_id).await?;
+    let board = data::get_board_with_lists(db, board_id).await?;
 
     let response_template = BoardTemplate {
         board: board.board,
@@ -70,8 +70,8 @@ struct BoardHeaderEdit {
     board: Board
 }
 
-async fn get_board_edit(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
-    let board = data::get_board(state.db, board_id).await?;
+async fn get_board_edit(UserDb(db): UserDb, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+    let board = data::get_board(db, board_id).await?;
 
     let template = BoardHeaderEdit { board };
 
@@ -84,8 +84,8 @@ struct BoardHeader {
     board: Board
 }
 
-async fn get_board_header(State(state): State<ApplicationState>, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
-    let board = data::get_board(state.db, board_id).await?;
+async fn get_board_header(UserDb(db): UserDb, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+    let board = data::get_board(db, board_id).await?;
 
     let template = BoardHeader { board };
 
@@ -98,12 +98,12 @@ struct BoardRename {
     name: String,
 }
 
-async fn post_board_rename(State(state): State<ApplicationState>, Path(board_id):Path<u64>, Form(board): Form<BoardRename>) -> Result<Redirect, KanbanError> {
+async fn post_board_rename(UserDb(db): UserDb, Path(board_id):Path<u64>, Form(board): Form<BoardRename>) -> Result<Redirect, KanbanError> {
     if board_id != board.id {
         return Err(KanbanError::RequestError(format!("Ambiguous board specified, path says `{}` and the form says `{}`", board_id, board.id)));
     }
 
-    let result = data::update_board(state.db, board_id, board.name).await?;
+    let result = data::update_board(db, board_id, board.name).await?;
 
     if result != 1 {
         return Err(KanbanError::DatabaseError("Update failed please try again.".to_string()));
@@ -112,8 +112,8 @@ async fn post_board_rename(State(state): State<ApplicationState>, Path(board_id)
     Ok(Redirect::to(format!("/boards/{}/header", board_id).as_str()))
 }
 
-async fn post_board_delete(State(state): State<ApplicationState>, Path(board_id):Path<u64>) -> Result<Redirect, KanbanError> {
-    let result = data::delete_board(state.db, board_id).await?;
+async fn post_board_delete(UserDb(db): UserDb, Path(board_id):Path<u64>) -> Result<Redirect, KanbanError> {
+    let result = data::delete_board(db, board_id).await?;
 
     if result != 1 {
         return Err(KanbanError::BoardNotFound(board_id));
@@ -134,13 +134,13 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_board_form_creates_a_new_board(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
         let request = CreateBoardRequest {
             name: String::from("New Board Dude.")
         };
 
-        let response = post_board_form(state, Form(request)).await.unwrap().0;
+        let response = post_board_form(db, Form(request)).await.unwrap().0;
 
         assert!(response.contains("New Board Dude."));
 
@@ -149,9 +149,9 @@ mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn get_board_returns_a_board_page(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
-        let response = get_board(state, Path(2)).await.unwrap().0;
+        let response = get_board(db, Path(2)).await.unwrap().0;
 
         assert!(response.contains("Another Board"));
 
@@ -160,9 +160,9 @@ mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn get_board_edit_returns_edit_form(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
-        let response = get_board_edit(state, Path(1)).await.unwrap().0;
+        let response = get_board_edit(db, Path(1)).await.unwrap().0;
 
         assert!(response.contains("Whatever"));
         assert!(response.contains("board-title-1"));
@@ -172,9 +172,9 @@ mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn get_board_header_returns_board_header(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
-        let response = get_board_header(state, Path(1)).await.unwrap().0;
+        let response = get_board_header(db, Path(1)).await.unwrap().0;
 
         assert!(response.contains("board-title-1"));
 
@@ -183,15 +183,15 @@ mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_board_rename_does_that(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db.clone()));
+        let db = UserDb(db);
 
         let request = BoardRename  {
             id: 1,
             name: String::from("New Name Brah")
         };
 
-        let response = post_board_rename(state, Path(1), Form(request)).await.unwrap();
-        let board = data::get_board(db, 1).await.unwrap();
+        let response = post_board_rename(db.clone(), Path(1), Form(request)).await.unwrap();
+        let board = data::get_board(db.0, 1).await.unwrap();
 
         assert_eq!("/boards/1/header", response.location());
         assert_eq!("New Name Brah", board.name);
@@ -201,9 +201,9 @@ mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_board_delete_deletes_the_board(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
-        let response = post_board_delete(state, Path(1)).await.unwrap();
+        let response = post_board_delete(db, Path(1)).await.unwrap();
 
         assert_eq!("/", response.location());
 
@@ -212,14 +212,14 @@ mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_board_rename_request_error_if_path_and_form_ref_different_boards(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
         let request = BoardRename {
             id: 1000,
             name: "This will fail anyway.".to_string(),
         };
 
-        let response = post_board_rename(state, Path(1), Form(request)).await.unwrap_err();
+        let response = post_board_rename(db, Path(1), Form(request)).await.unwrap_err();
 
         assert_eq!(response, KanbanError::RequestError("Ambiguous board specified, path says `1` and the form says `1000`".to_string()));
 
@@ -228,14 +228,14 @@ mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_board_rename_database_error_if_board_doesnt_exist(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
         let request = BoardRename {
             id: 1000,
             name: "This will still fail anyway.".to_string(),
         };
 
-        let response = post_board_rename(state, Path(1000), Form(request)).await.unwrap_err();
+        let response = post_board_rename(db, Path(1000), Form(request)).await.unwrap_err();
 
         assert_eq!(response, KanbanError::DatabaseError("Update failed please try again.".to_string()));
 
@@ -244,9 +244,9 @@ mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_board_delete_board_not_found_error_if_board_doesnt_exist(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state(db));
+        let db = UserDb(db);
 
-        let response = post_board_delete(state, Path(1000)).await.unwrap_err();
+        let response = post_board_delete(db, Path(1000)).await.unwrap_err();
 
         assert_eq!(response, KanbanError::BoardNotFound(1000));
 
