@@ -1,9 +1,10 @@
+use askama::Template;
 use crate::errors::KanbanError;
 use crate::models::security::GitHubUser;
 use crate::state::ApplicationState;
 use axum::Router;
 use axum::extract::{Query, State};
-use axum::response::Redirect;
+use axum::response::{Html, Redirect};
 use axum::routing::{get, post};
 use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope, TokenResponse};
 use serde::Deserialize;
@@ -16,9 +17,20 @@ const GITHUB_USER_API_URL: &str = "https://api.github.com/user";
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
+        .route("/auth", get(get_auth_landing))
         .route("/auth/login", get(get_login))
         .route("/auth/callback", get(get_callback))
         .route("/auth/logout", post(post_logout))
+}
+
+#[derive(Template, Debug)]
+#[template(path = "auth.html")]
+struct AuthTemplate {
+}
+
+async fn get_auth_landing() -> Result<Html<String>, KanbanError> {
+    let template = AuthTemplate {};
+    Ok(Html(template.render()?))
 }
 
 async fn get_login(State(state): State<ApplicationState>, session: Session) -> Result<Redirect, KanbanError> {

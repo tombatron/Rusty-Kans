@@ -29,6 +29,6 @@ pub async fn require_web_auth(session: Session, request: Request, next: Next) ->
 
     match user {
         Some(_) => next.run(request).await,
-        _ => Redirect::to("/auth/login").into_response()
+        _ => Redirect::to("/auth").into_response()
     }
 }
