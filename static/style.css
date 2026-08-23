@@ -514,3 +514,42 @@ button.card-delete-btn svg { width: 13px; height: 13px; }
 }
 
 .btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Auth page ────────────────────────────────────── */
+.auth-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 2rem;
+}
+
+.auth-container h1 {
+    font-family: 'Oswald', sans-serif;
+    font-size: 3rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--accent);
+    border-radius: var(--radius);
+    color: #0f0d0c;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0.55rem 1.25rem;
+    text-decoration: none;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+}
+
+.btn:hover { opacity: 0.85; }
+.btn svg { width: 16px; height: 16px; }
