@@ -93,6 +93,7 @@ mod tests {
                 Request::builder()
                     .uri("/api/board/1")
                     .header("Authorization", "Bearer super-secret")
+                    .header("delegated-user-id", i64::MIN)
                     .body(Body::empty())
                     .unwrap(),
             )

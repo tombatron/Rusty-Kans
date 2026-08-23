@@ -1,18 +1,18 @@
+use crate::handlers::auth::GITHUB_USER_KEY;
 use crate::models::CardMoveEvent;
+use crate::models::security::GitHubUser;
+use axum::extract::{FromRef, FromRequestParts};
+use axum::http::request::Parts;
+use axum::http::{HeaderMap, StatusCode};
+use dashmap::DashMap;
 use dotenvy::dotenv;
 use oauth2::basic::{BasicClient, BasicErrorResponse, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse, BasicTokenResponse};
 use oauth2::{AuthUrl, ClientId, ClientSecret, EndpointNotSet, EndpointSet, RedirectUrl, StandardRevocableToken, TokenUrl};
-use sqlx::SqlitePool;
+use sqlx::{AssertSqlSafe, SqlitePool};
 use sqlx::sqlite::SqliteConnectOptions;
-use std::env;
+use std::{env, fs};
 use std::str::FromStr;
-use axum::extract::{FromRef, FromRequest, FromRequestParts, Request};
-use axum::http::request::Parts;
-use axum::http::StatusCode;
-use dashmap::DashMap;
 use tower_sessions::Session;
-use crate::handlers::auth::GITHUB_USER_KEY;
-use crate::models::security::GitHubUser;
 
 pub type GitHubOAuthClient = oauth2::Client<
     BasicErrorResponse,
@@ -60,11 +60,7 @@ where
         match user_db_pool {
             Some(db) => Ok(UserDb(db.clone())),
             None => {
-                let options = SqliteConnectOptions::from_str(format!("sqlite:./database/{}.kanban.db", current_user.id)
-                    .as_str()).unwrap()
-                    .foreign_keys(true);
-
-                let db_pool = SqlitePool::connect_with(options).await.unwrap();
+                let db_pool = get_database(current_user.id).await;
 
                 state.db_pools.insert(current_user.id, db_pool.clone());
 
@@ -77,18 +73,20 @@ where
 #[derive(Clone)]
 pub struct ApiDb(pub SqlitePool);
 
-impl<S> FromRequest<S> for ApiDb
+impl<S> FromRequestParts<S> for ApiDb
 where
     ApplicationState: FromRef<S>,
     S: Send + Sync,
 {
     type Rejection = (StatusCode, &'static str);
 
-    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let unauthed_response = (StatusCode::UNAUTHORIZED, "There doesn't seem to be a delegated user...");
 
+        let headers = HeaderMap::from_request_parts(parts, state).await.map_err(|_| unauthed_response)?;
         let state = ApplicationState::from_ref(state);
-        let user_id: i64 = req.headers()
+
+        let user_id = headers
             .get("delegated-user-id")
             .and_then(|v| v.to_str().ok())
             .map(|s| s.parse::<i64>().unwrap())
@@ -100,11 +98,7 @@ where
         match user_db_pool {
             Some(db) => Ok(ApiDb(db.clone())),
             None => {
-                let options = SqliteConnectOptions::from_str(format!("sqlite:./database/{}.kanban.db", user_id)
-                    .as_str()).unwrap()
-                    .foreign_keys(true);
-
-                let db_pool = SqlitePool::connect_with(options).await.unwrap();
+                let db_pool = get_database(user_id).await;
 
                 state.db_pools.insert(user_id, db_pool.clone());
 
@@ -112,6 +106,32 @@ where
             }
         }
     }
+}
+
+async fn get_database(user_id: i64) -> SqlitePool {
+    let options = SqliteConnectOptions::from_str(format!("sqlite:./databases/{}.kanban.db", user_id)
+        .as_str()).unwrap()
+        .foreign_keys(true)
+        .create_if_missing(true);
+
+    let db_pool = SqlitePool::connect_with(options).await.unwrap();
+
+    sqlx::migrate!().run(&db_pool).await.unwrap();
+
+    // If the user id is i64::MIN then we'll assume this is a test user and seed the database.
+    if user_id == i64::MIN {
+        // First check to see if there are any boards...
+        let count = sqlx::query_scalar::<_, u64>("SELECT COUNT(*) FROM boards;").fetch_one(&db_pool).await.unwrap();
+
+        // No boards? No data. Let's seed it.
+        if count == 0 {
+            let seed_script = fs::read_to_string("./src/fixtures/boards.sql").unwrap();
+
+            let _ = sqlx::query(AssertSqlSafe(seed_script)).execute(&db_pool).await;
+        }
+    }
+
+    db_pool
 }
 
 pub async fn create_application_state() -> ApplicationState {
@@ -130,11 +150,6 @@ pub async fn create_application_state() -> ApplicationState {
         )
         .set_redirect_uri(github_redirect_url.unwrap());
 
-    // let options = SqliteConnectOptions::from_str("sqlite:./kanban.db")
-    //     .unwrap()
-    //     .foreign_keys(true);
-
-    //let db = SqlitePool::connect_with(options).await.unwrap();
     let db_pools = DashMap::new();
 
     let (tx, _) = tokio::sync::broadcast::channel::<CardMoveEvent>(512);

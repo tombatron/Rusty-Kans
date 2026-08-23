@@ -1,6 +1,6 @@
 use crate::data;
 use crate::errors::KanbanError;
-use crate::state::{ApplicationState, UserDb};
+use crate::state::{ApplicationState, ApiDb};
 use axum::extract::Path;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -11,7 +11,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/api/board/{board_id}", get(get_board))
 }
 
-async fn get_board(UserDb(db): UserDb, Path(board_id): Path<u64>) -> Result<Json<Value>, KanbanError> {
+async fn get_board(ApiDb(db): ApiDb, Path(board_id): Path<u64>) -> Result<Json<Value>, KanbanError> {
     let result = data::get_board_with_lists(db, board_id).await?;
 
     Ok(Json(json!({
@@ -24,13 +24,13 @@ async fn get_board(UserDb(db): UserDb, Path(board_id): Path<u64>) -> Result<Json
 #[cfg(test)]
 mod tests {
     use crate::handlers::api::boards::get_board;
-    use crate::state::UserDb;
+    use crate::state::ApiDb;
     use axum::extract::Path;
     use sqlx::SqlitePool;
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_board_returns_a_board(db: SqlitePool) -> sqlx::Result<()> {
-        let db = UserDb(db);
+        let db = ApiDb(db);
 
         let response = get_board(db, Path(1)).await.unwrap();
 

@@ -4,7 +4,7 @@ use crate::handlers::{
     CreateCardRequest, create_card_common, delete_card_common, move_card_common, patch_card_common,
 };
 use crate::models::Card;
-use crate::state::{ApplicationState, UserDb};
+use crate::state::{ApplicationState, ApiDb};
 use axum::extract::{Path, Query};
 use axum::http::StatusCode;
 use axum::response::Redirect;
@@ -27,7 +27,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 }
 
 pub async fn post_card(
-    UserDb(db): UserDb,
+    ApiDb(db): ApiDb,
     Path(list_id): Path<u64>,
     Json(card): Json<CreateCardRequest>,
 ) -> Result<Json<Value>, KanbanError> {
@@ -37,7 +37,7 @@ pub async fn post_card(
 }
 
 pub async fn post_move_card(
-    UserDb(db): UserDb,
+    ApiDb(db): ApiDb,
     Path((list_id, card_id)): Path<(u64, u64)>,
 ) -> Result<StatusCode, KanbanError> {
     move_card_common(db, list_id, card_id).await?;
@@ -46,7 +46,7 @@ pub async fn post_move_card(
 }
 
 pub async fn get_card_by_id(
-    UserDb(db): UserDb,
+    ApiDb(db): ApiDb,
     Path(card_id): Path<u64>,
 ) -> Result<Json<Value>, KanbanError> {
     let result = data::get_card(db, card_id).await?;
@@ -60,7 +60,7 @@ pub struct SearchQuery {
 }
 
 pub async fn get_card_search(
-    UserDb(db): UserDb,
+    ApiDb(db): ApiDb,
     Query(search_query): Query<SearchQuery>,
 ) -> Result<Json<Value>, KanbanError> {
     let search_result = data::get_cards_by_title_submatch(db, search_query.keyword).await?;
@@ -71,7 +71,7 @@ pub async fn get_card_search(
 }
 
 pub async fn delete_card(
-    UserDb(db): UserDb,
+    ApiDb(db): ApiDb,
     Path((_list_id, card_id)): Path<(u64, u64)>,
 ) -> Result<StatusCode, KanbanError> {
     delete_card_common(db, card_id).await?;
@@ -80,7 +80,7 @@ pub async fn delete_card(
 }
 
 pub async fn patch_card(
-    UserDb(db): UserDb,
+    ApiDb(db): ApiDb,
     Path(card_id): Path<u64>,
     Json(card): Json<Card>,
 ) -> Result<Redirect, KanbanError> {
@@ -102,7 +102,7 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_card_adds_a_card(db: SqlitePool) -> sqlx::Result<()> {
-        let db = UserDb(db);
+        let db = ApiDb(db);
 
         let request = Json(CreateCardRequest {
             title: "This is a new card.".to_string(),
@@ -122,7 +122,7 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_move_card_moves_card(db: SqlitePool) -> sqlx::Result<()> {
-        let db = UserDb(db);
+        let db = ApiDb(db);
 
         let response = post_move_card(db.clone(), Path((2, 1))).await.unwrap();
 
@@ -136,7 +136,7 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_card_by_id_gets_card_by_id(db: SqlitePool) -> sqlx::Result<()> {
-        let db = UserDb(db);
+        let db = ApiDb(db);
 
         let response = get_card_by_id(db, Path(1)).await.unwrap().0;
 
@@ -150,7 +150,7 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_card_by_search_does_that(db: SqlitePool) -> sqlx::Result<()> {
-        let db = UserDb(db);
+        let db = ApiDb(db);
 
         let request = Query(SearchQuery {
             keyword: "Card 1".to_string(),
@@ -165,7 +165,7 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn delete_card_does_it(db: SqlitePool) -> sqlx::Result<()> {
-        let db = UserDb(db);
+        let db = ApiDb(db);
 
         let response = delete_card(db.clone(), Path((1, 1))).await.unwrap();
 
@@ -179,7 +179,7 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn patch_card_updates_card(db: SqlitePool) -> sqlx::Result<()> {
-        let db = UserDb(db);
+        let db = ApiDb(db);
 
         let request = Json(Card {
             id: 1,

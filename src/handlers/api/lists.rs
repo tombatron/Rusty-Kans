@@ -1,7 +1,7 @@
 use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::{CreateListRequest, create_list_common};
-use crate::state::{ApplicationState, UserDb};
+use crate::state::{ApiDb, ApplicationState};
 use axum::extract::Path;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -14,7 +14,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 }
 
 async fn get_list_by_id(
-    UserDb(db): UserDb,
+    ApiDb(db): ApiDb,
     Path(id): Path<u64>,
 ) -> Result<Json<Value>, KanbanError> {
     let result = data::get_list_with_cards(db, id).await?;
@@ -33,7 +33,7 @@ async fn get_list_by_id(
 }
 
 async fn post_list(
-    UserDb(db): UserDb,
+    ApiDb(db): ApiDb,
     Path(board_id): Path<u64>,
     Json(list): Json<CreateListRequest>,
 ) -> Result<Json<Value>, KanbanError> {
@@ -46,14 +46,14 @@ async fn post_list(
 mod tests {
     use crate::handlers::CreateListRequest;
     use crate::handlers::api::lists::{get_list_by_id, post_list};
-    use crate::state::UserDb;
+    use crate::state::ApiDb;
     use axum::Json;
     use axum::extract::Path;
     use sqlx::SqlitePool;
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_list_by_id_returns_list(db: SqlitePool) -> sqlx::Result<()> {
-        let db = UserDb(db);
+        let db = ApiDb(db);
 
         let response = get_list_by_id(db, Path(1)).await.unwrap().0;
 
@@ -67,7 +67,7 @@ mod tests {
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_list_creates_list(db: SqlitePool) -> sqlx::Result<()> {
-        let db = UserDb(db);
+        let db = ApiDb(db);
 
         let request = CreateListRequest {
             name: "This is a totally new list.".to_string()
