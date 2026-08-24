@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block nav %}{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <h1>Dev Login</h1>
+    <p class="dev-warning">⚠ Not available in production builds.</p>
+    <form method="post" action="/auth/dev" data-turbo="false" class="dev-form">
+        <label class="dev-form-field">
+            <span>User ID</span>
+            <input type="text" name="id" placeholder="e.g. 1001" />
+        </label>
+        <label class="dev-form-field">
+            <span>Name</span>
+            <input type="text" name="name" placeholder="e.g. Alice" />
+        </label>
+        <button type="submit">Sign In</button>
+    </form>
+</div>
+{% endblock %}

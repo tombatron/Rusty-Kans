@@ -13,5 +13,10 @@
         </svg>
         Sign in with GitHub
     </a>
+    {% if dev %}
+    <a href="/auth/dev" class="btn">
+        Sign in with Auth Dev
+    </a>
+    {% endif %}
 </div>
 {% endblock %}

@@ -1,6 +1,6 @@
-use crate::handlers::auth::GITHUB_USER_KEY;
+use crate::handlers::auth::AUTHENTICATED_USER_KEY;
 use crate::models::CardMoveEvent;
-use crate::models::security::GitHubUser;
+use crate::models::security::LoggedInUser;
 use axum::extract::{FromRef, FromRequestParts};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, StatusCode};
@@ -8,11 +8,11 @@ use dashmap::DashMap;
 use dotenvy::dotenv;
 use oauth2::basic::{BasicClient, BasicErrorResponse, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse, BasicTokenResponse};
 use oauth2::{AuthUrl, ClientId, ClientSecret, EndpointNotSet, EndpointSet, RedirectUrl, StandardRevocableToken, TokenUrl};
-use sqlx::{AssertSqlSafe, SqlitePool};
 use sqlx::sqlite::SqliteConnectOptions;
-use std::{env, fs};
+use sqlx::{AssertSqlSafe, SqlitePool};
 use std::str::FromStr;
 use std::sync::Arc;
+use std::{env, fs};
 use tower_sessions::Session;
 use tower_sessions_redis_store::fred::prelude::*;
 
@@ -64,7 +64,7 @@ where
         let session = Session::from_request_parts(parts, state).await?;
         let state = ApplicationState::from_ref(state);
 
-        let current_user = session.get::<GitHubUser>(GITHUB_USER_KEY)
+        let current_user = session.get::<LoggedInUser>(AUTHENTICATED_USER_KEY)
             .await
             .map_err(|_| unauthed_response)?
             .ok_or(unauthed_response)?;

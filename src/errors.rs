@@ -62,6 +62,12 @@ impl From<std::io::Error> for KanbanError {
     }
 }
 
+impl From<tower_sessions::session::Error> for KanbanError {
+    fn from(value: tower_sessions::session::Error) -> Self {
+        KanbanError::RequestError(value.to_string())
+    }
+}
+
 impl IntoResponse for KanbanError {
     fn into_response(self) -> Response {
         match self {
@@ -85,7 +91,7 @@ impl IntoResponse for KanbanError {
             }
             KanbanError::TemplateError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
-            },
+            }
             KanbanError::RequestError(_) => {
                 (StatusCode::BAD_REQUEST, self.to_string()).into_response()
             }
@@ -160,7 +166,10 @@ mod tests {
 
     #[sqlx::test]
     async fn can_create_kanban_error_from_sql_error(db: SqlitePool) -> sqlx::Result<()> {
-        let result = sqlx::query("SELECT FACE FROM YOUR").execute(&db).await.unwrap_err();
+        let result = sqlx::query("SELECT FACE FROM YOUR")
+            .execute(&db)
+            .await
+            .unwrap_err();
 
         let kb_error = KanbanError::from(result);
 
