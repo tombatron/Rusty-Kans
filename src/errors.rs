@@ -2,6 +2,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::Error;
 use std::fmt::{Display, Formatter};
+use sqlx::migrate::MigrateError;
 
 #[derive(Debug, PartialEq)]
 pub enum KanbanError {
@@ -65,6 +66,19 @@ impl From<std::io::Error> for KanbanError {
 impl From<tower_sessions::session::Error> for KanbanError {
     fn from(value: tower_sessions::session::Error) -> Self {
         KanbanError::RequestError(value.to_string())
+    }
+}
+
+impl From<MigrateError> for KanbanError {
+    fn from(value: MigrateError) -> Self {
+        KanbanError::DatabaseError(value.to_string())
+    }
+}
+
+impl From<KanbanError> for (StatusCode, String) {
+    fn from(value: KanbanError) -> Self {
+        let error_message = value.to_string();
+        (StatusCode::INTERNAL_SERVER_ERROR, error_message)
     }
 }
 

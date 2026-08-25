@@ -28,7 +28,7 @@ where
     let ws = ws::get_router_configuration();
 
     let session_layer = SessionManagerLayer::new(session_store)
-        .with_secure(false) // This needs to be `true` for production.
+        .with_secure(!cfg!(debug_assertions))
         .with_expiry(Expiry::OnInactivity(Duration::minutes(30)));
 
     Router::new()

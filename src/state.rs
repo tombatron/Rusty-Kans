@@ -16,6 +16,7 @@ use std::{env, fs};
 use sha2::{Digest, Sha256};
 use tower_sessions::Session;
 use tower_sessions_redis_store::fred::prelude::*;
+use crate::errors::KanbanError;
 
 pub type GitHubOAuthClient = oauth2::Client<
     BasicErrorResponse,
@@ -38,21 +39,21 @@ pub struct ApplicationState {
     pub redis_pool: Option<Pool>
 }
 
-async fn get_or_create_pool(db_pools: &Arc<DashMap<String, SqlitePool>>, user_id: i64, source: String) -> SqlitePool {
+async fn get_or_create_pool(db_pools: &Arc<DashMap<String, SqlitePool>>, user_id: i64, source: String) -> Result<SqlitePool, KanbanError> {
     let database_id = get_database_id(user_id, source);
 
-    get_or_create_pool_with_id(&db_pools, database_id).await
+    Ok(get_or_create_pool_with_id(&db_pools, database_id).await?)
 }
 
-async fn get_or_create_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>, database_id: String) -> SqlitePool {
+async fn get_or_create_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>, database_id: String) -> Result<SqlitePool, KanbanError> {
     if let Some(pool) = db_pools.get(&database_id) {
-        return pool.clone();
+        return Ok(pool.clone());
     }
 
-    let db_pool = get_database(database_id.clone()).await;
+    let db_pool = get_database(database_id.clone()).await?;
     db_pools.insert(database_id, db_pool.clone());
 
-    db_pool
+    Ok(db_pool)
 }
 
 fn get_database_id(user_id: i64, source: String) -> String {
@@ -74,22 +75,24 @@ where
     ApplicationState: FromRef<S>,
     S: Send + Sync,
 {
-    type Rejection = (StatusCode, &'static str);
+    type Rejection = (StatusCode, String);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let unauthed_response = (StatusCode::UNAUTHORIZED, "There doesn't seem to be anyone logged in...");
+        let unauthed_response = || (StatusCode::UNAUTHORIZED, "There doesn't seem to be anyone logged in...".to_string());
 
-        let session = Session::from_request_parts(parts, state).await?;
+        let session = Session::from_request_parts(parts, state).await
+            .map_err(|_| unauthed_response())?;
+
         let state = ApplicationState::from_ref(state);
 
         let current_user = session.get::<LoggedInUser>(AUTHENTICATED_USER_KEY)
             .await
-            .map_err(|_| unauthed_response)?
-            .ok_or(unauthed_response)?;
+            .map_err(|_| unauthed_response())?
+            .ok_or(unauthed_response())?;
 
         let db_pool = get_or_create_pool(&state.db_pools, current_user.id, current_user.source).await;
 
-        Ok(UserDb(db_pool))
+        Ok(UserDb(db_pool?))
     }
 }
 
@@ -101,50 +104,49 @@ where
     ApplicationState: FromRef<S>,
     S: Send + Sync,
 {
-    type Rejection = (StatusCode, &'static str);
+    type Rejection = (StatusCode, String);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let unauthed_response = (StatusCode::UNAUTHORIZED, "There doesn't seem to be a delegated user...");
+        let unauthed_response = || (StatusCode::UNAUTHORIZED, "There doesn't seem to be a delegated user...".to_string());
 
-        let headers = HeaderMap::from_request_parts(parts, state).await.map_err(|_| unauthed_response)?;
+        let headers = HeaderMap::from_request_parts(parts, state).await.map_err(|_| unauthed_response())?;
         let state = ApplicationState::from_ref(state);
 
         let database_id = headers
             .get("delegated-database-id")
             .and_then(|v| v.to_str().ok())
-            .ok_or(unauthed_response)
-            .map_err(|_| unauthed_response)?;
+            .ok_or(unauthed_response())?;
 
-        let user_db_pool = get_or_create_pool_with_id(&state.db_pools, database_id.to_string()).await;
+        let user_db_pool = get_or_create_pool_with_id(&state.db_pools, database_id.to_string()).await?;
 
         Ok(ApiDb(user_db_pool))
     }
 }
 
-async fn get_database(database_id: String) -> SqlitePool {
+async fn get_database(database_id: String) -> Result<SqlitePool, KanbanError> {
     let options = SqliteConnectOptions::from_str(format!("sqlite:./databases/{}.kanban.db", database_id)
-        .as_str()).unwrap()
+        .as_str())?
         .foreign_keys(true)
         .create_if_missing(true);
 
-    let db_pool = SqlitePool::connect_with(options).await.unwrap();
+    let db_pool = SqlitePool::connect_with(options).await?;
 
-    sqlx::migrate!().run(&db_pool).await.unwrap();
+    sqlx::migrate!().run(&db_pool).await?;
 
     // If the database ID starts with "dev" we'll assume we might have to seed the database.
     if database_id.starts_with("dev") {
         // First check to see if there are any boards...
-        let count = sqlx::query_scalar::<_, u64>("SELECT COUNT(*) FROM boards;").fetch_one(&db_pool).await.unwrap();
+        let count = sqlx::query_scalar::<_, u64>("SELECT COUNT(*) FROM boards;").fetch_one(&db_pool).await?;
 
         // No boards? No data. Let's seed it.
         if count == 0 {
-            let seed_script = fs::read_to_string("./src/fixtures/boards.sql").unwrap();
+            let seed_script = fs::read_to_string("./src/fixtures/boards.sql")?;
 
             let _ = sqlx::query(AssertSqlSafe(seed_script)).execute(&db_pool).await;
         }
     }
 
-    db_pool
+    Ok(db_pool)
 }
 
 pub async fn create_application_state() -> ApplicationState {

@@ -5,7 +5,9 @@ use askama::Template;
 use axum::extract::{Query, State};
 use axum::response::{Html, Redirect};
 use axum::routing::{get, post};
-use axum::{Form, Router};
+#[cfg(debug_assertions)]
+use axum::Form;
+use axum::Router;
 use oauth2::{
     AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope, TokenResponse,
 };
@@ -157,6 +159,7 @@ struct AuthDevForm {
     name: String,
 }
 
+#[cfg(debug_assertions)]
 impl From<AuthDevForm> for LoggedInUser {
     fn from(value: AuthDevForm) -> Self {
         LoggedInUser {
