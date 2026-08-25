@@ -81,7 +81,7 @@ async fn get_callback(
     session: Session,
     Query(params): Query<CallbackParams>,
 ) -> Result<Redirect, KanbanError> {
-    let stored_csrf: Option<CsrfToken> = session.get(CSRF_TOKEN_KEY).await.unwrap();
+    let stored_csrf: Option<CsrfToken> = session.get(CSRF_TOKEN_KEY).await?;
     let stored_csrf =
         stored_csrf.ok_or(KanbanError::RequestError("Missing CSRF token.".to_string()))?;
 
@@ -99,8 +99,7 @@ async fn get_callback(
     let pkce_verifier_secret =
         session
             .get(PKCE_VERIFIER_KEY)
-            .await
-            .unwrap()
+            .await?
             .ok_or(KanbanError::RequestError(
                 "Missing PKCE verifier.".to_string(),
             ))?;
