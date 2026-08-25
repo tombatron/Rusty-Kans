@@ -162,6 +162,7 @@ impl From<AuthDevForm> for LoggedInUser {
         LoggedInUser {
             id: value.id,
             name: value.name,
+            source: "dev".to_string(),
         }
     }
 }

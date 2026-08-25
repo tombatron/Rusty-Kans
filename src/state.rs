@@ -13,6 +13,7 @@ use sqlx::{AssertSqlSafe, SqlitePool};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{env, fs};
+use sha2::{Digest, Sha256};
 use tower_sessions::Session;
 use tower_sessions_redis_store::fred::prelude::*;
 
@@ -31,21 +32,38 @@ pub type GitHubOAuthClient = oauth2::Client<
 
 #[derive(Clone)]
 pub struct ApplicationState {
-    pub db_pools: Arc<DashMap<i64, SqlitePool>>,
+    pub db_pools: Arc<DashMap<String, SqlitePool>>,
     pub tx: tokio::sync::broadcast::Sender<CardMoveEvent>,
     pub oauth_client: GitHubOAuthClient,
     pub redis_pool: Option<Pool>
 }
 
-async fn get_or_create_pool(db_pools: &Arc<DashMap<i64, SqlitePool>>, user_id: i64) -> SqlitePool {
-    if let Some(pool) = db_pools.get(&user_id) {
+async fn get_or_create_pool(db_pools: &Arc<DashMap<String, SqlitePool>>, user_id: i64, source: String) -> SqlitePool {
+    let database_id = get_database_id(user_id, source);
+
+    get_or_create_pool_with_id(&db_pools, database_id).await
+}
+
+async fn get_or_create_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>, database_id: String) -> SqlitePool {
+    if let Some(pool) = db_pools.get(&database_id) {
         return pool.clone();
     }
 
-    let db_pool = get_database(user_id).await;
-    db_pools.insert(user_id, db_pool.clone());
+    let db_pool = get_database(database_id.clone()).await;
+    db_pools.insert(database_id, db_pool.clone());
 
     db_pool
+}
+
+fn get_database_id(user_id: i64, source: String) -> String {
+    let mut hasher = Sha256::new();
+
+    hasher.update(user_id.to_string().as_bytes());
+    hasher.update(source.as_bytes());
+
+    let result = hasher.finalize();
+
+    format!("{:x?}", result)
 }
 
 #[derive(Clone)]
@@ -69,7 +87,7 @@ where
             .map_err(|_| unauthed_response)?
             .ok_or(unauthed_response)?;
 
-        let db_pool = get_or_create_pool(&state.db_pools, current_user.id).await;
+        let db_pool = get_or_create_pool(&state.db_pools, current_user.id, current_user.source).await;
 
         Ok(UserDb(db_pool))
     }
@@ -91,21 +109,20 @@ where
         let headers = HeaderMap::from_request_parts(parts, state).await.map_err(|_| unauthed_response)?;
         let state = ApplicationState::from_ref(state);
 
-        let user_id = headers
-            .get("delegated-user-id")
+        let database_id = headers
+            .get("delegated-database-id")
             .and_then(|v| v.to_str().ok())
-            .map(|s| s.parse::<i64>().unwrap())
             .ok_or(unauthed_response)
             .map_err(|_| unauthed_response)?;
 
-        let user_db_pool = get_or_create_pool(&state.db_pools, user_id).await;
+        let user_db_pool = get_or_create_pool_with_id(&state.db_pools, database_id.to_string()).await;
 
         Ok(ApiDb(user_db_pool))
     }
 }
 
-async fn get_database(user_id: i64) -> SqlitePool {
-    let options = SqliteConnectOptions::from_str(format!("sqlite:./databases/{}.kanban.db", user_id)
+async fn get_database(database_id: String) -> SqlitePool {
+    let options = SqliteConnectOptions::from_str(format!("sqlite:./databases/{}.kanban.db", database_id)
         .as_str()).unwrap()
         .foreign_keys(true)
         .create_if_missing(true);
@@ -114,8 +131,8 @@ async fn get_database(user_id: i64) -> SqlitePool {
 
     sqlx::migrate!().run(&db_pool).await.unwrap();
 
-    // If the user id is i64::MIN then we'll assume this is a test user and seed the database.
-    if user_id == i64::MIN {
+    // If the database ID starts with "dev" we'll assume we might have to seed the database.
+    if database_id.starts_with("dev") {
         // First check to see if there are any boards...
         let count = sqlx::query_scalar::<_, u64>("SELECT COUNT(*) FROM boards;").fetch_one(&db_pool).await.unwrap();
 

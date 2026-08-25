@@ -52,7 +52,7 @@ mod tests {
         let response = server.get(path).await;
 
         response.assert_status(StatusCode::SEE_OTHER);
-        response.assert_header("location", "/auth/login");
+        response.assert_header("location", "/auth");
     }
 
     pub async fn base_auth_post_assertion(path: &str) {
@@ -63,7 +63,7 @@ mod tests {
         let response = server.post(path).await;
 
         response.assert_status(StatusCode::SEE_OTHER);
-        response.assert_header("location", "/auth/login");
+        response.assert_header("location", "/auth");
     }
 
     #[sqlx::test(fixtures(path="../fixtures", scripts("boards")))]

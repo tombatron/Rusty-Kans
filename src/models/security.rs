@@ -11,6 +11,7 @@ impl From<GitHubUser> for LoggedInUser {
         LoggedInUser {
             id: value.id,
             name: value.login,
+            source: "github".to_string()
         }
     }
 }
@@ -19,4 +20,5 @@ impl From<GitHubUser> for LoggedInUser {
 pub struct LoggedInUser {
     pub id: i64,
     pub name: String,
+    pub source: String,
 }

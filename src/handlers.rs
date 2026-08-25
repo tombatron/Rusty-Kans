@@ -117,7 +117,7 @@ pub mod tests {
             )
             .set_redirect_uri(RedirectUrl::new("http://example.com".to_string()).unwrap());
         
-        let db_pools = Arc::new(DashMap::<i64, SqlitePool>::new());
+        let db_pools = Arc::new(DashMap::<String, SqlitePool>::new());
 
         ApplicationState {
             db_pools,

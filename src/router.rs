@@ -97,6 +97,7 @@ mod tests {
                     .uri("/api/board/1")
                     .header("Authorization", "Bearer super-secret")
                     .header("delegated-user-id", i64::MIN)
+                    .header("delegated-database-id", "dev-whatever".to_string())
                     .body(Body::empty())
                     .unwrap(),
             )
