@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::{env, fs};
 use sha2::{Digest, Sha256};
 use tower_sessions::Session;
-use tower_sessions_redis_store::fred::prelude::*;
+use tower_sessions_redis_store::fred::prelude::{ClientLike, Config, Pool};
 use crate::errors::KanbanError;
 
 pub type GitHubOAuthClient = oauth2::Client<
@@ -57,14 +57,9 @@ async fn get_or_create_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>,
 }
 
 fn get_database_id(user_id: i64, source: String) -> String {
-    let mut hasher = Sha256::new();
+    let unhashed_result = format!("{source}:{user_id}");
 
-    hasher.update(user_id.to_string().as_bytes());
-    hasher.update(source.as_bytes());
-
-    let result = hasher.finalize();
-
-    format!("{:x?}", result)
+    format!("{:x}", Sha256::digest(unhashed_result))
 }
 
 #[derive(Clone)]
@@ -188,5 +183,17 @@ pub async fn create_application_state() -> ApplicationState {
         tx,
         oauth_client,
         redis_pool
+    }
+}
+
+#[cfg(test)]
+pub mod tests  {
+    use crate::state::get_database_id;
+
+    #[test]
+    fn get_database_id_returns_hashed_value() {
+        let result_database_id = get_database_id(123, "whatever".to_string());
+
+        assert_eq!("a032aacdf2aaa5fb2dd0903d2123ae0c06a7a095a86a8834125cc706254bfa40", result_database_id);
     }
 }
