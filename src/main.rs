@@ -6,6 +6,7 @@ mod models;
 mod turbo;
 mod middleware;
 pub mod data;
+pub mod validation;
 
 use crate::router::create_router;
 use crate::state::create_application_state;
