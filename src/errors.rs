@@ -14,6 +14,7 @@ pub enum KanbanError {
     DatabaseError(String),
     TemplateError(String),
     RequestError(String),
+    ValidationError(String),
 }
 
 impl Display for KanbanError {
@@ -46,6 +47,9 @@ impl Display for KanbanError {
             }
             KanbanError::RequestError(request_error) => {
                 write!(f, "There was a request error: {}", request_error)
+            },
+            KanbanError::ValidationError(validation_error) => {
+                write!(f, "Validation failed: {}", validation_error)
             }
         }
     }
@@ -108,6 +112,9 @@ impl IntoResponse for KanbanError {
             }
             KanbanError::RequestError(_) => {
                 (StatusCode::BAD_REQUEST, self.to_string()).into_response()
+            }
+            KanbanError::ValidationError(_) => {
+                (StatusCode::UNPROCESSABLE_ENTITY, self.to_string()).into_response()
             }
         }
     }
