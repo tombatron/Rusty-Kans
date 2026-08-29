@@ -1,3 +1,4 @@
+use askama::Template;
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
 
@@ -7,6 +8,13 @@ impl IntoResponse for TurboStream {
     fn into_response(self) -> Response {
         ([(header::CONTENT_TYPE, "text/vnd.turbo-stream.html")], self.0,).into_response()
     }
+}
+
+#[derive(Debug, Template)]
+#[template(path="turbo_form_validation_error.html")]
+pub struct TurboFormValidationErrorTemplate {
+    target_id: String,
+    report: garde::Report,
 }
 
 #[cfg(test)]

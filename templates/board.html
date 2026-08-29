@@ -22,10 +22,7 @@
 
     {{ macros::board_header(board) }}
 
-    <form action="/boards/{{ board.id }}/lists" method="post">
-        <input type="text" name="name" placeholder="New list&hellip;" required>
-        <button type="submit">+ Add List</button>
-    </form>
+    {{ macros::add_new_container_form(new_list) }}
 </header>
 
 <turbo-frame id="lists" data-turbo-action="advance">

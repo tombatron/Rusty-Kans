@@ -5,10 +5,15 @@ use crate::state::{ApplicationState, UserDb};
 use crate::turbo::TurboStream;
 use askama::Template;
 use axum::extract::Path;
-use axum::response::{Html, Redirect};
+use axum::response::{Html, IntoResponse, Redirect};
 use axum::routing::{get, post};
 use axum::{Form, Router};
+use axum::http::StatusCode;
+use axum::response::Response;
 use serde::Deserialize;
+use garde::Validate;
+use crate::handlers::web::NewContainerFormTemplate;
+use crate::validation::FormErrors;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -20,8 +25,9 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/boards/{board_id}/delete", post(post_board_delete))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 struct CreateBoardRequest {
+    #[garde(length(min = 2, max = 100))]
     name: String,
 }
 
@@ -32,7 +38,30 @@ struct NewBoardTemplate {
     name: String
 }
 
-async fn post_board_form(UserDb(db): UserDb, Form(board): Form<CreateBoardRequest>) -> Result<TurboStream, KanbanError> {
+#[derive(Debug, Template)]
+#[template(source = "{% import \"macros.html\" as macros %}{{ macros::add_new_container_form(context) }}", ext= "html")]
+struct NewBoardErrorTemplate {
+    context: NewContainerFormTemplate<CreateBoardRequest>,
+}
+
+async fn post_board_form(UserDb(db): UserDb, Form(board): Form<CreateBoardRequest>) -> Result<Response, KanbanError> {
+    let validation_errors = board.validate();
+
+    if let Err(errors) = validation_errors {
+        let validation_response = NewBoardErrorTemplate {
+            context: NewContainerFormTemplate {
+                sub_id: "board".to_string(),
+                action: "/boards".to_string(),
+                place_holder: "".to_string(),
+                button_sub_label: "Board".to_string(),
+                errors: Some(FormErrors::from_report(&errors)),
+                request: Some(board),
+            }
+        };
+
+        return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response())
+    }
+
     let board_id = data::insert_board(db, &board.name).await?;
 
     let template = NewBoardTemplate {
@@ -40,7 +69,7 @@ async fn post_board_form(UserDb(db): UserDb, Form(board): Form<CreateBoardReques
         name: board.name,
     };
 
-    Ok(TurboStream(template.render()?))
+    Ok(TurboStream(template.render()?).into_response())
 }
 
 #[derive(Debug, Template)]
@@ -48,6 +77,7 @@ async fn post_board_form(UserDb(db): UserDb, Form(board): Form<CreateBoardReques
 struct BoardTemplate {
     board: Board,
     lists: Vec<List>,
+    new_list: NewContainerFormTemplate<List>
 }
 
 pub async fn get_board(
@@ -56,9 +86,19 @@ pub async fn get_board(
 ) -> Result<Html<String>, KanbanError> {
     let board = data::get_board_with_lists(db, board_id).await?;
 
+    let new_list = NewContainerFormTemplate {
+        sub_id: "list".to_string(),
+        action: format!("/boards/{board_id}/lists"),
+        place_holder: "New list&hellip;".to_string(),
+        button_sub_label: "List".to_string(),
+        errors: None,
+        request: None,
+    };
+
     let response_template = BoardTemplate {
         board: board.board,
         lists: board.lists,
+        new_list,
     };
 
     Ok(Html(response_template.render()?))
@@ -131,6 +171,11 @@ mod tests {
     use sqlx::SqlitePool;
     use test_case::test_case;
 
+    async fn get_response_body(response: Response) -> String {
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        String::from_utf8(body.to_vec()).unwrap()
+    }
+
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_board_form_creates_a_new_board(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
@@ -139,7 +184,7 @@ mod tests {
             name: String::from("New Board Dude.")
         };
 
-        let response = post_board_form(db, Form(request)).await.unwrap().0;
+        let response = get_response_body(post_board_form(db, Form(request)).await.unwrap()).await;
 
         assert!(response.contains("New Board Dude."));
 

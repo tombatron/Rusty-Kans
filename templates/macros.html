@@ -101,3 +101,30 @@ selected
     </div>
 </turbo-frame>
 {% endmacro %}
+
+{% macro add_new_container_form(context) %}
+{% if let Some(errors) = context.errors && let Some(request) = context.request %}
+<turbo-stream target="new-{{ context.sub_id }}-form" action="replace">
+    <template>
+        <form action="{{ context.action }}" method="post">
+            <input type="text" name="name" placeholder="{{ request.name | safe }}" required>
+            {% if let Some(field_errors) = errors.get("name") %}
+            <ul class="form-errors">
+                {% for error in field_errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            <button type="submit">+ Add {{ context.button_sub_label }}</button>
+        </form>
+    </template>
+</turbo-stream>
+{% else %}
+<turbo-frame id="new-{{ context.sub_id }}-form">
+    <form action="{{ context.action }}" method="post">
+        <input type="text" name="name" placeholder="{{ context.place_holder | safe }}" required>
+        <button type="submit">+ Add {{ context.button_sub_label }}</button>
+    </form>
+</turbo-frame>
+{% endif %}
+{% endmacro %}

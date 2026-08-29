@@ -1,0 +1,9 @@
+<turbo-stream action="update" target="{{ target_id }}">
+    <template>
+        <ul>
+        {% for (_, error) in report.iter() %}
+            <li>{{ error }}</li>
+        {% endfor %}
+        </ul>
+    </template>
+</turbo-stream>

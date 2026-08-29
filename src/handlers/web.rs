@@ -11,6 +11,7 @@ use askama::Template;
 use axum::Router;
 use axum::response::Html;
 use axum::routing::get;
+use crate::validation::FormErrors;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -24,15 +25,38 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 #[derive(Debug, Template)]
 #[template(path = "landing.html")]
 struct LandingTemplate {
-    boards: Vec<Board>
+    boards: Vec<Board>,
+    new_board: NewContainerFormTemplate<Board>
 }
 
 async fn get_landing(UserDb(db): UserDb) -> Result<Html<String>, KanbanError> {
     let boards = data::get_all_boards(db).await?;
 
-    let template = LandingTemplate { boards };
+    let new_board = NewContainerFormTemplate {
+        sub_id: "board".to_string(),
+        action: "/boards".to_string(),
+        place_holder: "New board&hellip;".to_string(),
+        button_sub_label: "Board".to_string(),
+        errors: None,
+        request: None,
+    };
+
+    let template = LandingTemplate {
+        boards,
+        new_board,
+    };
     
     Ok(Html(template.render()?))
+}
+
+#[derive(Debug)]
+pub struct NewContainerFormTemplate<T> {
+    pub sub_id: String,
+    pub action: String,
+    pub place_holder: String,
+    pub button_sub_label: String,
+    pub errors: Option<FormErrors>,
+    pub request: Option<T>,
 }
 
 #[cfg(test)]

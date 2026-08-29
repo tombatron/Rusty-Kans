@@ -1,13 +1,9 @@
-use std::collections::HashMap;
-use axum::extract::{FromRequest, Request};
-use axum::Form;
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use garde::Validate;
-use reqwest::StatusCode;
-use serde::de::DeserializeOwned;
+use std::collections::HashMap;
+use std::fmt::Debug;
 
-pub struct ValidForm<T>(pub T);
-
+#[derive(Debug)]
 pub enum FormError<T> {
     Deserialize(axum::extract::rejection::FormRejection),
     Validation { input: T, errors: FormErrors }
@@ -31,29 +27,7 @@ impl<T> IntoResponse for FormError<T> {
     }
 }
 
-impl<S, T> FromRequest<S> for ValidForm<T>
-where
-    S: Send + Sync,
-    T: DeserializeOwned + Validate<Context = ()> + Send,
-{
-    type Rejection = FormError<T>;
-
-    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        let Form(value) = Form::<T>::from_request(req, state)
-            .await
-            .map_err(FormError::Deserialize)?;
-
-        match value.validate() {
-            Ok(()) => Ok(ValidForm(value)),
-            Err(report) => Err(FormError::Validation {
-                errors: FormErrors::from_report(&report),
-                input: value
-            })
-        }
-    }
-}
-
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct FormErrors(HashMap<String, Vec<String>>);
 
 impl FormErrors {
