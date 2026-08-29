@@ -128,3 +128,39 @@ selected
 </turbo-frame>
 {% endif %}
 {% endmacro %}
+
+
+{% macro get_board_title_edit(context) %}
+{% if let Some(errors) = errors %}
+<turbo-stream target="" action="replace">
+    <template>
+        <form action="/boards/{{ board.id }}/rename" method="post">
+            <input type="hidden" name="id" value="{{ board.id }}">
+            <input type="text" name="name" value="{{ board.name }}">
+            {% if let Some(field_errors) = errors.get("name") %}
+            <ul class="form-errors">
+                {% for error in field_errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            <div class="board-edit-actions">
+                <button type="submit">Save</button>
+                <a href="/boards/{{ board.id }}/header" class="btn-cancel">Cancel</a>
+            </div>
+        </form>
+    </template>
+</turbo-stream>
+{% else %}
+<turbo-frame id="board-title-{{ board.id }}">
+    <form action="/boards/{{ board.id }}/rename" method="post">
+        <input type="hidden" name="id" value="{{ board.id }}">
+        <input type="text" name="name" value="{{ board.name }}">
+        <div class="board-edit-actions">
+            <button type="submit">Save</button>
+            <a href="/boards/{{ board.id }}/header" class="btn-cancel">Cancel</a>
+        </div>
+    </form>
+</turbo-frame>
+{% endif %}
+{% endmacro %}

@@ -1,10 +1,2 @@
-<turbo-frame id="board-title-{{ board.id }}">
-    <form action="/boards/{{ board.id }}/rename" method="post">
-        <input type="hidden" name="id" value="{{ board.id }}">
-        <input type="text" name="name" value="{{ board.name }}">
-        <div class="board-edit-actions">
-            <button type="submit">Save</button>
-            <a href="/boards/{{ board.id }}/header" class="btn-cancel">Cancel</a>
-        </div>
-    </form>
-</turbo-frame>
+{% import "macros.html" as macros %}
+{{ macros::get_board_title_edit(context) }}

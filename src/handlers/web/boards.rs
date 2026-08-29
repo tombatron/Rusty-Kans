@@ -107,13 +107,14 @@ pub async fn get_board(
 #[derive(Debug, Template)]
 #[template(path = "turbo_board_title_edit.html")]
 struct BoardHeaderEdit {
-    board: Board
+    board: Board,
+    errors: Option<FormErrors>
 }
 
 async fn get_board_edit(UserDb(db): UserDb, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
     let board = data::get_board(db, board_id).await?;
 
-    let template = BoardHeaderEdit { board };
+    let template = BoardHeaderEdit { board, errors: None };
 
     Ok(Html(template.render()?))
 }
@@ -132,15 +133,28 @@ async fn get_board_header(UserDb(db): UserDb, Path(board_id): Path<u64>) -> Resu
     Ok(Html(template.render()?))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 struct BoardRename {
+    #[garde(skip)]
     id: u64,
+    #[garde(length(min = 1, max = 100))]
     name: String,
 }
 
-async fn post_board_rename(UserDb(db): UserDb, Path(board_id):Path<u64>, Form(board): Form<BoardRename>) -> Result<Redirect, KanbanError> {
+async fn post_board_rename(UserDb(db): UserDb, Path(board_id):Path<u64>, Form(board): Form<BoardRename>) -> Result<Response, KanbanError> {
     if board_id != board.id {
         return Err(KanbanError::RequestError(format!("Ambiguous board specified, path says `{}` and the form says `{}`", board_id, board.id)));
+    }
+
+    let validation_errors = board.validate();
+
+    if let Err(errors) = validation_errors {
+        let validation_response = BoardHeaderEdit{
+            board: Board { id: board_id, name: board.name },
+            errors: Some(FormErrors::from_report(&errors)),
+        };
+
+        return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response());
     }
 
     let result = data::update_board(db, board_id, board.name).await?;
@@ -149,7 +163,7 @@ async fn post_board_rename(UserDb(db): UserDb, Path(board_id):Path<u64>, Form(bo
         return Err(KanbanError::DatabaseError("Update failed please try again.".to_string()));
     }
 
-    Ok(Redirect::to(format!("/boards/{}/header", board_id).as_str()))
+    Ok(Redirect::to(format!("/boards/{}/header", board_id).as_str()).into_response())
 }
 
 async fn post_board_delete(UserDb(db): UserDb, Path(board_id):Path<u64>) -> Result<Redirect, KanbanError> {
@@ -235,9 +249,10 @@ mod tests {
         };
 
         let response = post_board_rename(db.clone(), Path(1), Form(request)).await.unwrap();
+        let response = response.headers().get("location").unwrap().to_str().unwrap();
         let board = data::get_board(db.0, 1).await.unwrap();
 
-        assert_eq!("/boards/1/header", response.location());
+        assert_eq!("/boards/1/header", response);
         assert_eq!("New Name Brah", board.name);
 
         Ok(())
