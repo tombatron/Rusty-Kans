@@ -2,6 +2,7 @@ use crate::data;
 use crate::errors::KanbanError;
 use crate::models::{Card, Status};
 use askama::Template;
+use garde::Validate;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
@@ -18,8 +19,9 @@ struct ListItemTemplate {
     name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateListRequest {
+    #[garde(length(min = 1, max = 100))]
     name: String,
 }
 

@@ -1,14 +1,18 @@
 use crate::data;
 use crate::errors::KanbanError;
+use crate::handlers::web::NewContainerFormTemplate;
 use crate::handlers::{CreateListRequest, create_list_common};
 use crate::models::List;
 use crate::state::{ApplicationState, UserDb};
 use crate::turbo::TurboStream;
+use crate::validation::FormErrors;
 use askama::Template;
 use axum::extract::Path;
-use axum::response::{Html, Redirect};
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Form, Router};
+use garde::Validate;
+use reqwest::StatusCode;
 use serde::Deserialize;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
@@ -20,23 +24,52 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/lists/{list_id}/delete", post(post_list_delete))
 }
 
+#[derive(Debug, Template)]
+#[template(
+    source = "{% import \"macros.html\" as macros %}{{ macros::add_new_container_form(context) }}",
+    ext = "html"
+)]
+struct NewListErrorTemplate {
+    context: NewContainerFormTemplate<CreateListRequest>,
+}
+
 async fn post_list_form(
     UserDb(db): UserDb,
     Path(board_id): Path<u64>,
     Form(list_info): Form<CreateListRequest>,
-) -> Result<TurboStream, KanbanError> {
+) -> Result<Response, KanbanError> {
+    let validation_errors = list_info.validate();
+
+    if let Err(errors) = validation_errors {
+        let validation_response = NewListErrorTemplate {
+            context: NewContainerFormTemplate {
+                sub_id: "list".to_string(),
+                action: format!("/boards/{board_id}/lists"),
+                place_holder: "".to_string(),
+                button_sub_label: "List".to_string(),
+                errors: Some(FormErrors::from_report(&errors)),
+                request: Some(list_info),
+            },
+        };
+
+        return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response());
+    }
+
     let created_list = create_list_common(db, board_id, list_info).await?;
 
-    Ok(TurboStream(created_list.render()?))
+    Ok(TurboStream(created_list.render()?).into_response())
 }
 
 #[derive(Debug, Template)]
 #[template(path = "turbo_list_title.html")]
 struct ListHeader {
-    list: List
+    list: List,
 }
 
-async fn get_list_header(UserDb(db): UserDb, Path(list_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+async fn get_list_header(
+    UserDb(db): UserDb,
+    Path(list_id): Path<u64>,
+) -> Result<Html<String>, KanbanError> {
     let list = data::get_list_header(db, list_id).await?;
 
     let template = ListHeader { list };
@@ -47,10 +80,13 @@ async fn get_list_header(UserDb(db): UserDb, Path(list_id): Path<u64>) -> Result
 #[derive(Debug, Template)]
 #[template(path = "turbo_list_title_edit.html")]
 struct ListHeaderEdit {
-    list: List
+    list: List,
 }
 
-async fn get_list_edit(UserDb(db): UserDb, Path(list_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+async fn get_list_edit(
+    UserDb(db): UserDb,
+    Path(list_id): Path<u64>,
+) -> Result<Html<String>, KanbanError> {
     let list = data::get_list_header(db, list_id).await?;
 
     let template = ListHeaderEdit { list };
@@ -60,23 +96,33 @@ async fn get_list_edit(UserDb(db): UserDb, Path(list_id): Path<u64>) -> Result<H
 
 #[derive(Debug, Deserialize)]
 struct ListRename {
-    name: String
+    name: String,
 }
 
-async fn post_list_rename(UserDb(db): UserDb, Path(list_id): Path<u64>, Form(list_header): Form<ListRename>) -> Result<Redirect, KanbanError> {
+async fn post_list_rename(
+    UserDb(db): UserDb,
+    Path(list_id): Path<u64>,
+    Form(list_header): Form<ListRename>,
+) -> Result<Redirect, KanbanError> {
     let result = data::update_list(db, list_id, list_header.name).await?;
 
     if result != 1 {
-        return Err(KanbanError::DatabaseError("Update failed please try again.".to_string()));
+        return Err(KanbanError::DatabaseError(
+            "Update failed please try again.".to_string(),
+        ));
     }
 
     Ok(Redirect::to(format!("/lists/{list_id}/header").as_str()))
 }
 
-async fn post_list_delete(UserDb(db): UserDb, Path(list_id): Path<u64>) -> Result<TurboStream, KanbanError> {
+async fn post_list_delete(
+    UserDb(db): UserDb,
+    Path(list_id): Path<u64>,
+) -> Result<TurboStream, KanbanError> {
     data::delete_list(db, list_id).await?;
 
-    let result = format!("<turbo-stream action=\"remove\" target=\"list-{list_id}\"></turbo-stream>");
+    let result =
+        format!("<turbo-stream action=\"remove\" target=\"list-{list_id}\"></turbo-stream>");
 
     Ok(TurboStream(result))
 }
@@ -84,7 +130,7 @@ async fn post_list_delete(UserDb(db): UserDb, Path(list_id): Path<u64>) -> Resul
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion};
+    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, get_response_body};
     use sqlx::SqlitePool;
     use test_case::test_case;
 
@@ -93,10 +139,11 @@ pub mod tests {
         let db = UserDb(db);
 
         let request = CreateListRequest {
-            name: "This is a new list".to_string()
+            name: "This is a new list".to_string(),
         };
 
-        let response = post_list_form(db, Path(1), Form(request)).await.unwrap().0;
+        let response = post_list_form(db, Path(1), Form(request)).await.unwrap();
+        let response = get_response_body(response).await;
 
         assert!(response.contains("list-7"));
         assert!(response.contains("<h3 class=\"list-title\">This is a new list</h3>"));
@@ -104,7 +151,7 @@ pub mod tests {
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_list_header_returns_list_header(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
@@ -116,7 +163,7 @@ pub mod tests {
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_list_edit_returns_edit_html(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
@@ -128,15 +175,17 @@ pub mod tests {
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_list_rename_renames_list(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
         let request = ListRename {
-            name: "Renamed list".to_string()
+            name: "Renamed list".to_string(),
         };
 
-        let response = post_list_rename(db.clone(), Path(1), Form(request)).await.unwrap();
+        let response = post_list_rename(db.clone(), Path(1), Form(request))
+            .await
+            .unwrap();
 
         let renamed_list = data::get_list_header(db.0, 1).await.unwrap();
 
@@ -146,28 +195,34 @@ pub mod tests {
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
-    async fn post_list_rename_fails_when_delete_affects_nothing(db: SqlitePool) -> sqlx::Result<()> {
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn post_list_rename_fails_when_delete_affects_nothing(
+        db: SqlitePool,
+    ) -> sqlx::Result<()> {
         let db = UserDb(db);
 
         let request = ListRename {
-            name: "Renamed list".to_string()
+            name: "Renamed list".to_string(),
         };
 
-        let response = post_list_rename(db, Path(1000), Form(request)).await.unwrap_err();
+        let response = post_list_rename(db, Path(1000), Form(request))
+            .await
+            .unwrap_err();
 
         assert!(matches!(response, KanbanError::DatabaseError(_)));
 
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_list_delete_deletes_the_list(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
         let response = post_list_delete(db, Path(1)).await.unwrap().0;
 
-        assert!(response.contains("<turbo-stream action=\"remove\" target=\"list-1\"></turbo-stream>"));
+        assert!(
+            response.contains("<turbo-stream action=\"remove\" target=\"list-1\"></turbo-stream>")
+        );
 
         Ok(())
     }

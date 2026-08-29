@@ -65,8 +65,14 @@ mod tests {
     use crate::router::create_router;
     use crate::state::{UserDb, create_application_state};
     use axum::http::StatusCode;
+    use axum::response::Response;
     use axum_test::TestServer;
     use sqlx::SqlitePool;
+
+    pub async fn get_response_body(response: Response) -> String {
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        String::from_utf8(body.to_vec()).unwrap()
+    }
 
     pub async fn base_auth_get_assertion(path: &str) {
         let state = create_application_state().await;

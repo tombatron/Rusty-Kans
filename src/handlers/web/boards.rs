@@ -184,12 +184,7 @@ mod tests {
     use axum::extract::Path;
     use sqlx::SqlitePool;
     use test_case::test_case;
-
-    async fn get_response_body(response: Response) -> String {
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        String::from_utf8(body.to_vec()).unwrap()
-    }
-
+    
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_board_form_creates_a_new_board(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
