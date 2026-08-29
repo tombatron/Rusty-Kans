@@ -27,7 +27,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 
 #[derive(Debug, Deserialize, Validate)]
 struct CreateBoardRequest {
-    #[garde(length(min = 2, max = 100))]
+    #[garde(length(min = 1, max = 100))]
     name: String,
 }
 
