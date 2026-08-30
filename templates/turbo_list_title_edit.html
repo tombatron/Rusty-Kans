@@ -1,10 +1,23 @@
-<turbo-frame id="list-title-{{ list.id }}" class="list-header">
+<turbo-{% if errors.is_none() %}frame id{% else %}stream action="update" target{% endif %}="list-title-{{ list.id }}" class="list-header">
+    {% if errors.is_some() %}
+    <template>
+    {% endif %}
     <form action="/lists/{{ list.id }}/rename" method="post">
         <input type="hidden" name="id" value="{{ list.id }}">
         <input type="text" name="name" value="{{ list.name }}">
+        {% if let Some(errors) = errors && let Some(field_errors) = errors.get("name") %}
+        <ul class="form-errors">
+            {% for error in field_errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
         <div class="list-edit-actions">
             <button type="submit">Save</button>
             <a href="/lists/{{ list.id }}/header" class="btn-cancel">Cancel</a>
         </div>
     </form>
-</turbo-frame>
+    {% if errors.is_some() %}
+    </template>
+    {% endif %}
+</turbo-{% if errors.is_none() %}frame{% else %}stream{% endif %}>

@@ -11,8 +11,8 @@ use axum::extract::Path;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Form, Router};
+use axum::http::StatusCode;
 use garde::Validate;
-use reqwest::StatusCode;
 use serde::Deserialize;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
@@ -81,6 +81,7 @@ async fn get_list_header(
 #[template(path = "turbo_list_title_edit.html")]
 struct ListHeaderEdit {
     list: List,
+    errors: Option<FormErrors>
 }
 
 async fn get_list_edit(
@@ -89,13 +90,14 @@ async fn get_list_edit(
 ) -> Result<Html<String>, KanbanError> {
     let list = data::get_list_header(db, list_id).await?;
 
-    let template = ListHeaderEdit { list };
+    let template = ListHeaderEdit { list, errors: None };
 
     Ok(Html(template.render()?))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 struct ListRename {
+    #[garde(length(min = 5, max = 100))]
     name: String,
 }
 
@@ -103,7 +105,18 @@ async fn post_list_rename(
     UserDb(db): UserDb,
     Path(list_id): Path<u64>,
     Form(list_header): Form<ListRename>,
-) -> Result<Redirect, KanbanError> {
+) -> Result<Response, KanbanError> {
+    let validation_errors = list_header.validate();
+
+    if let Err(errors) = validation_errors {
+        let validation_response = ListHeaderEdit {
+            list: List { id: list_id, board_id: 0, name: list_header.name, cards: vec!() },
+            errors: Some(FormErrors::from_report(&errors)),
+        };
+
+        return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response());
+    }
+
     let result = data::update_list(db, list_id, list_header.name).await?;
 
     if result != 1 {
@@ -112,7 +125,7 @@ async fn post_list_rename(
         ));
     }
 
-    Ok(Redirect::to(format!("/lists/{list_id}/header").as_str()))
+    Ok(Redirect::to(format!("/lists/{list_id}/header").as_str()).into_response())
 }
 
 async fn post_list_delete(
@@ -187,9 +200,11 @@ pub mod tests {
             .await
             .unwrap();
 
+        let redirect_location = response.headers().get("location").unwrap().to_str().unwrap();
+
         let renamed_list = data::get_list_header(db.0, 1).await.unwrap();
 
-        assert_eq!("/lists/1/header", response.location());
+        assert_eq!("/lists/1/header", redirect_location);
         assert_eq!("Renamed list", renamed_list.name);
 
         Ok(())

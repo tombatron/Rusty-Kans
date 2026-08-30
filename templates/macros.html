@@ -104,7 +104,7 @@ selected
 
 {% macro add_new_container_form(context) %}
 {% if let Some(errors) = context.errors && let Some(request) = context.request %}
-<turbo-stream target="new-{{ context.sub_id }}-form" action="replace">
+<turbo-stream target="new-{{ context.sub_id }}-form" action="update">
     <template>
         <form action="{{ context.action }}" method="post">
             <input type="text" name="name" placeholder="{{ request.name | safe }}" required>
@@ -132,7 +132,7 @@ selected
 
 {% macro get_board_title_edit(context) %}
 {% if let Some(errors) = errors %}
-<turbo-stream target="" action="replace">
+<turbo-stream target="board-title-{{ board.id }}" action="update">
     <template>
         <form action="/boards/{{ board.id }}/rename" method="post">
             <input type="hidden" name="id" value="{{ board.id }}">
