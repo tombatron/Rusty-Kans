@@ -92,12 +92,16 @@ selected
 {% endmacro %}
 
 {% macro board_header(board) %}
-<turbo-frame id="board-title-{{ board.id }}">
-    <h1 class="board-title">{{ board.name }}</h1>
+<turbo-frame id="board-title-{{ board.id }}" action="update" class="board-card-header">
+    <a href="/boards/{{ board.id }}" class="board-name" data-turbo-frame="_top">{{ board.name }}</a>
     <div class="board-actions">
         <a href="/boards/{{ board.id }}/edit" class="board-edit-btn">
             <i data-lucide="pencil-line"></i>
         </a>
+        <button type="button" class="board-delete-btn"
+                onclick="document.getElementById('delete-dialog-{{ board.id }}').showModal()">
+            <i data-lucide="trash-2"></i>
+        </button>
     </div>
 </turbo-frame>
 {% endmacro %}
