@@ -4,6 +4,7 @@ use axum::Router;
 use tower_http::services::ServeDir;
 use tower_sessions::cookie::time::Duration;
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer, SessionStore};
+use tower_sessions::cookie::SameSite;
 use tower_sessions_redis_store::RedisStore;
 
 pub fn create_router(application_state: ApplicationState) -> Router<()> {
@@ -28,6 +29,7 @@ where
     let ws = ws::get_router_configuration();
 
     let session_layer = SessionManagerLayer::new(session_store)
+        .with_same_site(SameSite::Strict)
         .with_secure(!cfg!(debug_assertions))
         .with_expiry(Expiry::OnInactivity(Duration::minutes(30)));
 
