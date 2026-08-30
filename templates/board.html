@@ -32,7 +32,7 @@
 
         <ul id="list-cards-{{ list.id }}" data-controller="card-list" data-card-list-list-id-value="{{ list.id }}">
             {% for card in list.cards %}
-            {{ macros::list_item(card) }}
+            {{ macros::list_item(card.id, card.list_id, card.title, card.description, card.status) }}
             {% endfor %}
         </ul>
         {{ macros::add_card(list.id) }}

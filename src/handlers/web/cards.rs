@@ -6,7 +6,7 @@ use axum::routing::{get, post};
 use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::{create_card_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest};
-use crate::models::{Card, CardMoveEvent};
+use crate::models::{Card, CardMoveEvent, Status};
 use crate::state::{ApplicationState, UserDb};
 use crate::turbo::TurboStream;
 
@@ -62,7 +62,23 @@ async fn post_move_card_action(
 #[derive(Debug, Template)]
 #[template(path = "turbo_new_card.html")]
 struct NewCardTemplate {
-    card: Card,
+    id: u64,
+    list_id: u64,
+    title: String,
+    description: Option<String>,
+    status: Status,
+}
+
+impl From<Card> for NewCardTemplate {
+    fn from(value: Card) -> Self {
+        NewCardTemplate {
+            id: value.id,
+            list_id: value.list_id,
+            title: value.title,
+            description: value.description,
+            status: value.status,
+        }
+    }
 }
 
 async fn post_card_form(
@@ -72,7 +88,7 @@ async fn post_card_form(
 ) -> Result<TurboStream, KanbanError> {
     let card = create_card_common(db, list_id, card).await?;
 
-    let template =  NewCardTemplate { card };
+    let template =  NewCardTemplate::from(card);
 
     Ok(TurboStream(template.render()?))
 }
@@ -92,7 +108,23 @@ async fn delete_card_form(
 #[derive(Debug, Template)]
 #[template(path = "turbo_card_edit.html")]
 struct EditCardTemplate {
-    card: Card,
+    id: u64,
+    list_id: u64,
+    title: String,
+    description: Option<String>,
+    status: Status,
+}
+
+impl From<Card> for EditCardTemplate {
+    fn from(value: Card) -> Self {
+        EditCardTemplate {
+            id: value.id,
+            list_id: value.list_id,
+            title: value.title,
+            description: value.description,
+            status: value.status,
+        }
+    }
 }
 
 async fn get_card_edit(
@@ -101,7 +133,7 @@ async fn get_card_edit(
 ) -> Result<Html<String>, KanbanError> {
     let card = data::get_card(db, card_id).await?;
 
-    let template = EditCardTemplate { card };
+    let template = EditCardTemplate::from(card);
 
     Ok(Html(template.render()?))
 }
@@ -109,7 +141,23 @@ async fn get_card_edit(
 #[derive(Debug, Template)]
 #[template(path = "turbo_card.html")]
 struct CardTemplate {
-    card: Card,
+    id: u64,
+    list_id: u64,
+    title: String,
+    description: Option<String>,
+    status: Status,
+}
+
+impl From<Card> for CardTemplate {
+    fn from(value: Card) -> Self {
+        CardTemplate {
+            id: value.id,
+            list_id: value.list_id,
+            title: value.title,
+            description: value.description,
+            status: value.status,
+        }
+    }
 }
 
 async fn patch_card_form(UserDb(db): UserDb, Path(card_id): Path<i64>, Form(card): Form<Card>) -> Result<Redirect, KanbanError> {
@@ -121,7 +169,7 @@ async fn patch_card_form(UserDb(db): UserDb, Path(card_id): Path<i64>, Form(card
 async fn get_card_by_id(UserDb(db): UserDb, Path(card_id): Path<u64>) -> Result<Html<String>, KanbanError> {
     let card = data::get_card(db, card_id).await?;
 
-    let template = CardTemplate { card};
+    let template = CardTemplate::from(card);
 
     Ok(Html(template.render()?))
 }

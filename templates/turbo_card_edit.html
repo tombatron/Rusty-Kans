@@ -1,18 +1,18 @@
 {% import "macros.html" as macros %}
-<turbo-frame id="card-frame-{{ card.id }}">
-    <form class="card-edit-form" action="/cards/{{ card.id }}/edit" method="post">
-        <input type="hidden" name="id" value="{{ card.id }}">
-        <input type="hidden" name="list_id" value="{{ card.list_id }}">
-        <input type="text" name="title" value="{{ card.title }}" required>
-        <textarea name="description">{% if let Some(d) = card.description %}{{ d }}{% endif %}</textarea>
+<turbo-frame id="card-frame-{{ id }}">
+    <form class="card-edit-form" action="/cards/{{ id }}/edit" method="post">
+        <input type="hidden" name="id" value="{{ id }}">
+        <input type="hidden" name="list_id" value="{{ list_id }}">
+        <input type="text" name="title" value="{{ title }}" required>
+        <textarea name="description">{% if let Some(d) = description %}{{ d }}{% endif %}</textarea>
         <select name="status">
-            <option value="Todo" {{ macros::is_selected("Todo", card.status) }}>Todo</option>
-            <option value="Doing" {{ macros::is_selected("Doing", card.status) }}>Doing</option>
-            <option value="Done" {{ macros::is_selected("Done", card.status) }}>Done</option>
+            <option value="Todo" {{ macros::is_selected("Todo", status) }}>Todo</option>
+            <option value="Doing" {{ macros::is_selected("Doing", status) }}>Doing</option>
+            <option value="Done" {{ macros::is_selected("Done", status) }}>Done</option>
         </select>
         <div class="card-edit-actions">
             <button type="submit">Save</button>
-            <a href="/cards/{{ card.id }}/view" class="btn-cancel">Cancel</a>
+            <a href="/cards/{{ id }}/view" class="btn-cancel">Cancel</a>
         </div>
     </form>
 </turbo-frame>

@@ -2,6 +2,6 @@
 <turbo-stream action="remove" target="card-{{card_id}}"></turbo-stream>
 <turbo-stream action="append" target="list-cards-{{to_list_id}}">
     <template>
-    {{ macros::list_item(card) }}
+    {{ macros::list_item(card.id, card.list_id, card.title, card.description, card.status) }}
     </template>
 </turbo-stream>

@@ -1,6 +1,6 @@
 use crate::data;
 use crate::errors::KanbanError;
-use crate::models::{Board, Card, List};
+use crate::models::{Board, List};
 use crate::state::{ApplicationState, UserDb};
 use crate::turbo::TurboStream;
 use askama::Template;
