@@ -7,7 +7,6 @@ use garde::Validate;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-
 pub mod api;
 pub mod auth;
 pub mod utility;
@@ -40,11 +39,7 @@ async fn create_list_common(
     })
 }
 
-async fn move_card_common(
-    db: SqlitePool,
-    list_id: u64,
-    card_id: u64,
-) -> Result<(), KanbanError> {
+async fn move_card_common(db: SqlitePool, list_id: u64, card_id: u64) -> Result<(), KanbanError> {
     data::update_card_list(db, list_id, card_id).await?;
 
     Ok(())
@@ -52,9 +47,9 @@ async fn move_card_common(
 
 #[derive(Deserialize, Validate)]
 pub struct CreateCardRequest {
-    #[garde(length(min=1, max=100))]
+    #[garde(length(min = 1, max = 100))]
     title: String,
-    #[garde(length(min=0, max=1000))]
+    #[garde(length(min = 0, max = 1000))]
     description: Option<String>,
 }
 
@@ -74,10 +69,7 @@ async fn create_card_common(
     })
 }
 
-async fn delete_card_common(
-    db: SqlitePool,
-    card_id: u64,
-) -> Result<(), KanbanError> {
+async fn delete_card_common(db: SqlitePool, card_id: u64) -> Result<(), KanbanError> {
     data::delete_card(db, card_id).await?;
 
     Ok(())
@@ -85,10 +77,12 @@ async fn delete_card_common(
 
 async fn patch_card_common(
     db: SqlitePool,
-    card: Card,
+    id: u64,
+    title: String,
+    description: Option<String>,
+    status: Status,
 ) -> Result<(), KanbanError> {
-    let result =
-        data::update_card(db, card.id, card.title, card.description, card.status).await?;
+    let result = data::update_card(db, id, title, description, status).await?;
 
     if result != 1 {
         return Err(KanbanError::DatabaseError(
@@ -101,7 +95,6 @@ async fn patch_card_common(
 
 #[cfg(test)]
 pub mod tests {
-    use std::sync::Arc;
     use super::*;
     use crate::models::CardMoveEvent;
     use crate::state::ApplicationState;
@@ -109,6 +102,7 @@ pub mod tests {
     use oauth2::basic::BasicClient;
     use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
     use sqlx::SqlitePool;
+    use std::sync::Arc;
 
     pub fn get_fake_application_state() -> ApplicationState {
         let (tx, _) = tokio::sync::broadcast::channel::<CardMoveEvent>(512);
@@ -122,14 +116,14 @@ pub mod tests {
                 TokenUrl::new("https://example.com/login/oauth/access_token".to_string()).unwrap(),
             )
             .set_redirect_uri(RedirectUrl::new("http://example.com".to_string()).unwrap());
-        
+
         let db_pools = Arc::new(DashMap::<String, SqlitePool>::new());
 
         ApplicationState {
             db_pools,
             tx,
             oauth_client,
-            redis_pool: None
+            redis_pool: None,
         }
     }
 
@@ -199,7 +193,7 @@ pub mod tests {
             status: Status::Done,
         };
 
-        patch_card_common(db.clone(), request).await.unwrap();
+        patch_card_common(db.clone(), request.id, request.title, request.description, request.status).await.unwrap();
 
         let updated_card = data::get_card(db, 1).await.unwrap();
 
@@ -225,7 +219,7 @@ pub mod tests {
             status: Status::Doing,
         };
 
-        let response = patch_card_common(db, request).await.unwrap_err();
+        let response = patch_card_common(db, request.id, request.title, request.description, request.status).await.unwrap_err();
 
         assert!(matches!(response, KanbanError::DatabaseError(_)));
 

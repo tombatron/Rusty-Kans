@@ -84,7 +84,7 @@ pub async fn patch_card(
     Path(card_id): Path<u64>,
     Json(card): Json<Card>,
 ) -> Result<Redirect, KanbanError> {
-    patch_card_common(db, card).await?;
+    patch_card_common(db, card.id, card.title, card.description, card.status).await?;
 
     Ok(Redirect::to(format!("/api/cards/{card_id}").as_str()))
 }

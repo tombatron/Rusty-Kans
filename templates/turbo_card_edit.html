@@ -1,10 +1,24 @@
 {% import "macros.html" as macros %}
-<turbo-frame id="card-frame-{{ id }}">
+<turbo-{% if errors.is_none() %}frame id{% else %}stream action="update" target{% endif %}="card-frame-{{ id }}">
+    {% if errors.is_some() %}<template>{% endif %}
     <form class="card-edit-form" action="/cards/{{ id }}/edit" method="post">
         <input type="hidden" name="id" value="{{ id }}">
-        <input type="hidden" name="list_id" value="{{ list_id }}">
         <input type="text" name="title" value="{{ title }}" required>
+        {% if let Some(e) = errors && let Some(field_errors) = e.get("title") %}
+        <ul class="form-errors">
+            {% for error in field_errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
         <textarea name="description">{% if let Some(d) = description %}{{ d }}{% endif %}</textarea>
+        {% if let Some(e) = errors && let Some(field_errors) = e.get("description") %}
+            <ul class="form-errors">
+                {% for error in field_errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
         <select name="status">
             <option value="Todo" {{ macros::is_selected("Todo", status) }}>Todo</option>
             <option value="Doing" {{ macros::is_selected("Doing", status) }}>Doing</option>
@@ -15,4 +29,5 @@
             <a href="/cards/{{ id }}/view" class="btn-cancel">Cancel</a>
         </div>
     </form>
-</turbo-frame>
+    {% if errors.is_some() %}</template>{% endif %}
+</turbo-{% if errors.is_none() %}frame{% else %}stream{% endif %}>

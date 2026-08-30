@@ -5,6 +5,7 @@ use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use garde::Validate;
+use serde::Deserialize;
 use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::{create_card_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest};
@@ -128,24 +129,29 @@ async fn delete_card_form(
     Ok(TurboStream(response))
 }
 
-#[derive(Debug, Template)]
+#[derive(Debug, Deserialize, Validate, Template)]
 #[template(path = "turbo_card_edit.html")]
-struct EditCardTemplate {
+struct EditCardRequest {
+    #[garde(skip)]
     id: u64,
-    list_id: u64,
+    #[garde(length(min=1, max=100))]
     title: String,
+    #[garde(length(min=0, max=1000))]
     description: Option<String>,
+    #[garde(skip)]
     status: Status,
+    #[garde(skip)]
+    errors: Option<FormErrors>,
 }
 
-impl From<Card> for EditCardTemplate {
+impl From<Card> for EditCardRequest {
     fn from(value: Card) -> Self {
-        EditCardTemplate {
+        EditCardRequest {
             id: value.id,
-            list_id: value.list_id,
             title: value.title,
             description: value.description,
             status: value.status,
+            errors: None,
         }
     }
 }
@@ -156,9 +162,26 @@ async fn get_card_edit(
 ) -> Result<Html<String>, KanbanError> {
     let card = data::get_card(db, card_id).await?;
 
-    let template = EditCardTemplate::from(card);
+    let template = EditCardRequest::from(card);
 
     Ok(Html(template.render()?))
+}
+
+async fn patch_card_form(UserDb(db): UserDb, Path(card_id): Path<i64>, Form(card): Form<EditCardRequest>) -> Result<Response, KanbanError> {
+    let validation_errors = card.validate();
+
+    if let Err(errors) = validation_errors {
+        let validation_response = EditCardRequest {
+            errors: Some(FormErrors::from_report(&errors)),
+            ..card
+        };
+
+        return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response())
+    }
+
+    patch_card_common(db, card.id, card.title, card.description, card.status).await?;
+
+    Ok(Redirect::to(format!("/cards/{card_id}/view").as_str()).into_response())
 }
 
 #[derive(Debug, Template)]
@@ -181,12 +204,6 @@ impl From<Card> for CardTemplate {
             status: value.status,
         }
     }
-}
-
-async fn patch_card_form(UserDb(db): UserDb, Path(card_id): Path<i64>, Form(card): Form<Card>) -> Result<Redirect, KanbanError> {
-    patch_card_common(db, card).await?;
-
-    Ok(Redirect::to(format!("/cards/{card_id}/view").as_str()))
 }
 
 async fn get_card_by_id(UserDb(db): UserDb, Path(card_id): Path<u64>) -> Result<Html<String>, KanbanError> {
@@ -275,19 +292,20 @@ mod tests {
     async fn patch_card_form_updates_a_card(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
-        let request = Card {
+        let request = EditCardRequest {
             id: 1,
-            list_id: 1,
             title: String::from("Patched Card"),
             description: Some(String::from("Patched Description")),
-            status: Done
+            status: Done,
+            errors: None,
         };
 
         let response = patch_card_form(db.clone(), Path(1), Form(request)).await.unwrap();
+        let response = response.headers().get("location").unwrap().to_str().unwrap();
 
         let card = data::get_card(db.0, 1).await.unwrap();
 
-        assert_eq!("/cards/1/view", response.location());
+        assert_eq!("/cards/1/view", response);
         assert_eq!("Patched Card", card.title);
         assert_eq!("Patched Description", card.description.unwrap());
 

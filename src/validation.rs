@@ -2,6 +2,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use std::collections::HashMap;
 use std::fmt::Debug;
+use serde::Deserialize;
 
 #[derive(Debug)]
 pub enum FormError<T> {
@@ -27,7 +28,7 @@ impl<T> IntoResponse for FormError<T> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Deserialize)]
 pub struct FormErrors(HashMap<String, Vec<String>>);
 
 impl FormErrors {
