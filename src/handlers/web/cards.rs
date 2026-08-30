@@ -261,6 +261,25 @@ mod tests {
     }
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn post_card_form_handles_failed_validation(db: SqlitePool) -> sqlx::Result<()> {
+        let db = UserDb(db);
+
+        let request = CreateCardRequest {
+            title: String::from(""),
+            description: Some(String::from("Super New Description"))
+        };
+
+        let response = post_card_form(db, Path(1), Form(request)).await.unwrap();
+        let response_status = response.status();
+        let response = get_response_body(response).await;
+
+        assert_eq!(StatusCode::UNPROCESSABLE_ENTITY, response_status);
+        assert!(response.contains("length is lower than 1"));
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn get_card_edit_returns_card_edit_form(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
@@ -308,6 +327,32 @@ mod tests {
         assert_eq!("/cards/1/view", response);
         assert_eq!("Patched Card", card.title);
         assert_eq!("Patched Description", card.description.unwrap());
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn patch_card_form_handles_failed_validation(db: SqlitePool) -> sqlx::Result<()> {
+        let db = UserDb(db);
+
+        let request = EditCardRequest {
+            id: 1,
+            title: String::from(""),
+            description: Some(String::from("Patched Description")),
+            status: Done,
+            errors: None,
+        };
+
+        let response = patch_card_form(db.clone(), Path(1), Form(request)).await.unwrap();
+        let response_status = response.status();
+        let response_body = get_response_body(response).await;
+
+        let card = data::get_card(db.0, 1).await.unwrap();
+
+        assert_eq!(StatusCode::UNPROCESSABLE_ENTITY, response_status);
+        assert_eq!("Card 1", card.title);
+        assert_eq!("This is a description", card.description.unwrap());
+        assert!(response_body.contains("length is lower than 1"));
 
         Ok(())
     }

@@ -200,6 +200,25 @@ mod tests {
         Ok(())
     }
 
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn post_board_form_handles_failed_validation(db: SqlitePool) -> sqlx::Result<()> {
+        let db = UserDb(db);
+
+        let request = CreateBoardRequest {
+            name: String::from("")
+        };
+
+        let response = post_board_form(db, Form(request)).await.unwrap();
+
+        let response_status = response.status();
+        let response_body = get_response_body(response).await;
+
+        assert!(response_body.contains("length is lower than 1"));
+        assert_eq!(StatusCode::UNPROCESSABLE_ENTITY, response_status);
+
+        Ok(())
+    }
+
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn get_board_returns_a_board_page(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
@@ -230,6 +249,28 @@ mod tests {
         let response = get_board_header(db, Path(1)).await.unwrap().0;
 
         assert!(response.contains("board-title-1"));
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    async fn post_board_rename_handles_failed_validation(db: SqlitePool) -> sqlx::Result<()> {
+        let db = UserDb(db);
+
+        let request = BoardRename  {
+            id: 1,
+            name: String::from("")
+        };
+
+        let response = post_board_rename(db.clone(), Path(1), Form(request)).await.unwrap();
+        let response_status = response.status();
+        let response_body = get_response_body(response).await;
+
+        let board = data::get_board(db.0, 1).await.unwrap();
+
+        assert_eq!(StatusCode::UNPROCESSABLE_ENTITY, response_status);
+        assert_eq!("Whatever", board.name);
+        assert!(response_body.contains("length is lower than 1"));
 
         Ok(())
     }
