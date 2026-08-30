@@ -123,7 +123,7 @@ selected
 {% endmacro %}
 
 
-{% macro get_board_title_edit(context) %}
+{% macro get_board_title_edit(board) %}
 {% if let Some(errors) = errors %}
 <turbo-stream target="board-title-{{ board.id }}" action="update">
     <template>

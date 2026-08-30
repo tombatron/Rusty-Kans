@@ -97,7 +97,7 @@ async fn get_list_edit(
 
 #[derive(Debug, Deserialize, Validate)]
 struct ListRename {
-    #[garde(length(min = 5, max = 100))]
+    #[garde(length(min = 1, max = 100))]
     name: String,
 }
 
