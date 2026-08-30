@@ -165,6 +165,22 @@ pub mod tests {
     }
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn post_list_form_handles_validation_errors(db: SqlitePool) -> sqlx::Result<()> {
+        let db = UserDb(db);
+
+        let request = CreateListRequest { name: "".to_string(), };
+
+        let response = post_list_form(db, Path(1), Form(request)).await.unwrap();
+        let response_status = response.status();
+        let response = get_response_body(response).await;
+
+        assert_eq!(StatusCode::UNPROCESSABLE_ENTITY, response_status);
+        assert!(response.contains("length is lower than 1"));
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_list_header_returns_list_header(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
@@ -206,6 +222,27 @@ pub mod tests {
 
         assert_eq!("/lists/1/header", redirect_location);
         assert_eq!("Renamed list", renamed_list.name);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn post_list_rename_handles_validation_failure(db: SqlitePool) -> sqlx::Result<()> {
+        let db = UserDb(db);
+
+        let request = ListRename {
+            name: "".to_string(),
+        };
+
+        let response = post_list_rename(db.clone(), Path(1), Form(request)).await.unwrap();
+        let response_status = response.status();
+        let response_body = get_response_body(response).await;
+
+        let renamed_list = data::get_list_header(db.0, 1).await.unwrap();
+
+        assert!(response_body.contains("length is lower than 1"));
+        assert_eq!(StatusCode::UNPROCESSABLE_ENTITY, response_status);
+        assert_eq!("First List", renamed_list.name); // Shouldn't have changed.
 
         Ok(())
     }
