@@ -61,18 +61,7 @@ selected
 <div class="board-card" id="board-{{ id }}">
 
     <!-- turbo-frame: the rename-able header -->
-    <turbo-frame id="board-title-{{ id }}" class="board-card-header">
-        <a href="/boards/{{ id }}" class="board-name" data-turbo-frame="_top">{{ name }}</a>
-        <div class="board-actions">
-            <a href="/boards/{{ id }}/edit" class="board-edit-btn">
-                <i data-lucide="pencil-line"></i>
-            </a>
-            <button type="button" class="board-delete-btn"
-                    onclick="document.getElementById('delete-dialog-{{ id }}').showModal()">
-                <i data-lucide="trash-2"></i>
-            </button>
-        </div>
-    </turbo-frame>
+    {{ board_header(id, name) }}
 
     <!-- dialog lives outside the frame so rename doesn't wipe it -->
     <dialog id="delete-dialog-{{ id }}" class="delete-dialog">
@@ -91,15 +80,15 @@ selected
 </div>
 {% endmacro %}
 
-{% macro board_header(board) %}
-<turbo-frame id="board-title-{{ board.id }}" action="update" class="board-card-header">
-    <a href="/boards/{{ board.id }}" class="board-name" data-turbo-frame="_top">{{ board.name }}</a>
+{% macro board_header(id, name) %}
+<turbo-frame id="board-title-{{ id }}" action="update" class="board-card-header">
+    <a href="/boards/{{ id }}" class="board-name" data-turbo-frame="_top">{{ name }}</a>
     <div class="board-actions">
-        <a href="/boards/{{ board.id }}/edit" class="board-edit-btn">
+        <a href="/boards/{{ id }}/edit" class="board-edit-btn">
             <i data-lucide="pencil-line"></i>
         </a>
         <button type="button" class="board-delete-btn"
-                onclick="document.getElementById('delete-dialog-{{ board.id }}').showModal()">
+                onclick="document.getElementById('delete-dialog-{{ id }}').showModal()">
             <i data-lucide="trash-2"></i>
         </button>
     </div>
