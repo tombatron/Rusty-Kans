@@ -1,14 +1,17 @@
 use askama::Template;
 use axum::extract::{Path, State};
 use axum::{Form, Router};
-use axum::response::{Html, Redirect};
+use axum::http::StatusCode;
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
+use garde::Validate;
 use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::{create_card_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest};
 use crate::models::{Card, CardMoveEvent, Status};
 use crate::state::{ApplicationState, UserDb};
 use crate::turbo::TurboStream;
+use crate::validation::FormErrors;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -81,16 +84,36 @@ impl From<Card> for NewCardTemplate {
     }
 }
 
+#[derive(Debug, Template)]
+#[template(source = "{% import \"macros.html\" as m %}{{ m::add_card(list_id, card_title, validation_errors) }}", ext="html")]
+struct NewCardValidationError {
+    list_id: u64,
+    card_title: Option<String>,
+    validation_errors: Option<FormErrors>
+}
+
 async fn post_card_form(
     UserDb(db): UserDb,
     Path(list_id): Path<u64>,
     Form(card): Form<CreateCardRequest>,
-) -> Result<TurboStream, KanbanError> {
+) -> Result<Response, KanbanError> {
+    let validation_errors = card.validate();
+
+    if let Err(errors) = validation_errors {
+        let validation_response = NewCardValidationError {
+            list_id,
+            card_title: Some(card.title),
+            validation_errors: Some(FormErrors::from_report(&errors)),
+        };
+
+        return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response())
+    }
+
     let card = create_card_common(db, list_id, card).await?;
 
     let template =  NewCardTemplate::from(card);
 
-    Ok(TurboStream(template.render()?))
+    Ok((StatusCode::OK, TurboStream(template.render()?)).into_response())
 }
 
 async fn delete_card_form(
@@ -181,7 +204,7 @@ mod tests {
     use crate::data;
     use crate::handlers::tests::get_fake_application_state;
     use crate::handlers::web::cards::*;
-    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion};
+    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, get_response_body};
     use crate::models::Status::Done;
     use test_case::test_case;
 
@@ -210,7 +233,8 @@ mod tests {
             description: Some(String::from("Super New Description"))
         };
 
-        let response = post_card_form(db, Path(1), Form(request)).await.unwrap().0;
+        let response = post_card_form(db, Path(1), Form(request)).await.unwrap();
+        let response = get_response_body(response).await;
 
         assert!(response.contains("card-19"));
         assert!(response.contains("Super New Card"));

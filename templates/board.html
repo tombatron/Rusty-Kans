@@ -35,7 +35,7 @@
             {{ macros::list_item(card.id, card.list_id, card.title, card.description, card.status) }}
             {% endfor %}
         </ul>
-        {{ macros::add_card(list.id) }}
+        {{ macros::add_card(list.id, None, None) }}
     </div>
     {% endfor %}
 </turbo-frame>

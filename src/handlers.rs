@@ -1,10 +1,12 @@
 use crate::data;
 use crate::errors::KanbanError;
 use crate::models::{Card, Status};
+use crate::validation::FormErrors;
 use askama::Template;
 use garde::Validate;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
+
 
 pub mod api;
 pub mod auth;
@@ -48,9 +50,11 @@ async fn move_card_common(
     Ok(())
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Validate)]
 pub struct CreateCardRequest {
+    #[garde(length(min=1, max=100))]
     title: String,
+    #[garde(length(min=0, max=1000))]
     description: Option<String>,
 }
 

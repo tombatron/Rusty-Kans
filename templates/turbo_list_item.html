@@ -16,7 +16,7 @@
                 </div>
             </turbo-frame>
             <ul id="list-cards-{{ list_id }}" data-controller="card-list" data-card-list-list-id-value="{{ list_id }}"></ul>
-            {{ macros::add_card(list_id) }}
+            {{ macros::add_card(list_id, None, None) }}
         </div>
     </template>
 </turbo-stream>
