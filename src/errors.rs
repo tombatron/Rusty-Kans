@@ -1,8 +1,8 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::Error;
-use std::fmt::{Display, Formatter};
 use sqlx::migrate::MigrateError;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, PartialEq)]
 pub enum KanbanError {
@@ -47,7 +47,7 @@ impl Display for KanbanError {
             }
             KanbanError::RequestError(request_error) => {
                 write!(f, "There was a request error: {}", request_error)
-            },
+            }
             KanbanError::ValidationError(validation_error) => {
                 write!(f, "Validation failed: {}", validation_error)
             }

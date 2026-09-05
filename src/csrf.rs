@@ -1,3 +1,8 @@
+use crate::errors::KanbanError;
+use tower_sessions::Session;
+
+const CSRF_SECRET_KEY: &str = "CSRF_SECRET";
+
 pub fn generate_secret() -> [u8; 32] {
     let mut secret_array= [0u8; 32];
 
@@ -47,9 +52,25 @@ pub fn verify(token: &str, secret: &[u8; 32]) -> bool {
     result
 }
 
+pub async fn get_or_create_secret(session: &Session) -> Result<[u8; 32], KanbanError> {
+    let stored_secret: Option<[u8; 32]> = session.get(CSRF_SECRET_KEY).await?;
+
+    if let Some(secret) = stored_secret {
+        return Ok(secret);
+    }
+
+    let new_secret = generate_secret();
+
+    session.insert(CSRF_SECRET_KEY, new_secret).await?;
+
+    Ok(new_secret)
+}
+
 #[cfg(test)]
 pub mod tests {
-    use crate::csrf::{generate_secret, mask, verify};
+    use crate::csrf::{generate_secret, get_or_create_secret, mask, verify, CSRF_SECRET_KEY};
+    use std::sync::Arc;
+    use tower_sessions::{MemoryStore, Session};
 
     #[test]
     fn generate_secret_generates_random_secret() {
@@ -97,11 +118,36 @@ pub mod tests {
     }
 
     #[test]
-    fn verify_can_invalidate_wellformed_but_invalid_token() {
+    fn verify_can_invalidate_well_formed_but_invalid_token() {
         let test_token = "00:00".to_string();
 
         let invalid_result = verify(&test_token, &generate_secret());
 
         assert!(!invalid_result);
+    }
+
+    #[tokio::test]
+    async fn get_or_create_secret_will_create_a_secret_on_the_first_call() {
+        let session = Session::new(None, Arc::new(MemoryStore::default()), None);
+
+        let new_secret = get_or_create_secret(&session).await.unwrap();
+
+        let stored_secret: Option<[u8; 32]> = session.get(CSRF_SECRET_KEY).await.unwrap();
+
+        assert!(stored_secret.is_some());
+        assert_eq!(stored_secret, Some(new_secret));
+    }
+
+    #[tokio::test]
+    async fn get_or_create_secret_will_return_existing_secret_on_second_call() {
+        let session = Session::new(None, Arc::new(MemoryStore::default()), None);
+
+        // First call should generate a new secret.
+        let new_secret = get_or_create_secret(&session).await.unwrap();
+
+        // Second call should yield the same secret because of the session storage.
+        let same_secret = get_or_create_secret(&session).await.unwrap();
+
+        assert_eq!(new_secret, same_secret);
     }
 }
