@@ -15,6 +15,7 @@ pub enum KanbanError {
     TemplateError(String),
     RequestError(String),
     ValidationError(String),
+    GeneralError(String),
 }
 
 impl Display for KanbanError {
@@ -50,6 +51,9 @@ impl Display for KanbanError {
             }
             KanbanError::ValidationError(validation_error) => {
                 write!(f, "Validation failed: {}", validation_error)
+            }
+            KanbanError::GeneralError(general_error) => {
+                write!(f, "General error: {}", general_error)
             }
         }
     }
@@ -116,6 +120,9 @@ impl IntoResponse for KanbanError {
             KanbanError::ValidationError(_) => {
                 (StatusCode::UNPROCESSABLE_ENTITY, self.to_string()).into_response()
             }
+            KanbanError::GeneralError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
+            }
         }
     }
 }
@@ -130,6 +137,10 @@ impl From<askama::Error> for KanbanError {
     fn from(value: askama::Error) -> Self {
         KanbanError::TemplateError(value.to_string())
     }
+}
+
+impl From<axum::Error> for KanbanError {
+    fn from(value: axum::Error) -> Self { KanbanError::GeneralError(value.to_string()) }
 }
 
 #[cfg(test)]
@@ -149,6 +160,7 @@ mod tests {
     #[test_case(KanbanError::DatabaseError("Tables be locked yo.".to_string()), "There was a database error: Tables be locked yo.".to_string())]
     #[test_case(KanbanError::TemplateError("Template is totally messed up man.".to_string()), "There was a templating error: Template is totally messed up man.".to_string())]
     #[test_case(KanbanError::RequestError("We don't even speak that language.".to_string()), "There was a request error: We don't even speak that language.".to_string())]
+    #[test_case(KanbanError::GeneralError("Whatever".to_string()), "General error: Whatever".to_string())]
     fn kanban_display_impl_verification(error: KanbanError, expected: String) {
         assert_eq!(error.to_string(), expected);
     }
@@ -179,6 +191,7 @@ mod tests {
     #[test_case(KanbanError::DatabaseError("Tables be locked yo.".to_string()), StatusCode::INTERNAL_SERVER_ERROR)]
     #[test_case(KanbanError::TemplateError("I'm not even supposed to be here today.".to_string()), StatusCode::INTERNAL_SERVER_ERROR)]
     #[test_case(KanbanError::RequestError("I'm not ready to receive you.".to_string()), StatusCode::BAD_REQUEST)]
+    #[test_case(KanbanError::GeneralError("This is a general error".to_string()), StatusCode::INTERNAL_SERVER_ERROR)]
     fn kanban_into_response_impl_verification(error: KanbanError, status_code: StatusCode) {
         let result = error.into_response();
 
