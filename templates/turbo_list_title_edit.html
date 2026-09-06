@@ -3,6 +3,7 @@
     <template>
     {% endif %}
     <form action="/lists/{{ list.id }}/rename" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <input type="hidden" name="id" value="{{ list.id }}">
         <input type="text" name="name" value="{{ list.name }}">
         {% if let Some(errors) = errors && let Some(field_errors) = errors.get("name") %}

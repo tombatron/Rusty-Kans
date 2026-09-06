@@ -4,7 +4,7 @@ pub mod cards;
 
 use crate::data;
 use crate::errors::KanbanError;
-use crate::middleware::require_web_auth;
+use crate::middleware::{require_csrf_token, require_web_auth};
 use crate::models::Board;
 use crate::state::{ApplicationState, UserDb};
 use askama::Template;
@@ -19,6 +19,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .merge(boards::get_router_configuration())
         .merge(lists::get_router_configuration())
         .merge(cards::get_router_configuration())
+        .layer(axum::middleware::from_fn(require_csrf_token))
         .layer(axum::middleware::from_fn(require_web_auth))
 }
 

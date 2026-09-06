@@ -2,6 +2,7 @@
 <turbo-{% if errors.is_none() %}frame id{% else %}stream action="update" target{% endif %}="card-frame-{{ id }}">
     {% if errors.is_some() %}<template>{% endif %}
     <form class="card-edit-form" action="/cards/{{ id }}/edit" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <input type="hidden" name="id" value="{{ id }}">
         <input type="text" name="title" value="{{ title }}" required>
         {% if let Some(e) = errors && let Some(field_errors) = e.get("title") %}
