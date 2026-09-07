@@ -62,7 +62,7 @@ async fn post_move_card_action(
 
     // Discard the potential error response because send will return an error if there are zero
     // active receivers.
-    let _ = state.tx.send(response.clone().into(csrf_token));
+    let _ = state.tx.send(response.clone().into());
 
     Ok(TurboStream(response.render()?))
 }
