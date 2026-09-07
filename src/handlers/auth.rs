@@ -13,6 +13,7 @@ use oauth2::{
 };
 use serde::Deserialize;
 use tower_sessions::Session;
+use crate::middleware::require_csrf_token;
 
 const CSRF_TOKEN_KEY: &str = "CSRF_TOKEN";
 const PKCE_VERIFIER_KEY: &str = "PKCE_VERIFIER";
@@ -24,7 +25,8 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/auth", get(get_auth_landing))
         .route("/auth/login", get(get_login))
         .route("/auth/callback", get(get_callback))
-        .route("/auth/logout", post(post_logout));
+        .route("/auth/logout", post(post_logout))
+        .route_layer(axum::middleware::from_fn(require_csrf_token));
 
     #[cfg(debug_assertions)]
     let router = router
