@@ -475,4 +475,10 @@ mod tests {
     async fn authed_post_pages_redirect_when_anonymous(path: &str) {
         base_auth_post_assertion(path).await;
     }
+    
+    #[test_case("/boards")]
+    #[tokio::test]
+    async fn missing_csrf_token_on_post_is_rejected(path: &str) {
+        base_csrf_rejection_assertion(path).await;
+    }
 }

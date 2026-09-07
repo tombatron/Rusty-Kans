@@ -187,10 +187,13 @@ async fn post_auth_dev(
 
 #[cfg(test)]
 pub mod tests {
+    use std::sync::Arc;
     use crate::handlers::tests::get_fake_application_state;
     use crate::router::create_router_with_session;
     use axum_test::TestServer;
-    use tower_sessions::{MemoryStore, SessionStore};
+    use tower_sessions::{MemoryStore, Session, SessionStore};
+    use crate::csrf::{get_or_create_secret, mask};
+    use crate::handlers::auth::AUTHENTICATED_USER_KEY;
 
     #[tokio::test]
     async fn post_logout_deletes_sessions() {
@@ -211,13 +214,23 @@ pub mod tests {
         // Load the record and insert user data directly into the store.
         let mut record = store.load(&session_id).await.unwrap().unwrap();
         record.data.insert(
-            "GITHUB_USER".to_string(),
+            AUTHENTICATED_USER_KEY.to_string(),
             serde_json::json!({ "id": 1, "login": "testuser" }),
         );
         store.save(&record).await.unwrap();
 
+        let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
+
+
+        let secret = get_or_create_secret(&session).await.unwrap();
+
+        let _save_result = session.save().await;
+
+        let token = mask(&secret);
+
         // Logout - axum-test carries the cookie automatically.
-        server.post("/auth/logout").await;
+        server.post("/auth/logout", )
+            .form(&[("csrf_token", token.as_str())]).await;
 
         // Verify the session record is gone
         let result = store.load(&session_id).await.unwrap();

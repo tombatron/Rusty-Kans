@@ -65,12 +65,14 @@ pub struct NewContainerFormTemplate<T> {
 #[cfg(test)]
 mod tests {
     use crate::handlers::web::get_landing;
-    use crate::router::create_router;
+    use crate::router::{create_router, create_router_with_session};
     use crate::state::{create_application_state, CsrfTokenValue, UserDb};
     use axum::http::StatusCode;
     use axum::response::Response;
     use axum_test::TestServer;
     use sqlx::SqlitePool;
+    use tower_sessions::{MemoryStore, SessionStore};
+    use crate::handlers::auth::AUTHENTICATED_USER_KEY;
 
     pub async fn get_response_body(response: Response) -> String {
         let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
@@ -97,6 +99,36 @@ mod tests {
 
         response.assert_status(StatusCode::SEE_OTHER);
         response.assert_header("location", "/auth");
+    }
+
+    pub async fn base_csrf_rejection_assertion(path: &str) {
+        let store = MemoryStore::default();
+        let state = create_application_state().await;
+
+        let server = TestServer::builder()
+            .save_cookies()
+            .build(create_router_with_session(state, store.clone()));
+
+        // Establish a session.
+        let response = server.get("/auth/login").await;
+
+        // Pull the session ID out of the cookie.
+        let cookie = response.cookie("id");
+        let session_id = cookie.value().parse().unwrap();
+
+        // Load the record and insert user data directly into the store, because
+        // if you are authed, we don't even check to see if you passed a csrf token.
+        let mut record = store.load(&session_id).await.unwrap().unwrap();
+        record.data.insert(
+            AUTHENTICATED_USER_KEY.to_string(),
+            serde_json::json!({ "id": 1, "name": "testuser", "source": "dev" }),
+        );
+        store.save(&record).await.unwrap();
+
+        let response = server.post(path).await;
+
+        response.assert_status_bad_request();
+        response.assert_text_contains("No CSRF token found.");
     }
 
     #[sqlx::test(fixtures(path="../fixtures", scripts("boards")))]
