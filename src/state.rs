@@ -16,6 +16,8 @@ use std::{env, fs};
 use sha2::{Digest, Sha256};
 use tower_sessions::Session;
 use tower_sessions_redis_store::fred::prelude::{ClientLike, Config, Pool};
+use crate::csrf;
+use crate::csrf::get_or_create_secret;
 use crate::errors::KanbanError;
 
 pub type GitHubOAuthClient = oauth2::Client<
@@ -183,6 +185,24 @@ pub async fn create_application_state() -> ApplicationState {
         tx,
         oauth_client,
         redis_pool
+    }
+}
+
+#[derive(Clone)]
+pub struct CsrfTokenValue(pub String);
+
+impl<S> FromRequestParts<S> for CsrfTokenValue where S: Send + Sync {
+    type Rejection = (StatusCode, String);
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let session = Session::from_request_parts(parts, state).await
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "No session available for this request.".to_string()))?;
+
+        let csrf_secret = get_or_create_secret(&session).await?;
+        
+        let masked_secret = csrf::mask(&csrf_secret);
+
+        Ok(CsrfTokenValue(masked_secret))
     }
 }
 
