@@ -1,11 +1,11 @@
 use crate::data;
 use crate::errors::KanbanError;
 use crate::models::{Card, Status};
-use crate::validation::FormErrors;
 use askama::Template;
 use garde::Validate;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
+use crate::validation::FormErrors;
 
 pub mod api;
 pub mod auth;
@@ -18,6 +18,7 @@ pub mod ws;
 struct ListItemTemplate {
     list_id: u64,
     name: String,
+    csrf_token: String,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -27,6 +28,7 @@ pub struct CreateListRequest {
 }
 
 async fn create_list_common(
+    csrf_token: String,
     db: SqlitePool,
     board_id: u64,
     list_info: CreateListRequest,
@@ -36,6 +38,7 @@ async fn create_list_common(
     Ok(ListItemTemplate {
         list_id,
         name: list_info.name,
+        csrf_token,
     })
 }
 
@@ -133,7 +136,7 @@ pub mod tests {
             name: "Totally new list.".to_string(),
         };
 
-        let response = create_list_common(db, 1, request).await.unwrap();
+        let response = create_list_common("token".to_string(), db, 1, request).await.unwrap();
 
         assert_eq!(7, response.list_id);
         assert_eq!("Totally new list.", response.name);

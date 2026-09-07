@@ -6,7 +6,7 @@ use crate::data;
 use crate::errors::KanbanError;
 use crate::middleware::{require_csrf_token, require_web_auth};
 use crate::models::Board;
-use crate::state::{ApplicationState, UserDb};
+use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
 use askama::Template;
 use axum::Router;
 use axum::response::Html;
@@ -27,10 +27,11 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 #[template(path = "landing.html")]
 struct LandingTemplate {
     boards: Vec<Board>,
-    new_board: NewContainerFormTemplate<Board>
+    new_board: NewContainerFormTemplate<Board>,
+    csrf_token: String,
 }
 
-async fn get_landing(UserDb(db): UserDb) -> Result<Html<String>, KanbanError> {
+async fn get_landing(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): UserDb) -> Result<Html<String>, KanbanError> {
     let boards = data::get_all_boards(db).await?;
 
     let new_board = NewContainerFormTemplate {
@@ -45,6 +46,7 @@ async fn get_landing(UserDb(db): UserDb) -> Result<Html<String>, KanbanError> {
     let template = LandingTemplate {
         boards,
         new_board,
+        csrf_token,
     };
     
     Ok(Html(template.render()?))
@@ -64,7 +66,7 @@ pub struct NewContainerFormTemplate<T> {
 mod tests {
     use crate::handlers::web::get_landing;
     use crate::router::create_router;
-    use crate::state::{UserDb, create_application_state};
+    use crate::state::{create_application_state, CsrfTokenValue, UserDb};
     use axum::http::StatusCode;
     use axum::response::Response;
     use axum_test::TestServer;
@@ -101,7 +103,7 @@ mod tests {
     async fn get_landing_returns_all_boards(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
-        let response = get_landing(db).await.unwrap().0;
+        let response = get_landing(CsrfTokenValue("token".to_string()), db).await.unwrap().0;
 
         assert!(response.contains("board-1"));
         assert!(response.contains("board-2"));

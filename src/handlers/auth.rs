@@ -1,6 +1,6 @@
 use crate::errors::KanbanError;
 use crate::models::security::{GitHubUser, LoggedInUser};
-use crate::state::ApplicationState;
+use crate::state::{ApplicationState, CsrfTokenValue};
 use askama::Template;
 use axum::extract::{Query, State};
 use axum::response::{Html, Redirect};
@@ -143,11 +143,13 @@ async fn post_logout(session: Session) -> Result<Redirect, KanbanError> {
 #[cfg(debug_assertions)]
 #[derive(Template, Debug)]
 #[template(path = "auth_dev.html")]
-struct AuthDevTemplate {}
+struct AuthDevTemplate {
+    csrf_token: String,
+}
 
 #[cfg(debug_assertions)]
-async fn get_auth_dev() -> Result<Html<String>, KanbanError> {
-    let template = AuthDevTemplate {};
+async fn get_auth_dev(CsrfTokenValue(csrf_token): CsrfTokenValue) -> Result<Html<String>, KanbanError> {
+    let template = AuthDevTemplate { csrf_token };
     Ok(Html(template.render()?))
 }
 

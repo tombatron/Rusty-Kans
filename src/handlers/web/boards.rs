@@ -1,19 +1,19 @@
 use crate::data;
 use crate::errors::KanbanError;
+use crate::handlers::web::NewContainerFormTemplate;
 use crate::models::{Board, List};
-use crate::state::{ApplicationState, UserDb};
+use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
 use crate::turbo::TurboStream;
+use crate::validation::FormErrors;
 use askama::Template;
 use axum::extract::Path;
+use axum::http::StatusCode;
+use axum::response::Response;
 use axum::response::{Html, IntoResponse, Redirect};
 use axum::routing::{get, post};
 use axum::{Form, Router};
-use axum::http::StatusCode;
-use axum::response::Response;
-use serde::Deserialize;
 use garde::Validate;
-use crate::handlers::web::NewContainerFormTemplate;
-use crate::validation::FormErrors;
+use serde::Deserialize;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -35,16 +35,25 @@ struct CreateBoardRequest {
 #[template(path = "turbo_new_board.html")]
 struct NewBoardTemplate {
     id: u64,
-    name: String
+    name: String,
+    csrf_token: String,
 }
 
 #[derive(Debug, Template)]
-#[template(source = "{% import \"macros.html\" as macros %}{{ macros::add_new_container_form(context) }}", ext= "html")]
+#[template(
+    source = "{% import \"macros.html\" as macros %}{{ macros::add_new_container_form(context, csrf_token) }}",
+    ext = "html"
+)]
 struct NewBoardErrorTemplate {
     context: NewContainerFormTemplate<CreateBoardRequest>,
+    csrf_token: String,
 }
 
-async fn post_board_form(UserDb(db): UserDb, Form(board): Form<CreateBoardRequest>) -> Result<Response, KanbanError> {
+async fn post_board_form(
+    CsrfTokenValue(csrf_token): CsrfTokenValue,
+    UserDb(db): UserDb,
+    Form(board): Form<CreateBoardRequest>,
+) -> Result<Response, KanbanError> {
     let validation_errors = board.validate();
 
     if let Err(errors) = validation_errors {
@@ -56,10 +65,15 @@ async fn post_board_form(UserDb(db): UserDb, Form(board): Form<CreateBoardReques
                 button_sub_label: "Board".to_string(),
                 errors: Some(FormErrors::from_report(&errors)),
                 request: Some(board),
-            }
+            },
+            csrf_token,
         };
 
-        return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response())
+        return Ok((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            TurboStream(validation_response.render()?),
+        )
+            .into_response());
     }
 
     let board_id = data::insert_board(db, &board.name).await?;
@@ -67,6 +81,7 @@ async fn post_board_form(UserDb(db): UserDb, Form(board): Form<CreateBoardReques
     let template = NewBoardTemplate {
         id: board_id as u64,
         name: board.name,
+        csrf_token,
     };
 
     Ok(TurboStream(template.render()?).into_response())
@@ -77,12 +92,14 @@ async fn post_board_form(UserDb(db): UserDb, Form(board): Form<CreateBoardReques
 struct BoardTemplate {
     board: Board,
     lists: Vec<List>,
-    new_list: NewContainerFormTemplate<List>
+    new_list: NewContainerFormTemplate<List>,
+    csrf_token: String,
 }
 
 pub async fn get_board(
+    CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
-    Path(board_id): Path<u64>
+    Path(board_id): Path<u64>,
 ) -> Result<Html<String>, KanbanError> {
     let board = data::get_board_with_lists(db, board_id).await?;
 
@@ -99,6 +116,7 @@ pub async fn get_board(
         board: board.board,
         lists: board.lists,
         new_list,
+        csrf_token,
     };
 
     Ok(Html(response_template.render()?))
@@ -108,13 +126,22 @@ pub async fn get_board(
 #[template(path = "turbo_board_title_edit.html")]
 struct BoardHeaderEdit {
     board: Board,
-    errors: Option<FormErrors>
+    errors: Option<FormErrors>,
+    csrf_token: String,
 }
 
-async fn get_board_edit(UserDb(db): UserDb, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+async fn get_board_edit(
+    CsrfTokenValue(csrf_token): CsrfTokenValue,
+    UserDb(db): UserDb,
+    Path(board_id): Path<u64>,
+) -> Result<Html<String>, KanbanError> {
     let board = data::get_board(db, board_id).await?;
 
-    let template = BoardHeaderEdit { board, errors: None };
+    let template = BoardHeaderEdit {
+        board,
+        errors: None,
+        csrf_token,
+    };
 
     Ok(Html(template.render()?))
 }
@@ -122,10 +149,13 @@ async fn get_board_edit(UserDb(db): UserDb, Path(board_id): Path<u64>) -> Result
 #[derive(Debug, Template)]
 #[template(path = "turbo_board_title.html")]
 struct BoardHeader {
-    board: Board
+    board: Board,
 }
 
-async fn get_board_header(UserDb(db): UserDb, Path(board_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+async fn get_board_header(
+    UserDb(db): UserDb,
+    Path(board_id): Path<u64>,
+) -> Result<Html<String>, KanbanError> {
     let board = data::get_board(db, board_id).await?;
 
     let template = BoardHeader { board };
@@ -141,32 +171,53 @@ struct BoardRename {
     name: String,
 }
 
-async fn post_board_rename(UserDb(db): UserDb, Path(board_id):Path<u64>, Form(board): Form<BoardRename>) -> Result<Response, KanbanError> {
+async fn post_board_rename(
+    CsrfTokenValue(csrf_token): CsrfTokenValue,
+    UserDb(db): UserDb,
+    Path(board_id): Path<u64>,
+    Form(board): Form<BoardRename>,
+) -> Result<Response, KanbanError> {
     if board_id != board.id {
-        return Err(KanbanError::RequestError(format!("Ambiguous board specified, path says `{}` and the form says `{}`", board_id, board.id)));
+        return Err(KanbanError::RequestError(format!(
+            "Ambiguous board specified, path says `{}` and the form says `{}`",
+            board_id, board.id
+        )));
     }
 
     let validation_errors = board.validate();
 
     if let Err(errors) = validation_errors {
-        let validation_response = BoardHeaderEdit{
-            board: Board { id: board_id, name: board.name },
+        let validation_response = BoardHeaderEdit {
+            board: Board {
+                id: board_id,
+                name: board.name,
+            },
             errors: Some(FormErrors::from_report(&errors)),
+            csrf_token,
         };
 
-        return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response());
+        return Ok((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            TurboStream(validation_response.render()?),
+        )
+            .into_response());
     }
 
     let result = data::update_board(db, board_id, board.name).await?;
 
     if result != 1 {
-        return Err(KanbanError::DatabaseError("Update failed please try again.".to_string()));
+        return Err(KanbanError::DatabaseError(
+            "Update failed please try again.".to_string(),
+        ));
     }
 
     Ok(Redirect::to(format!("/boards/{}/header", board_id).as_str()).into_response())
 }
 
-async fn post_board_delete(UserDb(db): UserDb, Path(board_id):Path<u64>) -> Result<Redirect, KanbanError> {
+async fn post_board_delete(
+    UserDb(db): UserDb,
+    Path(board_id): Path<u64>,
+) -> Result<Redirect, KanbanError> {
     let result = data::delete_board(db, board_id).await?;
 
     if result != 1 {
@@ -184,16 +235,21 @@ mod tests {
     use axum::extract::Path;
     use sqlx::SqlitePool;
     use test_case::test_case;
-    
+
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_board_form_creates_a_new_board(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
         let request = CreateBoardRequest {
-            name: String::from("New Board Dude.")
+            name: String::from("New Board Dude."),
         };
 
-        let response = get_response_body(post_board_form(db, Form(request)).await.unwrap()).await;
+        let response = get_response_body(
+            post_board_form(CsrfTokenValue("token".to_string()), db, Form(request))
+                .await
+                .unwrap(),
+        )
+        .await;
 
         assert!(response.contains("New Board Dude."));
 
@@ -205,10 +261,12 @@ mod tests {
         let db = UserDb(db);
 
         let request = CreateBoardRequest {
-            name: String::from("")
+            name: String::from(""),
         };
 
-        let response = post_board_form(db, Form(request)).await.unwrap();
+        let response = post_board_form(CsrfTokenValue("token".to_string()), db, Form(request))
+            .await
+            .unwrap();
 
         let response_status = response.status();
         let response_body = get_response_body(response).await;
@@ -219,22 +277,28 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_board_returns_a_board_page(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
-        let response = get_board(db, Path(2)).await.unwrap().0;
+        let response = get_board(CsrfTokenValue("token".to_string()), db, Path(2))
+            .await
+            .unwrap()
+            .0;
 
         assert!(response.contains("Another Board"));
 
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_board_edit_returns_edit_form(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
-        let response = get_board_edit(db, Path(1)).await.unwrap().0;
+        let response = get_board_edit(CsrfTokenValue("token".to_string()), db, Path(1))
+            .await
+            .unwrap()
+            .0;
 
         assert!(response.contains("Whatever"));
         assert!(response.contains("board-title-1"));
@@ -242,7 +306,7 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_board_header_returns_board_header(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
@@ -253,16 +317,23 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_board_rename_handles_failed_validation(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
-        let request = BoardRename  {
+        let request = BoardRename {
             id: 1,
-            name: String::from("")
+            name: String::from(""),
         };
 
-        let response = post_board_rename(db.clone(), Path(1), Form(request)).await.unwrap();
+        let response = post_board_rename(
+            CsrfTokenValue("token".to_string()),
+            db.clone(),
+            Path(1),
+            Form(request),
+        )
+        .await
+        .unwrap();
         let response_status = response.status();
         let response_body = get_response_body(response).await;
 
@@ -275,17 +346,29 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_board_rename_does_that(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
-        let request = BoardRename  {
+        let request = BoardRename {
             id: 1,
-            name: String::from("New Name Brah")
+            name: String::from("New Name Brah"),
         };
 
-        let response = post_board_rename(db.clone(), Path(1), Form(request)).await.unwrap();
-        let response = response.headers().get("location").unwrap().to_str().unwrap();
+        let response = post_board_rename(
+            CsrfTokenValue("token".to_string()),
+            db.clone(),
+            Path(1),
+            Form(request),
+        )
+        .await
+        .unwrap();
+        let response = response
+            .headers()
+            .get("location")
+            .unwrap()
+            .to_str()
+            .unwrap();
         let board = data::get_board(db.0, 1).await.unwrap();
 
         assert_eq!("/boards/1/header", response);
@@ -294,7 +377,7 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_board_delete_deletes_the_board(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
@@ -305,8 +388,10 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
-    async fn post_board_rename_request_error_if_path_and_form_ref_different_boards(db: SqlitePool) -> sqlx::Result<()> {
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn post_board_rename_request_error_if_path_and_form_ref_different_boards(
+        db: SqlitePool,
+    ) -> sqlx::Result<()> {
         let db = UserDb(db);
 
         let request = BoardRename {
@@ -314,15 +399,29 @@ mod tests {
             name: "This will fail anyway.".to_string(),
         };
 
-        let response = post_board_rename(db, Path(1), Form(request)).await.unwrap_err();
+        let response = post_board_rename(
+            CsrfTokenValue("token".to_string()),
+            db,
+            Path(1),
+            Form(request),
+        )
+        .await
+        .unwrap_err();
 
-        assert_eq!(response, KanbanError::RequestError("Ambiguous board specified, path says `1` and the form says `1000`".to_string()));
+        assert_eq!(
+            response,
+            KanbanError::RequestError(
+                "Ambiguous board specified, path says `1` and the form says `1000`".to_string()
+            )
+        );
 
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
-    async fn post_board_rename_database_error_if_board_doesnt_exist(db: SqlitePool) -> sqlx::Result<()> {
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn post_board_rename_database_error_if_board_doesnt_exist(
+        db: SqlitePool,
+    ) -> sqlx::Result<()> {
         let db = UserDb(db);
 
         let request = BoardRename {
@@ -330,15 +429,27 @@ mod tests {
             name: "This will still fail anyway.".to_string(),
         };
 
-        let response = post_board_rename(db, Path(1000), Form(request)).await.unwrap_err();
+        let response = post_board_rename(
+            CsrfTokenValue("token".to_string()),
+            db,
+            Path(1000),
+            Form(request),
+        )
+        .await
+        .unwrap_err();
 
-        assert_eq!(response, KanbanError::DatabaseError("Update failed please try again.".to_string()));
+        assert_eq!(
+            response,
+            KanbanError::DatabaseError("Update failed please try again.".to_string())
+        );
 
         Ok(())
     }
 
-    #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
-    async fn post_board_delete_board_not_found_error_if_board_doesnt_exist(db: SqlitePool) -> sqlx::Result<()> {
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn post_board_delete_board_not_found_error_if_board_doesnt_exist(
+        db: SqlitePool,
+    ) -> sqlx::Result<()> {
         let db = UserDb(db);
 
         let response = post_board_delete(db, Path(1000)).await.unwrap_err();

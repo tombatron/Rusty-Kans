@@ -7,7 +7,7 @@
     <h1>Dev Login</h1>
     <p class="dev-warning">⚠ Not available in production builds.</p>
     <form method="post" action="/auth/dev" data-turbo="false" class="dev-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="csrf_token" value="{{ csrf_token | safe }}" />
         <label class="dev-form-field">
             <span>User ID</span>
             <input type="text" name="id" placeholder="e.g. 1001" />

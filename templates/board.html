@@ -22,20 +22,20 @@
 
     {{ macros::board_header(board.id, board.name) }}
 
-    {{ macros::add_new_container_form(new_list) }}
+    {{ macros::add_new_container_form(new_list, csrf_token) }}
 </header>
 
 <turbo-frame id="lists" data-turbo-action="advance">
     {% for list in lists %}
     <div class="list" id="list-{{ list.id }}">
-        {{ macros::list_header(list) }}
+        {{ macros::list_header(list, csrf_token) }}
 
         <ul id="list-cards-{{ list.id }}" data-controller="card-list" data-card-list-list-id-value="{{ list.id }}">
             {% for card in list.cards %}
-            {{ macros::list_item(card.id, card.list_id, card.title, card.description, card.status) }}
+            {{ macros::list_item(card.id, card.list_id, card.title, card.description, card.status, csrf_token) }}
             {% endfor %}
         </ul>
-        {{ macros::add_card(list.id, None, None) }}
+        {{ macros::add_card(list.id, None, None, csrf_token) }}
     </div>
     {% endfor %}
 </turbo-frame>

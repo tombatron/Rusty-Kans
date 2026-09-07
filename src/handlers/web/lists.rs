@@ -3,7 +3,7 @@ use crate::errors::KanbanError;
 use crate::handlers::web::NewContainerFormTemplate;
 use crate::handlers::{CreateListRequest, create_list_common};
 use crate::models::List;
-use crate::state::{ApplicationState, UserDb};
+use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
 use askama::Template;
@@ -26,14 +26,16 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 
 #[derive(Debug, Template)]
 #[template(
-    source = "{% import \"macros.html\" as macros %}{{ macros::add_new_container_form(context) }}",
+    source = "{% import \"macros.html\" as macros %}{{ macros::add_new_container_form(context, csrf_token) }}",
     ext = "html"
 )]
 struct NewListErrorTemplate {
     context: NewContainerFormTemplate<CreateListRequest>,
+    csrf_token: String,
 }
 
 async fn post_list_form(
+    CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
     Path(board_id): Path<u64>,
     Form(list_info): Form<CreateListRequest>,
@@ -50,12 +52,13 @@ async fn post_list_form(
                 errors: Some(FormErrors::from_report(&errors)),
                 request: Some(list_info),
             },
+            csrf_token,
         };
 
         return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response());
     }
 
-    let created_list = create_list_common(db, board_id, list_info).await?;
+    let created_list = create_list_common(csrf_token, db, board_id, list_info).await?;
 
     Ok(TurboStream(created_list.render()?).into_response())
 }
@@ -64,15 +67,17 @@ async fn post_list_form(
 #[template(path = "turbo_list_title.html")]
 struct ListHeader {
     list: List,
+    csrf_token: String,
 }
 
 async fn get_list_header(
+    CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
     Path(list_id): Path<u64>,
 ) -> Result<Html<String>, KanbanError> {
     let list = data::get_list_header(db, list_id).await?;
 
-    let template = ListHeader { list };
+    let template = ListHeader { list, csrf_token };
 
     Ok(Html(template.render()?))
 }
@@ -81,16 +86,18 @@ async fn get_list_header(
 #[template(path = "turbo_list_title_edit.html")]
 struct ListHeaderEdit {
     list: List,
-    errors: Option<FormErrors>
+    errors: Option<FormErrors>,
+    csrf_token: String,
 }
 
 async fn get_list_edit(
+    CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
     Path(list_id): Path<u64>,
 ) -> Result<Html<String>, KanbanError> {
     let list = data::get_list_header(db, list_id).await?;
 
-    let template = ListHeaderEdit { list, errors: None };
+    let template = ListHeaderEdit { list, errors: None, csrf_token, };
 
     Ok(Html(template.render()?))
 }
@@ -102,6 +109,7 @@ struct ListRename {
 }
 
 async fn post_list_rename(
+    CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
     Path(list_id): Path<u64>,
     Form(list_header): Form<ListRename>,
@@ -112,6 +120,7 @@ async fn post_list_rename(
         let validation_response = ListHeaderEdit {
             list: List { id: list_id, board_id: 0, name: list_header.name, cards: vec!() },
             errors: Some(FormErrors::from_report(&errors)),
+            csrf_token,
         };
 
         return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response());
@@ -155,7 +164,7 @@ pub mod tests {
             name: "This is a new list".to_string(),
         };
 
-        let response = post_list_form(db, Path(1), Form(request)).await.unwrap();
+        let response = post_list_form(CsrfTokenValue("token".to_string()), db, Path(1), Form(request)).await.unwrap();
         let response = get_response_body(response).await;
 
         assert!(response.contains("list-7"));
@@ -170,7 +179,7 @@ pub mod tests {
 
         let request = CreateListRequest { name: "".to_string(), };
 
-        let response = post_list_form(db, Path(1), Form(request)).await.unwrap();
+        let response = post_list_form(CsrfTokenValue("token".to_string()), db, Path(1), Form(request)).await.unwrap();
         let response_status = response.status();
         let response = get_response_body(response).await;
 
@@ -184,7 +193,7 @@ pub mod tests {
     async fn get_list_header_returns_list_header(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
-        let response = get_list_header(db, Path(1)).await.unwrap().0;
+        let response = get_list_header(CsrfTokenValue("token".to_string()), db, Path(1)).await.unwrap().0;
 
         assert!(response.contains("list-title-1"));
         assert!(response.contains("<h3 class=\"list-title\">First List</h3>"));
@@ -196,7 +205,7 @@ pub mod tests {
     async fn get_list_edit_returns_edit_html(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
-        let response = get_list_edit(db, Path(1)).await.unwrap().0;
+        let response = get_list_edit(CsrfTokenValue("token".to_string()), db, Path(1)).await.unwrap().0;
 
         assert!(response.contains("<input type=\"hidden\" name=\"id\" value=\"1\">"));
         assert!(response.contains("<input type=\"text\" name=\"name\" value=\"First List\">"));
@@ -212,7 +221,7 @@ pub mod tests {
             name: "Renamed list".to_string(),
         };
 
-        let response = post_list_rename(db.clone(), Path(1), Form(request))
+        let response = post_list_rename(CsrfTokenValue("token".to_string()), db.clone(), Path(1), Form(request))
             .await
             .unwrap();
 
@@ -234,7 +243,7 @@ pub mod tests {
             name: "".to_string(),
         };
 
-        let response = post_list_rename(db.clone(), Path(1), Form(request)).await.unwrap();
+        let response = post_list_rename(CsrfTokenValue("token".to_string()), db.clone(), Path(1), Form(request)).await.unwrap();
         let response_status = response.status();
         let response_body = get_response_body(response).await;
 
@@ -257,7 +266,7 @@ pub mod tests {
             name: "Renamed list".to_string(),
         };
 
-        let response = post_list_rename(db, Path(1000), Form(request))
+        let response = post_list_rename(CsrfTokenValue("token".to_string()), db, Path(1000), Form(request))
             .await
             .unwrap_err();
 

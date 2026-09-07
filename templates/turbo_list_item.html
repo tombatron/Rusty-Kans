@@ -9,6 +9,7 @@
                         <i data-lucide="pencil-line"></i>
                     </a>
                     <form class="card-delete-form" action="/lists/{{ list_id }}/delete" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token | safe }}" />
                         <button type="submit" class="list-delete-btn">
                             <i data-lucide="trash-2"></i>
                         </button>
@@ -16,7 +17,7 @@
                 </div>
             </turbo-frame>
             <ul id="list-cards-{{ list_id }}" data-controller="card-list" data-card-list-list-id-value="{{ list_id }}"></ul>
-            {{ macros::add_card(list_id, None, None) }}
+            {{ macros::add_card(list_id, None, None, csrf_token) }}
         </div>
     </template>
 </turbo-stream>

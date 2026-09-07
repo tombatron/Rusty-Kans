@@ -10,7 +10,7 @@ use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::{create_card_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest};
 use crate::models::{Card, CardMoveEvent, Status};
-use crate::state::{ApplicationState, UserDb};
+use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
 
@@ -29,6 +29,7 @@ struct MoveCardTemplate {
     card_id: u64,
     to_list_id: u64,
     card: Card,
+    csrf_token: String,
 }
 
 impl Into<CardMoveEvent> for MoveCardTemplate {
@@ -37,11 +38,13 @@ impl Into<CardMoveEvent> for MoveCardTemplate {
             card_id: self.card_id,
             to_list_id: self.to_list_id,
             card: self.card,
+            csrf_token: self.csrf_token,
         }
     }
 }
 
 async fn post_move_card_action(
+    CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
     State(state): State<ApplicationState>,
     Path((list_id, card_id)): Path<(u64, u64)>,
@@ -54,11 +57,12 @@ async fn post_move_card_action(
         card_id,
         to_list_id: list_id,
         card,
+        csrf_token: csrf_token.clone(),
     };
 
     // Discard the potential error response because send will return an error if there are zero
     // active receivers.
-    let _ = state.tx.send(response.clone().into());
+    let _ = state.tx.send(response.clone().into(csrf_token));
 
     Ok(TurboStream(response.render()?))
 }
@@ -71,29 +75,33 @@ struct NewCardTemplate {
     title: String,
     description: Option<String>,
     status: Status,
+    csrf_token: String,
 }
 
-impl From<Card> for NewCardTemplate {
-    fn from(value: Card) -> Self {
+impl NewCardTemplate {
+    fn from(value: Card, csrf_token: String) -> Self {
         NewCardTemplate {
             id: value.id,
             list_id: value.list_id,
             title: value.title,
             description: value.description,
             status: value.status,
+            csrf_token
         }
     }
 }
 
 #[derive(Debug, Template)]
-#[template(source = "{% import \"macros.html\" as m %}{{ m::add_card(list_id, card_title, validation_errors) }}", ext="html")]
+#[template(source = "{% import \"macros.html\" as m %}{{ m::add_card(list_id, card_title, validation_errors, csrf_token) }}", ext="html")]
 struct NewCardValidationError {
     list_id: u64,
     card_title: Option<String>,
-    validation_errors: Option<FormErrors>
+    validation_errors: Option<FormErrors>,
+    csrf_token: String,
 }
 
 async fn post_card_form(
+    CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
     Path(list_id): Path<u64>,
     Form(card): Form<CreateCardRequest>,
@@ -105,6 +113,7 @@ async fn post_card_form(
             list_id,
             card_title: Some(card.title),
             validation_errors: Some(FormErrors::from_report(&errors)),
+            csrf_token,
         };
 
         return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response())
@@ -112,7 +121,7 @@ async fn post_card_form(
 
     let card = create_card_common(db, list_id, card).await?;
 
-    let template =  NewCardTemplate::from(card);
+    let template =  NewCardTemplate::from(card, csrf_token);
 
     Ok((StatusCode::OK, TurboStream(template.render()?)).into_response())
 }
@@ -142,27 +151,31 @@ struct EditCardRequest {
     status: Status,
     #[garde(skip)]
     errors: Option<FormErrors>,
+    #[garde(skip)]
+    csrf_token: String,
 }
 
-impl From<Card> for EditCardRequest {
-    fn from(value: Card) -> Self {
+impl EditCardRequest {
+    fn from(value: Card, csrf_token: String) -> Self {
         EditCardRequest {
             id: value.id,
             title: value.title,
             description: value.description,
             status: value.status,
             errors: None,
+            csrf_token,
         }
     }
 }
 
 async fn get_card_edit(
+    CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
     Path(card_id): Path<u64>,
 ) -> Result<Html<String>, KanbanError> {
     let card = data::get_card(db, card_id).await?;
 
-    let template = EditCardRequest::from(card);
+    let template = EditCardRequest::from(card, csrf_token);
 
     Ok(Html(template.render()?))
 }
@@ -192,24 +205,26 @@ struct CardTemplate {
     title: String,
     description: Option<String>,
     status: Status,
+    csrf_token: String,
 }
 
-impl From<Card> for CardTemplate {
-    fn from(value: Card) -> Self {
+impl CardTemplate {
+    fn from(value: Card, csrf_token: String) -> Self {
         CardTemplate {
             id: value.id,
             list_id: value.list_id,
             title: value.title,
             description: value.description,
             status: value.status,
+            csrf_token,
         }
     }
 }
 
-async fn get_card_by_id(UserDb(db): UserDb, Path(card_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+async fn get_card_by_id(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): UserDb, Path(card_id): Path<u64>) -> Result<Html<String>, KanbanError> {
     let card = data::get_card(db, card_id).await?;
 
-    let template = CardTemplate::from(card);
+    let template = CardTemplate::from(card, csrf_token);
 
     Ok(Html(template.render()?))
 }
@@ -230,7 +245,7 @@ mod tests {
         let state = State(get_fake_application_state());
         let db = UserDb(db);
 
-        let response = post_move_card_action(db.clone(), state, Path((2, 1))).await.unwrap().0;
+        let response = post_move_card_action(CsrfTokenValue("token".to_string()), db.clone(), state, Path((2, 1))).await.unwrap().0;
 
         let card = data::get_card(db.0, 1).await.unwrap();
 
@@ -250,7 +265,7 @@ mod tests {
             description: Some(String::from("Super New Description"))
         };
 
-        let response = post_card_form(db, Path(1), Form(request)).await.unwrap();
+        let response = post_card_form(CsrfTokenValue("token".to_string()), db, Path(1), Form(request)).await.unwrap();
         let response = get_response_body(response).await;
 
         assert!(response.contains("card-19"));
@@ -269,7 +284,7 @@ mod tests {
             description: Some(String::from("Super New Description"))
         };
 
-        let response = post_card_form(db, Path(1), Form(request)).await.unwrap();
+        let response = post_card_form(CsrfTokenValue("token".to_string()), db, Path(1), Form(request)).await.unwrap();
         let response_status = response.status();
         let response = get_response_body(response).await;
 
@@ -283,7 +298,7 @@ mod tests {
     async fn get_card_edit_returns_card_edit_form(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
-        let response = get_card_edit(db, Path(1)).await.unwrap().0;
+        let response = get_card_edit(CsrfTokenValue("token".to_string()), db, Path(1)).await.unwrap().0;
 
         assert!(response.contains("card-frame-1"));
         assert!(response.contains("Card 1"));
@@ -317,6 +332,7 @@ mod tests {
             description: Some(String::from("Patched Description")),
             status: Done,
             errors: None,
+            csrf_token: "token".to_string(),
         };
 
         let response = patch_card_form(db.clone(), Path(1), Form(request)).await.unwrap();
@@ -341,6 +357,7 @@ mod tests {
             description: Some(String::from("Patched Description")),
             status: Done,
             errors: None,
+            csrf_token: "token".to_string(),
         };
 
         let response = patch_card_form(db.clone(), Path(1), Form(request)).await.unwrap();
@@ -361,7 +378,7 @@ mod tests {
     async fn get_card_by_id_returns_card(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
-        let response = get_card_by_id(db, Path(1)).await.unwrap().0;
+        let response = get_card_by_id(CsrfTokenValue("token".to_string()), db, Path(1)).await.unwrap().0;
 
         assert!(response.contains("card-frame-1"));
         assert!(response.contains("This is a description"));

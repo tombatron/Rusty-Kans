@@ -37,7 +37,9 @@ async fn post_list(
     Path(board_id): Path<u64>,
     Json(list): Json<CreateListRequest>,
 ) -> Result<Json<Value>, KanbanError> {
-    let created_list = create_list_common(db, board_id, list).await?;
+    // TODO: Gotta figure out what I need to do in order to not emit a csrf token with the regular api response. 
+    //       that's kind of sloppy. 
+    let created_list = create_list_common("_".to_string(), db, board_id, list).await?;
 
     Ok(Json(json!(created_list)))
 }

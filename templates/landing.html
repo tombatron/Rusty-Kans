@@ -3,11 +3,11 @@
 {% import "macros.html" as macros %}
 
 {% block content %}
-{{ macros::add_new_container_form(new_board) }}
+{{ macros::add_new_container_form(new_board, csrf_token) }}
 
 <div id="boards" class="boards-grid">
     {% for board in boards %}
-    {{ macros::board_item(board.id, board.name) }}
+    {{ macros::board_item(board.id, board.name, csrf_token) }}
     {% endfor %}
 </div>
 {% endblock %}
