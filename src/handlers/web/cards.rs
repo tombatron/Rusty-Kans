@@ -236,7 +236,7 @@ mod tests {
     use crate::data;
     use crate::handlers::tests::get_fake_application_state;
     use crate::handlers::web::cards::*;
-    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, get_response_body};
+    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, base_csrf_rejection_assertion, get_response_body};
     use crate::models::Status::Done;
     use test_case::test_case;
 
@@ -399,5 +399,13 @@ mod tests {
     #[tokio::test]
     async fn authed_post_pages_redirect_when_anonymous(path: &str) {
         base_auth_post_assertion(path).await;
+    }
+
+    #[test_case("/lists/1/cards")]
+    #[test_case("/lists/1/cards/2/move")]
+    #[test_case("/lists/1/cards/2/delete")]
+    #[tokio::test]
+    async fn missing_csrf_token_on_post_is_rejected(path: &str) {
+        base_csrf_rejection_assertion(path).await;
     }
 }

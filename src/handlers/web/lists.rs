@@ -152,7 +152,7 @@ async fn post_list_delete(
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, get_response_body};
+    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, base_csrf_rejection_assertion, get_response_body};
     use sqlx::SqlitePool;
     use test_case::test_case;
 
@@ -301,5 +301,13 @@ pub mod tests {
     #[tokio::test]
     async fn authed_post_pages_redirect_when_anonymous(path: &str) {
         base_auth_post_assertion(path).await;
+    }
+
+    #[test_case("/boards/1/lists")]
+    #[test_case("/lists/1/rename")]
+    #[test_case("/lists/1/delete")]
+    #[tokio::test]
+    async fn missing_csrf_token_on_post_is_rejected(path: &str) {
+        base_csrf_rejection_assertion(path).await;
     }
 }
