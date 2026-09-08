@@ -404,6 +404,7 @@ mod tests {
     #[test_case("/lists/1/cards")]
     #[test_case("/lists/1/cards/2/move")]
     #[test_case("/lists/1/cards/2/delete")]
+    #[test_case("/cards/1/edit")]
     #[tokio::test]
     async fn missing_csrf_token_on_post_is_rejected(path: &str) {
         base_csrf_rejection_assertion(path).await;
