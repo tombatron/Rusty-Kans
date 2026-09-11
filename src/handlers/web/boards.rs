@@ -483,4 +483,17 @@ mod tests {
     async fn missing_csrf_token_on_post_is_rejected(path: &str) {
         base_csrf_rejection_assertion(path).await;
     }
+
+    #[test_case("/boards", vec!(("name".to_string(), "test".to_string())))]
+    #[tokio::test]
+    async fn present_csrf_token_on_post_is_accepted(path: &str, form: Vec<(String, String)>) {
+        base_csrf_acceptance_assertion(path, form).await;
+    }
+
+    #[test_case("/boards/1/rename", "/boards/1/header", vec!(("id".to_string(), "1".to_string()), ("name".to_string(), "new_name".to_string())))]
+    #[test_case("/boards/1/delete", "/", vec!())]
+    #[tokio::test]
+    async fn present_csrf_token_on_post_is_accepted_and_redirected(path: &str, redirect_url: &str, form: Vec<(String, String)>){
+        base_csrf_acceptance_redirect_assertion(path, redirect_url, form).await;
+    }
 }

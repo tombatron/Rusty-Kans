@@ -221,16 +221,19 @@ pub mod tests {
 
         let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
 
-
         let secret = get_or_create_secret(&session).await.unwrap();
 
         let _save_result = session.save().await;
 
         let token = mask(&secret);
 
+        let mut form: Vec<(String, String)> = vec!();
+        
+        form.push(("csrf_token".to_string(), token));
+
         // Logout - axum-test carries the cookie automatically.
         server.post("/auth/logout", )
-            .form(&[("csrf_token", token.as_str())]).await;
+            .form(&form).await;
 
         // Verify the session record is gone
         let result = store.load(&session_id).await.unwrap();

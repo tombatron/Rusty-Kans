@@ -64,6 +64,7 @@ pub struct NewContainerFormTemplate<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use crate::handlers::web::get_landing;
     use crate::router::{create_router, create_router_with_session};
     use crate::state::{create_application_state, CsrfTokenValue, UserDb};
@@ -71,7 +72,8 @@ mod tests {
     use axum::response::Response;
     use axum_test::TestServer;
     use sqlx::SqlitePool;
-    use tower_sessions::{MemoryStore, SessionStore};
+    use tower_sessions::{MemoryStore, Session, SessionStore};
+    use crate::csrf::{get_or_create_secret, mask};
     use crate::handlers::auth::AUTHENTICATED_USER_KEY;
 
     pub async fn get_response_body(response: Response) -> String {
@@ -129,6 +131,91 @@ mod tests {
 
         response.assert_status_bad_request();
         response.assert_text_contains("No CSRF token found.");
+    }
+
+    pub async fn base_csrf_acceptance_redirect_assertion(path: &str, redirect_url: &str, form: Vec<(String, String)>) {
+        let store = MemoryStore::default();
+        let state = create_application_state().await;
+
+        let server = TestServer::builder()
+            .save_cookies()
+            .build(create_router_with_session(state, store.clone()));
+
+        // Establish a session.
+        let response = server.get("/auth/login").await;
+
+        // Pull the session ID out of the cookie.
+        let cookie = response.cookie("id");
+        let session_id = cookie.value().parse().unwrap();
+
+        // Load the record and insert user data directly into the store, because
+        // if you are authed, we don't even check to see if you passed a csrf token.
+        let mut record = store.load(&session_id).await.unwrap().unwrap();
+        record.data.insert(
+            AUTHENTICATED_USER_KEY.to_string(),
+            serde_json::json!({ "id": 1, "name": "testuser", "source": "dev" }),
+        );
+        store.save(&record).await.unwrap();
+
+        let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
+        let secret = get_or_create_secret(&session).await.unwrap();
+
+        let _ = session.save().await;
+
+        let token = mask(&secret);
+
+        let mut csrf_form: Vec<(String, String)> = vec!();
+        csrf_form.push(("csrf_token".to_string(), token));
+        csrf_form.append(form.clone().as_mut());
+
+        let response = server.post(path).form(&csrf_form).await;
+
+        // TODO: I think we need two different kinds of utility methods, one for posts that reeturn
+        //      ok, and one that detects redirects correctly.
+        response.assert_status(StatusCode::SEE_OTHER);
+        response.assert_header("location", redirect_url);
+    }
+
+    pub async fn base_csrf_acceptance_assertion(path: &str, form: Vec<(String, String)>) {
+        let store = MemoryStore::default();
+        let state = create_application_state().await;
+
+        let server = TestServer::builder()
+            .save_cookies()
+            .build(create_router_with_session(state, store.clone()));
+
+        // Establish a session.
+        let response = server.get("/auth/login").await;
+
+        // Pull the session ID out of the cookie.
+        let cookie = response.cookie("id");
+        let session_id = cookie.value().parse().unwrap();
+
+        // Load the record and insert user data directly into the store, because
+        // if you are authed, we don't even check to see if you passed a csrf token.
+        let mut record = store.load(&session_id).await.unwrap().unwrap();
+        record.data.insert(
+            AUTHENTICATED_USER_KEY.to_string(),
+            serde_json::json!({ "id": 1, "name": "testuser", "source": "dev" }),
+        );
+        store.save(&record).await.unwrap();
+
+        let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
+        let secret = get_or_create_secret(&session).await.unwrap();
+
+        let _ = session.save().await;
+
+        let token = mask(&secret);
+
+        let mut csrf_form: Vec<(String, String)> = vec!();
+        csrf_form.push(("csrf_token".to_string(), token));
+        csrf_form.append(form.clone().as_mut());
+
+        let response = server.post(path).form(&csrf_form).await;
+
+        // TODO: I think we need two different kinds of utility methods, one for posts that reeturn
+        //      ok, and one that detects redirects correctly.
+        response.assert_status_success();
     }
 
     #[sqlx::test(fixtures(path="../fixtures", scripts("boards")))]
