@@ -163,7 +163,7 @@ selected
     </template>
 </turbo-stream>
 {% else %}
-<turbo-frame id="board-title-{{ board.id }}">
+<turbo-frame id="board-title-{{ board.id }}" class="board-card-header board-card-header-editing">
     <form action="/boards/{{ board.id }}/rename" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token | safe }}" />
         <input type="hidden" name="id" value="{{ board.id }}">

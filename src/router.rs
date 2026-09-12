@@ -1,7 +1,9 @@
 use crate::handlers::*;
 use crate::state::ApplicationState;
 use axum::Router;
+use axum::http::{header, HeaderValue};
 use tower_http::services::ServeDir;
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_sessions::cookie::time::Duration;
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer, SessionStore};
 use tower_sessions::cookie::SameSite;
@@ -33,15 +35,27 @@ where
         .with_secure(!cfg!(debug_assertions))
         .with_expiry(Expiry::OnInactivity(Duration::minutes(30)));
 
-    Router::new()
+    let router = Router::new()
         .nest_service("/static", ServeDir::new("static"))
         .merge(auth)
         .merge(web)
         .merge(ws)
         .layer(session_layer)
         .merge(api)
-        .merge(utility)
-        .with_state(application_state)
+        .merge(utility);
+
+    // In debug builds, prevent the browser from caching anything so template/CSS
+    // changes are always visible on the next reload without manual cache-busting.
+    let router = if cfg!(debug_assertions) {
+        router.layer(SetResponseHeaderLayer::overriding(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("no-store"),
+        ))
+    } else {
+        router
+    };
+
+    router.with_state(application_state)
 }
 
 #[cfg(test)]

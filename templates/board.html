@@ -21,8 +21,6 @@
     <a class="board-breadcrumb" href="/" data-turbo="false">&larr; Boards</a>
 
     {{ macros::board_header(board.id, board.name) }}
-
-    {{ macros::add_new_container_form(new_list, csrf_token) }}
 </header>
 
 <turbo-frame id="lists" data-turbo-action="advance">
@@ -38,5 +36,6 @@
         {{ macros::add_card(list.id, None, None, csrf_token) }}
     </div>
     {% endfor %}
+    {{ macros::add_new_container_form(new_list, csrf_token) }}
 </turbo-frame>
 {% endblock %}

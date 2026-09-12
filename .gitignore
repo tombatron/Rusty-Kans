@@ -17,3 +17,5 @@ board.json
 
 # Environment File
 \.env
+
+.claude/**

@@ -30,12 +30,38 @@ body > div {
     overflow: hidden;
 }
 
+/* ── Site nav ─────────────────────────────────────── */
+.site-nav {
+    display: flex;
+    justify-content: flex-end;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.site-nav form { gap: 0; }
+
+.btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 0.4rem 0.85rem;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.btn-ghost:hover { color: var(--text); border-color: var(--text-muted); }
+
 /* ── Board header ─────────────────────────────────── */
 .boards-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 1rem;
-    padding: 1.5rem;
 }
 
 .board-card {
@@ -62,11 +88,29 @@ body > div {
 
 .board-card-header:hover .board-actions { opacity: 1; }
 
+.board-card-header-editing { align-items: stretch; }
+
+.board-card-header-editing form {
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.board-card-header-editing input[type="text"] { width: 100%; }
+
+.board-edit-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .board-header {
     display: flex;
     align-items: center;
     gap: 1.5rem;
-    margin-bottom: 1.75rem;
+    padding-bottom: 1.25rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
 }
 
@@ -164,7 +208,7 @@ button[type="submit"]:hover { opacity: 0.85; }
 turbo-frame#lists {
     display: flex;
     gap: 1rem;
-    align-items: flex-start;
+    align-items: stretch;
     overflow-x: auto;
     flex: 1;
     padding-bottom: 1rem;
@@ -187,7 +231,7 @@ turbo-frame#lists::-webkit-scrollbar-thumb {
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    max-height: 100%;
+    height: 100%;
 }
 
 /* ── List header ────────────────────────────────── */
@@ -345,6 +389,70 @@ button.list-delete-btn:hover { background: rgba(220,50,50,0.12); color: #e05555;
 .list ul li:has(.badge-doing) { border-left-color: var(--accent); }
 .list ul li:has(.badge-done)  { border-left-color: #1a8a5a; }
 
+/* ── Add-new placeholder tiles ────────────────────── */
+#new-list-form {
+    width: var(--col-width);
+    min-width: var(--col-width);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+#new-list-form:hover { border-color: var(--accent); background: rgba(232, 160, 32, 0.05); }
+
+#new-list-form form {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 1.25rem;
+}
+
+#new-list-form input[type="text"] { width: 100%; background: var(--bg); }
+
+#new-list-form button[type="submit"] {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+}
+
+#new-list-form button[type="submit"]:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    opacity: 1;
+}
+
+#new-board-form {
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+#new-board-form:hover { border-color: var(--accent); background: var(--accent-dim); }
+
+#new-board-form form { width: 100%; padding: 1rem; align-items: center; }
+
+#new-board-form input[type="text"] { flex: 1; background: var(--bg); }
+
+#new-board-form button[type="submit"] {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+#new-board-form button[type="submit"]:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    opacity: 1;
+}
+
 /* ── Sortable drag ghost ──────────────────────────── */
 .sortable-ghost {
     opacity: 0.3;
@@ -466,6 +574,9 @@ button.card-delete-btn svg { width: 13px; height: 13px; }
     padding: 1.5rem;
     max-width: 360px;
     width: 100%;
+    position: fixed;
+    inset: 0;
+    margin: auto;
 }
 
 .delete-dialog::backdrop {

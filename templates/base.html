@@ -58,10 +58,12 @@
 <body>
     <div>
         {% block nav %}
-        <form method="post" action="/auth/logout" data-turbo="false">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token | safe }}" />
-            <button type="submit">Logout</button>
-        </form>
+        <nav class="site-nav">
+            <form method="post" action="/auth/logout" data-turbo="false">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token | safe }}" />
+                <button type="submit" class="btn-ghost">Logout</button>
+            </form>
+        </nav>
         {% endblock %}
         {% block content %}
         {% endblock %}
