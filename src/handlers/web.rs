@@ -1,17 +1,17 @@
 pub mod boards;
-pub mod lists;
 pub mod cards;
+pub mod lists;
 
 use crate::data;
 use crate::errors::KanbanError;
 use crate::middleware::{require_csrf_token, require_web_auth};
 use crate::models::Board;
 use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
+use crate::validation::FormErrors;
 use askama::Template;
 use axum::Router;
 use axum::response::Html;
 use axum::routing::get;
-use crate::validation::FormErrors;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -31,7 +31,10 @@ struct LandingTemplate {
     csrf_token: String,
 }
 
-async fn get_landing(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): UserDb) -> Result<Html<String>, KanbanError> {
+async fn get_landing(
+    CsrfTokenValue(csrf_token): CsrfTokenValue,
+    UserDb(db): UserDb,
+) -> Result<Html<String>, KanbanError> {
     let boards = data::get_all_boards(db).await?;
 
     let new_board = NewContainerFormTemplate {
@@ -48,7 +51,7 @@ async fn get_landing(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): Use
         new_board,
         csrf_token,
     };
-    
+
     Ok(Html(template.render()?))
 }
 
@@ -64,22 +67,24 @@ pub struct NewContainerFormTemplate<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::hash::{DefaultHasher, Hash, Hasher};
-    use std::sync::Arc;
-    use crate::handlers::web::get_landing;
-    use crate::router::{create_router, create_router_with_session};
-    use crate::state::{create_application_state, CsrfTokenValue, UserDb};
-    use axum::http::StatusCode;
-    use axum::response::Response;
-    use axum_test::TestServer;
-    use sqlx::SqlitePool;
-    use tower_sessions::{MemoryStore, Session, SessionStore};
     use crate::csrf::{get_or_create_secret, mask};
     use crate::handlers::auth::AUTHENTICATED_USER_KEY;
     use crate::handlers::tests::TestDatabaseGuard;
+    use crate::handlers::web::get_landing;
+    use crate::router::{create_router, create_router_with_session};
+    use crate::state::{CsrfTokenValue, UserDb, create_application_state};
+    use axum::http::StatusCode;
+    use axum::response::Response;
+    use axum_test::{TestResponse, TestServer};
+    use sqlx::SqlitePool;
+    use std::hash::{DefaultHasher, Hash, Hasher};
+    use std::sync::Arc;
+    use tower_sessions::{MemoryStore, Session, SessionStore};
 
     pub async fn get_response_body(response: Response) -> String {
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         String::from_utf8(body.to_vec()).unwrap()
     }
 
@@ -105,8 +110,7 @@ mod tests {
         response.assert_header("location", "/auth");
     }
 
-    pub async fn base_csrf_rejection_assertion(path: &str) {
-
+    async fn base_csrf_assertion(path: &str, csrf_token_present: bool, form: Option<Vec<(String, String)>>) -> TestResponse {
         // This might be stupid, but we'll synthesize a user id based on the route that
         // is being tested.
         let mut hasher = DefaultHasher::new();
@@ -132,7 +136,6 @@ mod tests {
         let cookie = response.cookie("id");
         let session_id = cookie.value().parse().unwrap();
 
-
         // Load the record and insert user data directly into the store, because
         // if you are authed, we don't even check to see if you passed a csrf token.
         let mut record = store.load(&session_id).await.unwrap().unwrap();
@@ -142,126 +145,60 @@ mod tests {
         );
         store.save(&record).await.unwrap();
 
-        let response = server.post(path).await;
+        let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
+        let secret = get_or_create_secret(&session).await.unwrap();
+
+        let _ = session.save().await;
+
+        let token = mask(&secret);
+
+        if let Some(form) = form {
+            let mut csrf_form: Vec<(String, String)> = vec![];
+            
+            if csrf_token_present {
+                csrf_form.push(("csrf_token".to_string(), token));
+            }
+
+            csrf_form.append(form.clone().as_mut());
+
+            server.post(path).form(&csrf_form).await
+        } else {
+            server.post(path).await
+        }
+    }
+
+    pub async fn base_csrf_rejection_assertion(path: &str) {
+        let response = base_csrf_assertion(path, false, None).await;
 
         response.assert_status_bad_request();
         response.assert_text_contains("No CSRF token found.");
     }
 
-    pub async fn base_csrf_acceptance_redirect_assertion(path: &str, redirect_url: &str, form: Vec<(String, String)>) {
-        // This might be stupid, but we'll synthesize a user id based on the route that
-        // is being tested.
-        let mut hasher = DefaultHasher::new();
-        path.hash(&mut hasher);
+    pub async fn base_csrf_acceptance_redirect_assertion(
+        path: &str,
+        redirect_url: &str,
+        form: Vec<(String, String)>,
+    ) {
+        let response = base_csrf_assertion(path, true, Some(form)).await;
 
-        let user_id: i64 = hasher.finish() as i64;
-
-        // Create an instance of the test database guard so that when we're done here we'll drop
-        // the guard and the test database will be removed.
-        let _use_me = TestDatabaseGuard::new(user_id);
-
-        let store = MemoryStore::default();
-        let state = create_application_state().await;
-
-        let server = TestServer::builder()
-            .save_cookies()
-            .build(create_router_with_session(state, store.clone()));
-
-        // Establish a session.
-        let response = server.get("/auth/login").await;
-
-        // Pull the session ID out of the cookie.
-        let cookie = response.cookie("id");
-        let session_id = cookie.value().parse().unwrap();
-
-        // Load the record and insert user data directly into the store, because
-        // if you are authed, we don't even check to see if you passed a csrf token.
-        let mut record = store.load(&session_id).await.unwrap().unwrap();
-        record.data.insert(
-            AUTHENTICATED_USER_KEY.to_string(),
-            serde_json::json!({ "id": user_id, "name": path, "source": "dev" }),
-        );
-        store.save(&record).await.unwrap();
-
-        let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
-        let secret = get_or_create_secret(&session).await.unwrap();
-
-        let _ = session.save().await;
-
-        let token = mask(&secret);
-
-        let mut csrf_form: Vec<(String, String)> = vec!();
-        csrf_form.push(("csrf_token".to_string(), token));
-        csrf_form.append(form.clone().as_mut());
-
-        let response = server.post(path).form(&csrf_form).await;
-
-        // TODO: I think we need two different kinds of utility methods, one for posts that reeturn
-        //      ok, and one that detects redirects correctly.
         response.assert_status(StatusCode::SEE_OTHER);
         response.assert_header("location", redirect_url);
     }
 
     pub async fn base_csrf_acceptance_assertion(path: &str, form: Vec<(String, String)>) {
-        // This might be stupid, but we'll synthesize a user id based on the route that
-        // is being tested.
-        let mut hasher = DefaultHasher::new();
-        path.hash(&mut hasher);
+        let response = base_csrf_assertion(path, true, Some(form)).await;
 
-        let user_id: i64 = hasher.finish() as i64;
-
-        // Create an instance of the database clean up guard, so that the database is deleted
-        // when we drop it.
-        let _use_me = TestDatabaseGuard::new(user_id);
-
-        let store = MemoryStore::default();
-        let state = create_application_state().await;
-
-        let server = TestServer::builder()
-            .save_cookies()
-            .build(create_router_with_session(state, store.clone()));
-
-        // Establish a session.
-        let response = server.get("/auth/login").await;
-
-        // Pull the session ID out of the cookie.
-        let cookie = response.cookie("id");
-        let session_id = cookie.value().parse().unwrap();
-
-
-
-        // Load the record and insert user data directly into the store, because
-        // if you are authed, we don't even check to see if you passed a CSRF token.
-        let mut record = store.load(&session_id).await.unwrap().unwrap();
-        record.data.insert(
-            AUTHENTICATED_USER_KEY.to_string(),
-            serde_json::json!({ "id": user_id, "name": path, "source": "dev" }),
-        );
-        store.save(&record).await.unwrap();
-
-        let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
-        let secret = get_or_create_secret(&session).await.unwrap();
-
-        let _ = session.save().await;
-
-        let token = mask(&secret);
-
-        let mut csrf_form: Vec<(String, String)> = vec!();
-        csrf_form.push(("csrf_token".to_string(), token));
-        csrf_form.append(form.clone().as_mut());
-
-        let response = server.post(path).form(&csrf_form).await;
-
-        // TODO: I think we need two different kinds of utility methods, one for posts that reeturn
-        //      ok, and one that detects redirects correctly.
         response.assert_status_success();
     }
 
-    #[sqlx::test(fixtures(path="../fixtures", scripts("boards")))]
+    #[sqlx::test(fixtures(path = "../fixtures", scripts("boards")))]
     async fn get_landing_returns_all_boards(db: SqlitePool) -> sqlx::Result<()> {
         let db = UserDb(db);
 
-        let response = get_landing(CsrfTokenValue("token".to_string()), db).await.unwrap().0;
+        let response = get_landing(CsrfTokenValue("token".to_string()), db)
+            .await
+            .unwrap()
+            .0;
 
         assert!(response.contains("board-1"));
         assert!(response.contains("board-2"));
