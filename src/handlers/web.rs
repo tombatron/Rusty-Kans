@@ -154,7 +154,7 @@ mod tests {
 
         if let Some(form) = form {
             let mut csrf_form: Vec<(String, String)> = vec![];
-            
+
             if csrf_token_present {
                 csrf_form.push(("csrf_token".to_string(), token));
             }

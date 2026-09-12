@@ -29,7 +29,7 @@ where
     let ws = ws::get_router_configuration();
 
     let session_layer = SessionManagerLayer::new(session_store)
-        .with_same_site(SameSite::Strict)
+        .with_same_site(SameSite::Lax)
         .with_secure(!cfg!(debug_assertions))
         .with_expiry(Expiry::OnInactivity(Duration::minutes(30)));
 

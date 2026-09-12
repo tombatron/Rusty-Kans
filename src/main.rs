@@ -16,6 +16,9 @@ const LOCAL_ADDRESS: &str = "0.0.0.0:3000";
 
 #[tokio::main]
 async fn main() {
+    #[cfg(debug_assertions)]
+    tracing_subscriber::fmt::init();
+    
     let application_state = create_application_state().await;
     
     let router = create_router(application_state);

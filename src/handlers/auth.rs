@@ -68,6 +68,7 @@ async fn get_login(
 
     session.insert(CSRF_TOKEN_KEY, csrf_token.secret()).await?;
     session.insert(PKCE_VERIFIER_KEY, pkce_verifier.into_secret()).await?;
+    session.save().await?;
 
     Ok(Redirect::to(auth_url.as_str()))
 }
