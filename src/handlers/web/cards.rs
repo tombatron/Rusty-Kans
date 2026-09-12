@@ -236,7 +236,7 @@ mod tests {
     use crate::data;
     use crate::handlers::tests::get_fake_application_state;
     use crate::handlers::web::cards::*;
-    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, base_csrf_rejection_assertion, get_response_body};
+    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, base_csrf_acceptance_assertion, base_csrf_rejection_assertion, get_response_body};
     use crate::models::Status::Done;
     use test_case::test_case;
 
@@ -408,5 +408,13 @@ mod tests {
     #[tokio::test]
     async fn missing_csrf_token_on_post_is_rejected(path: &str) {
         base_csrf_rejection_assertion(path).await;
+    }
+
+    #[test_case("/lists/1/cards", vec!(("title".to_string(), "test".to_string()), ("description".to_string(), "desc".to_string())))]
+    #[test_case("/lists/1/cards/1/move", vec!())]
+    #[test_case("/lists/1/cards/1/delete", vec!())]
+    #[tokio::test]
+    async fn present_csrf_token_on_post_is_accepted(path: &str, form: Vec<(String, String)>) {
+        base_csrf_acceptance_assertion(path, form).await;
     }
 }

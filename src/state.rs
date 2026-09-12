@@ -13,6 +13,7 @@ use sqlx::{AssertSqlSafe, SqlitePool};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{env, fs};
+use std::path::PathBuf;
 use sha2::{Digest, Sha256};
 use tower_sessions::Session;
 use tower_sessions_redis_store::fred::prelude::{ClientLike, Config, Pool};
@@ -58,11 +59,17 @@ async fn get_or_create_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>,
     Ok(db_pool)
 }
 
-fn get_database_id(user_id: i64, source: String) -> String {
+pub fn get_database_id(user_id: i64, source: String) -> String {
     let unhashed_result = format!("{source}:{user_id}");
+
+    if source.starts_with("dev") {
+        return format!("dev-{:x}", Sha256::digest(unhashed_result))
+    }
 
     format!("{:x}", Sha256::digest(unhashed_result))
 }
+
+pub fn get_database_path(database_id: &String) -> PathBuf { PathBuf::from(format!("./databases/{}.kanban.db", database_id)) }
 
 #[derive(Clone)]
 pub struct UserDb(pub SqlitePool);
@@ -121,8 +128,9 @@ where
 }
 
 async fn get_database(database_id: String) -> Result<SqlitePool, KanbanError> {
-    let options = SqliteConnectOptions::from_str(format!("sqlite:./databases/{}.kanban.db", database_id)
-        .as_str())?
+    let database_path = get_database_path(&database_id);
+    let connection_string = format!("sqlite:{}", database_path.to_str().unwrap());
+    let options = SqliteConnectOptions::from_str(connection_string.as_str())?
         .foreign_keys(true)
         .create_if_missing(true);
 

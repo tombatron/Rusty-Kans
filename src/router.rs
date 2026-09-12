@@ -51,6 +51,7 @@ mod tests {
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use tower::ServiceExt;
+    use crate::handlers::tests::TestDatabaseGuard;
 
     #[tokio::test]
     async fn health_check_returns_200() {
@@ -92,14 +93,18 @@ mod tests {
     async fn api_accepts_authenticated_requests() {
         let state = create_application_state().await;
         let app = create_router(state);
-
+        
+        let database_id = "dev_whatever".to_string();
+        
+        let _use_me = TestDatabaseGuard::new_with_database_id(&database_id);
+        
         let response = app
             .oneshot(
                 Request::builder()
                     .uri("/api/board/1")
                     .header("Authorization", "Bearer super-secret")
                     .header("delegated-user-id", i64::MIN)
-                    .header("delegated-database-id", "dev-whatever".to_string())
+                    .header("delegated-database-id", database_id)
                     .body(Body::empty())
                     .unwrap(),
             )

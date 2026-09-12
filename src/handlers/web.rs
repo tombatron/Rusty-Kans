@@ -64,6 +64,7 @@ pub struct NewContainerFormTemplate<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::hash::{DefaultHasher, Hash, Hasher};
     use std::sync::Arc;
     use crate::handlers::web::get_landing;
     use crate::router::{create_router, create_router_with_session};
@@ -75,6 +76,7 @@ mod tests {
     use tower_sessions::{MemoryStore, Session, SessionStore};
     use crate::csrf::{get_or_create_secret, mask};
     use crate::handlers::auth::AUTHENTICATED_USER_KEY;
+    use crate::handlers::tests::TestDatabaseGuard;
 
     pub async fn get_response_body(response: Response) -> String {
         let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
@@ -104,6 +106,18 @@ mod tests {
     }
 
     pub async fn base_csrf_rejection_assertion(path: &str) {
+
+        // This might be stupid, but we'll synthesize a user id based on the route that
+        // is being tested.
+        let mut hasher = DefaultHasher::new();
+        path.hash(&mut hasher);
+
+        let user_id: i64 = hasher.finish() as i64;
+
+        // Create an instance of the test database guard so that when the test goes out of scope
+        // the test database will be deleted.
+        let _use_me = TestDatabaseGuard::new(user_id);
+
         let store = MemoryStore::default();
         let state = create_application_state().await;
 
@@ -118,12 +132,13 @@ mod tests {
         let cookie = response.cookie("id");
         let session_id = cookie.value().parse().unwrap();
 
+
         // Load the record and insert user data directly into the store, because
         // if you are authed, we don't even check to see if you passed a csrf token.
         let mut record = store.load(&session_id).await.unwrap().unwrap();
         record.data.insert(
             AUTHENTICATED_USER_KEY.to_string(),
-            serde_json::json!({ "id": 1, "name": "testuser", "source": "dev" }),
+            serde_json::json!({ "id": user_id, "name": path, "source": "dev" }),
         );
         store.save(&record).await.unwrap();
 
@@ -134,6 +149,17 @@ mod tests {
     }
 
     pub async fn base_csrf_acceptance_redirect_assertion(path: &str, redirect_url: &str, form: Vec<(String, String)>) {
+        // This might be stupid, but we'll synthesize a user id based on the route that
+        // is being tested.
+        let mut hasher = DefaultHasher::new();
+        path.hash(&mut hasher);
+
+        let user_id: i64 = hasher.finish() as i64;
+
+        // Create an instance of the test database guard so that when we're done here we'll drop
+        // the guard and the test database will be removed.
+        let _use_me = TestDatabaseGuard::new(user_id);
+
         let store = MemoryStore::default();
         let state = create_application_state().await;
 
@@ -153,7 +179,7 @@ mod tests {
         let mut record = store.load(&session_id).await.unwrap().unwrap();
         record.data.insert(
             AUTHENTICATED_USER_KEY.to_string(),
-            serde_json::json!({ "id": 1, "name": "testuser", "source": "dev" }),
+            serde_json::json!({ "id": user_id, "name": path, "source": "dev" }),
         );
         store.save(&record).await.unwrap();
 
@@ -177,6 +203,17 @@ mod tests {
     }
 
     pub async fn base_csrf_acceptance_assertion(path: &str, form: Vec<(String, String)>) {
+        // This might be stupid, but we'll synthesize a user id based on the route that
+        // is being tested.
+        let mut hasher = DefaultHasher::new();
+        path.hash(&mut hasher);
+
+        let user_id: i64 = hasher.finish() as i64;
+
+        // Create an instance of the database clean up guard, so that the database is deleted
+        // when we drop it.
+        let _use_me = TestDatabaseGuard::new(user_id);
+
         let store = MemoryStore::default();
         let state = create_application_state().await;
 
@@ -191,12 +228,14 @@ mod tests {
         let cookie = response.cookie("id");
         let session_id = cookie.value().parse().unwrap();
 
+
+
         // Load the record and insert user data directly into the store, because
-        // if you are authed, we don't even check to see if you passed a csrf token.
+        // if you are authed, we don't even check to see if you passed a CSRF token.
         let mut record = store.load(&session_id).await.unwrap().unwrap();
         record.data.insert(
             AUTHENTICATED_USER_KEY.to_string(),
-            serde_json::json!({ "id": 1, "name": "testuser", "source": "dev" }),
+            serde_json::json!({ "id": user_id, "name": path, "source": "dev" }),
         );
         store.save(&record).await.unwrap();
 

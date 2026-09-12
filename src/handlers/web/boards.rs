@@ -491,7 +491,7 @@ mod tests {
     }
 
     #[test_case("/boards/1/rename", "/boards/1/header", vec!(("id".to_string(), "1".to_string()), ("name".to_string(), "new_name".to_string())))]
-    #[test_case("/boards/1/delete", "/", vec!())]
+    #[test_case("/boards/2/delete", "/", vec!())]
     #[tokio::test]
     async fn present_csrf_token_on_post_is_accepted_and_redirected(path: &str, redirect_url: &str, form: Vec<(String, String)>){
         base_csrf_acceptance_redirect_assertion(path, redirect_url, form).await;

@@ -98,9 +98,10 @@ async fn patch_card_common(
 
 #[cfg(test)]
 pub mod tests {
+    use std::path::PathBuf;
     use super::*;
     use crate::models::CardMoveEvent;
-    use crate::state::ApplicationState;
+    use crate::state::{get_database_id, ApplicationState, get_database_path};
     use dashmap::DashMap;
     use oauth2::basic::BasicClient;
     use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
@@ -127,6 +128,32 @@ pub mod tests {
             tx,
             oauth_client,
             redis_pool: None,
+        }
+    }
+    
+    pub struct TestDatabaseGuard {
+        path: PathBuf
+    }
+    
+    impl TestDatabaseGuard {
+        pub fn new(user_id: i64) -> Self {
+            let database_id = get_database_id(user_id, "dev".to_string());
+            
+            let database_path = get_database_path(&database_id);
+            
+            TestDatabaseGuard { path: database_path }
+        }
+
+        pub fn new_with_database_id(database_id: &String) -> Self {
+            let database_path = get_database_path(&database_id);
+
+            TestDatabaseGuard { path: database_path }
+        }
+    }
+    
+    impl Drop for TestDatabaseGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.path);
         }
     }
 
