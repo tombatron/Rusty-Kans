@@ -1,5 +1,5 @@
 {% import "macros.html" as macros %}
-<turbo-stream action="append" target="lists">
+<turbo-stream action="before" target="new-list-form">
     <template>
         <div class="list" id="list-{{ list_id }}">
             <turbo-frame id="list-title-{{ list_id }}" class="list-header">

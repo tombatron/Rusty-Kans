@@ -84,7 +84,7 @@ pub async fn patch_card(
     Path(card_id): Path<u64>,
     Json(card): Json<Card>,
 ) -> Result<Redirect, KanbanError> {
-    patch_card_common(db, card.id, card.title, card.description, card.sort_order).await?;
+    patch_card_common(db, card.id, card.title, card.description).await?;
 
     Ok(Redirect::to(format!("/api/cards/{card_id}").as_str()))
 }
@@ -114,7 +114,6 @@ mod tests {
         assert_eq!(1, response["list_id"]);
         assert_eq!("This is a new card.", response["title"]);
         assert_eq!("This is a nice description.", response["description"]);
-        assert_eq!("Todo", response["status"]);
 
         Ok(())
     }
@@ -142,7 +141,6 @@ mod tests {
         assert_eq!(1, response["id"]);
         assert_eq!("Card 1", response["title"]);
         assert_eq!("This is a description", response["description"]);
-        assert_eq!("Todo", response["status"]);
 
         Ok(())
     }

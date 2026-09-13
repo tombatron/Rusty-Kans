@@ -46,7 +46,7 @@ pub async fn get_board_with_lists(
     if !lists.is_empty() {
         let list_ids_placeholders = lists.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
         let query_text = format!(
-            "SELECT card_id, list_id, title, description, status FROM cards WHERE list_id in ({})",
+            "SELECT card_id, list_id, title, description, sort_order FROM cards WHERE list_id in ({})",
             list_ids_placeholders
         );
         let mut query = sqlx::query_as::<_, Card>(AssertSqlSafe(query_text));
@@ -110,7 +110,7 @@ pub async fn get_list_with_cards(
     let list = get_list_header(db.clone(), list_id).await?;
 
     let cards = sqlx::query_as::<_, Card>(
-        "SELECT card_id, list_id, title, description, status FROM cards WHERE list_id = ?",
+        "SELECT card_id, list_id, title, description, sort_order FROM cards WHERE list_id = ?",
     )
     .bind(list_id as i64)
     .fetch_all(&db)
@@ -121,7 +121,7 @@ pub async fn get_list_with_cards(
 
 pub async fn get_card(db: SqlitePool, card_id: u64) -> Result<Card, KanbanError> {
     Ok(sqlx::query_as::<_, Card>(
-        "SELECT card_id, list_id, title, description, status FROM cards WHERE card_id = ?;",
+        "SELECT card_id, list_id, title, description, sort_order FROM cards WHERE card_id = ?;",
     )
         .bind(card_id as i64)
         .fetch_optional(&db)
@@ -134,7 +134,7 @@ pub async fn get_cards_by_title_submatch(
     query: String,
 ) -> Result<Vec<Card>, KanbanError> {
     Ok(sqlx::query_as::<_, Card>(
-        "SELECT card_id, list_id, title, description, status FROM cards WHERE title LIKE ?;",
+        "SELECT card_id, list_id, title, description, sort_order FROM cards WHERE title LIKE ?;",
     )
         .bind(format!("%{}%", query))
         .fetch_all(&db)
@@ -161,11 +161,10 @@ pub async fn insert_card(db: SqlitePool, list_id: u64, title: &String, descripti
     Ok(result.last_insert_rowid() as u64)
 }
 
-pub async fn update_card(db: SqlitePool, card_id: u64, title: String, description: Option<String>, sort_order: Option<i64>) -> Result<u64, KanbanError> {
-    let result = sqlx::query("UPDATE cards SET title = ?, description = ?, sort_order = ? WHERE card_id = ?;")
+pub async fn update_card(db: SqlitePool, card_id: u64, title: String, description: Option<String>) -> Result<u64, KanbanError> {
+    let result = sqlx::query("UPDATE cards SET title = ?, description = ? WHERE card_id = ?;")
         .bind(title)
         .bind(description)
-        .bind(sort_order)
         .bind(card_id as i64)
         .execute(&db)
         .await?;
@@ -349,7 +348,7 @@ mod tests {
         let new_title = String::from("New Title");
         let new_description = String::from("New Description");
 
-        let result = data::update_card(pool.clone(), 1, new_title, Some(new_description), None).await.unwrap();
+        let result = data::update_card(pool.clone(), 1, new_title, Some(new_description)).await.unwrap();
         let updated_card = data::get_card(pool, 1).await.unwrap();
 
         assert_eq!(1, result);

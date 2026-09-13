@@ -83,9 +83,8 @@ async fn patch_card_common(
     id: u64,
     title: String,
     description: Option<String>,
-    sort_order: Option<i64>,
 ) -> Result<(), KanbanError> {
-    let result = data::update_card(db, id, title, description, sort_order).await?;
+    let result = data::update_card(db, id, title, description).await?;
 
     if result != 1 {
         return Err(KanbanError::DatabaseError(
@@ -223,7 +222,7 @@ pub mod tests {
             sort_order: None,
         };
 
-        patch_card_common(db.clone(), request.id, request.title, request.description, request.sort_order).await.unwrap();
+        patch_card_common(db.clone(), request.id, request.title, request.description).await.unwrap();
 
         let updated_card = data::get_card(db, 1).await.unwrap();
 
@@ -248,7 +247,7 @@ pub mod tests {
             sort_order: None,
         };
 
-        let response = patch_card_common(db, request.id, request.title, request.description, request.sort_order).await.unwrap_err();
+        let response = patch_card_common(db, request.id, request.title, request.description).await.unwrap_err();
 
         assert!(matches!(response, KanbanError::DatabaseError(_)));
 

@@ -187,7 +187,7 @@ async fn patch_card_form(UserDb(db): UserDb, Path(card_id): Path<i64>, Form(card
         return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response())
     }
 
-    patch_card_common(db, card.id, card.title, card.description, None).await?;
+    patch_card_common(db, card.id, card.title, card.description).await?;
 
     Ok(Redirect::to(format!("/cards/{card_id}/view").as_str()).into_response())
 }
@@ -295,7 +295,6 @@ mod tests {
         assert!(response.contains("card-frame-1"));
         assert!(response.contains("Card 1"));
         assert!(response.contains("This is a description"));
-        assert!(response.contains("Todo"));
 
         Ok(())
     }

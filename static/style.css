@@ -14,6 +14,17 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Buttons/links get no styling for outline anywhere else in this file (unlike
+   inputs, which explicitly replace it with a border-color change), so they were
+   falling back to each browser's native default focus ring — inconsistent across
+   browsers, and notably boxy/awkward in Edge. Give them one deliberate, on-brand
+   style instead. :focus-visible keeps it from appearing on plain mouse clicks. */
+button:focus-visible,
+a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
 body {
     background: var(--bg);
     color: var(--text);
@@ -402,7 +413,7 @@ button.list-delete-btn:hover { background: rgba(220,50,50,0.12); color: #e05555;
     transition: border-color 0.15s, background 0.15s;
 }
 
-#new-list-form:hover { border-color: var(--accent); background: rgba(232, 160, 32, 0.05); }
+#new-list-form:hover { background: rgba(232, 160, 32, 0.05); }
 
 #new-list-form form {
     flex-direction: column;
@@ -434,11 +445,11 @@ button.list-delete-btn:hover { background: rgba(220,50,50,0.12); color: #e05555;
     transition: border-color 0.15s, background 0.15s;
 }
 
-#new-board-form:hover { border-color: var(--accent); background: var(--accent-dim); }
+#new-board-form:hover { background: var(--accent-dim); }
 
 #new-board-form form { width: 100%; padding: 1rem; align-items: center; }
 
-#new-board-form input[type="text"] { flex: 1; background: var(--bg); }
+#new-board-form input[type="text"] { flex: 1; min-width: 0; background: var(--bg); }
 
 #new-board-form button[type="submit"] {
     background: transparent;

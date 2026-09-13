@@ -72,7 +72,6 @@ pub struct ListWithCards {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use test_case::test_case;
 
     #[test]
     fn card_display_impl_validation() {

@@ -1,5 +1,5 @@
 {% import "macros.html" as macros %}
-<turbo-stream action="append" target="boards">
+<turbo-stream action="before" target="new-board-form">
     <template>
     {{ macros::board_item(id, name, csrf_token) }}
     </template>
