@@ -20,11 +20,6 @@
                 {% endfor %}
             </ul>
         {% endif %}
-        <select name="status">
-            <option value="Todo" {{ macros::is_selected("Todo", status) }}>Todo</option>
-            <option value="Doing" {{ macros::is_selected("Doing", status) }}>Doing</option>
-            <option value="Done" {{ macros::is_selected("Done", status) }}>Done</option>
-        </select>
         <div class="card-edit-actions">
             <button type="submit">Save</button>
             <a href="/cards/{{ id }}/view" class="btn-cancel">Cancel</a>

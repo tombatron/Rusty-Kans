@@ -1,5 +1,5 @@
 use crate::errors::KanbanError;
-use crate::models::{Board, BoardWithCards, Card, List, ListWithCards, Status};
+use crate::models::{Board, BoardWithCards, Card, List, ListWithCards};
 use sqlx::{AssertSqlSafe, SqlitePool};
 
 pub async fn insert_board(db: SqlitePool, board_name: &String) -> Result<u64, KanbanError> {
@@ -161,11 +161,11 @@ pub async fn insert_card(db: SqlitePool, list_id: u64, title: &String, descripti
     Ok(result.last_insert_rowid() as u64)
 }
 
-pub async fn update_card(db: SqlitePool, card_id: u64, title: String, description: Option<String>, status: Status) -> Result<u64, KanbanError> {
-    let result = sqlx::query("UPDATE cards SET title = ?, description = ?, status = ? WHERE card_id = ?;")
+pub async fn update_card(db: SqlitePool, card_id: u64, title: String, description: Option<String>, sort_order: Option<i64>) -> Result<u64, KanbanError> {
+    let result = sqlx::query("UPDATE cards SET title = ?, description = ?, sort_order = ? WHERE card_id = ?;")
         .bind(title)
         .bind(description)
-        .bind(status)
+        .bind(sort_order)
         .bind(card_id as i64)
         .execute(&db)
         .await?;
@@ -215,7 +215,7 @@ pub async fn update_list(db: SqlitePool, list_id: u64, name: String) -> Result<u
 #[cfg(test)]
 mod tests {
     use crate::data;
-    use crate::models::{Board, Status};
+    use crate::models::Board;
     use sqlx::SqlitePool;
 
     #[sqlx::test]
@@ -348,15 +348,13 @@ mod tests {
     async fn update_card_updates_card(pool: SqlitePool) -> sqlx::Result<()> {
         let new_title = String::from("New Title");
         let new_description = String::from("New Description");
-        let new_status = Status::Doing;
 
-        let result = data::update_card(pool.clone(), 1, new_title, Some(new_description), new_status).await.unwrap();
+        let result = data::update_card(pool.clone(), 1, new_title, Some(new_description), None).await.unwrap();
         let updated_card = data::get_card(pool, 1).await.unwrap();
 
         assert_eq!(1, result);
         assert_eq!("New Title", updated_card.title);
         assert_eq!("New Description", updated_card.description.unwrap().to_string());
-        assert!(matches!(updated_card.status, Status::Doing));
 
         Ok(())
     }

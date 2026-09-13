@@ -21,10 +21,9 @@ selected
 {% endif %}
 {% endmacro %}
 
-{% macro card(id, list_id, title, description, status, csrf_token) %}
+{% macro card(id, list_id, title, description, csrf_token) %}
 <turbo-frame id="card-frame-{{ id }}">
     <h4>{{ title }}</h4>
-    <span class="badge badge-{{ status | lower }}">{{ status }}</span>
     {% if let Some(desc) = description %}
     <p>{{ desc }}</p>
     {% else %}
@@ -42,9 +41,9 @@ selected
 </turbo-frame>
 {% endmacro %}
 
-{% macro list_item(id, list_id, title, description, status, csrf_token) %}
+{% macro list_item(id, list_id, title, description, csrf_token) %}
 <li id="card-{{ id }}" data-card-id="{{ id }}">
-    {{ card(id, list_id, title, description, status, csrf_token) }}
+    {{ card(id, list_id, title, description, csrf_token) }}
 </li>
 {% endmacro %}
 

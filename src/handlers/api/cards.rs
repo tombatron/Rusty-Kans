@@ -84,7 +84,7 @@ pub async fn patch_card(
     Path(card_id): Path<u64>,
     Json(card): Json<Card>,
 ) -> Result<Redirect, KanbanError> {
-    patch_card_common(db, card.id, card.title, card.description, card.status).await?;
+    patch_card_common(db, card.id, card.title, card.description, card.sort_order).await?;
 
     Ok(Redirect::to(format!("/api/cards/{card_id}").as_str()))
 }
@@ -94,7 +94,6 @@ mod tests {
     use crate::data;
     use crate::handlers::CreateCardRequest;
     use crate::handlers::api::cards::*;
-    use crate::models::Status;
     use axum::Json;
     use axum::extract::Path;
     use axum::http::StatusCode;
@@ -186,7 +185,7 @@ mod tests {
             list_id: 1,
             title: "UPDATED".to_string(),
             description: Some("UPDATED".to_string()),
-            status: Status::Done,
+            sort_order: None,
         });
 
         let response = patch_card(db.clone(), Path(1), request).await.unwrap();
@@ -198,7 +197,6 @@ mod tests {
         assert_eq!(1, updated_card.list_id);
         assert_eq!("UPDATED", updated_card.title);
         assert_eq!("UPDATED", updated_card.description.unwrap());
-        assert!(matches!(updated_card.status, Status::Done));
 
         Ok(())
     }

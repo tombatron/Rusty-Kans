@@ -1,7 +1,7 @@
 pub mod security;
 
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Type};
+use sqlx::FromRow;
 use std::fmt::{Display, Formatter};
 use askama::Template;
 
@@ -19,7 +19,7 @@ pub struct Card {
     pub list_id: u64,
     pub title: String,
     pub description: Option<String>,
-    pub status: Status,
+    pub sort_order: Option<i64>,
 }
 
 impl Display for Card {
@@ -47,30 +47,6 @@ impl Display for List {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[sqlx(type_name = "TEXT", rename_all = "PascalCase")]
-pub enum Status {
-    Todo,
-    Doing,
-    Done,
-}
-
-impl Display for Status {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Status::Todo => write!(f, "Todo"),
-            Status::Doing => write!(f, "Doing"),
-            Status::Done => write!(f, "Done")
-        }
-    }
-}
-
-impl PartialEq<&str> for Status {
-    fn eq(&self, other: &&str) -> bool {
-        self.to_string().as_str() == *other
     }
 }
 
@@ -105,7 +81,7 @@ pub mod tests {
             list_id: 2,
             title: "TITLE".to_string(),
             description: None,
-            status: Status::Todo,
+            sort_order: None,
         };
 
         let string_result = card.to_string();
@@ -120,7 +96,7 @@ pub mod tests {
             list_id: 1,
             title: "TITLE".to_string(),
             description: None,
-            status: Status::Todo,
+            sort_order: None,
         };
 
         let list = List {
@@ -134,14 +110,5 @@ pub mod tests {
 
         assert!(string_result.contains("List: NAME (id: 1)"));
         assert!(string_result.contains("    [1] TITLE"));
-    }
-
-    #[test_case(Status::Todo, "Todo".to_string())]
-    #[test_case(Status::Doing, "Doing".to_string())]
-    #[test_case(Status::Done, "Done".to_string())]
-    fn status_display_impl_validation(status: Status, expected_result: String) {
-        let result = status.to_string();
-
-        assert_eq!(expected_result, result);
     }
 }

@@ -9,7 +9,7 @@ use serde::Deserialize;
 use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::{create_card_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest};
-use crate::models::{Card, CardMoveEvent, Status};
+use crate::models::{Card, CardMoveEvent};
 use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
@@ -74,7 +74,6 @@ struct NewCardTemplate {
     list_id: u64,
     title: String,
     description: Option<String>,
-    status: Status,
     csrf_token: String,
 }
 
@@ -85,7 +84,6 @@ impl NewCardTemplate {
             list_id: value.list_id,
             title: value.title,
             description: value.description,
-            status: value.status,
             csrf_token
         }
     }
@@ -148,8 +146,6 @@ struct EditCardRequest {
     #[garde(length(min=0, max=1000))]
     description: Option<String>,
     #[garde(skip)]
-    status: Status,
-    #[garde(skip)]
     errors: Option<FormErrors>,
     #[garde(skip)]
     csrf_token: String,
@@ -161,7 +157,6 @@ impl EditCardRequest {
             id: value.id,
             title: value.title,
             description: value.description,
-            status: value.status,
             errors: None,
             csrf_token,
         }
@@ -192,7 +187,7 @@ async fn patch_card_form(UserDb(db): UserDb, Path(card_id): Path<i64>, Form(card
         return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response())
     }
 
-    patch_card_common(db, card.id, card.title, card.description, card.status).await?;
+    patch_card_common(db, card.id, card.title, card.description, None).await?;
 
     Ok(Redirect::to(format!("/cards/{card_id}/view").as_str()).into_response())
 }
@@ -204,7 +199,6 @@ struct CardTemplate {
     list_id: u64,
     title: String,
     description: Option<String>,
-    status: Status,
     csrf_token: String,
 }
 
@@ -215,7 +209,6 @@ impl CardTemplate {
             list_id: value.list_id,
             title: value.title,
             description: value.description,
-            status: value.status,
             csrf_token,
         }
     }
@@ -237,7 +230,6 @@ mod tests {
     use crate::handlers::tests::get_fake_application_state;
     use crate::handlers::web::cards::*;
     use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, base_csrf_acceptance_assertion, base_csrf_rejection_assertion, get_response_body};
-    use crate::models::Status::Done;
     use test_case::test_case;
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
@@ -330,7 +322,6 @@ mod tests {
             id: 1,
             title: String::from("Patched Card"),
             description: Some(String::from("Patched Description")),
-            status: Done,
             errors: None,
             csrf_token: "token".to_string(),
         };
@@ -355,7 +346,6 @@ mod tests {
             id: 1,
             title: String::from(""),
             description: Some(String::from("Patched Description")),
-            status: Done,
             errors: None,
             csrf_token: "token".to_string(),
         };

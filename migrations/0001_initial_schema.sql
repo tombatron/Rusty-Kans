@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS cards (
     list_id INTEGER,
     title TEXT NOT NULL,
     description TEXT NULL,
-    status TEXT NOT NULL DEFAULT 'Todo',
+    sort_order INTEGER NULL,
 
     FOREIGN KEY (list_id) REFERENCES lists(list_id) ON DELETE CASCADE ON UPDATE NO ACTION
 );

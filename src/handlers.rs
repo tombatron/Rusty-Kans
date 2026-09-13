@@ -1,6 +1,6 @@
 use crate::data;
 use crate::errors::KanbanError;
-use crate::models::{Card, Status};
+use crate::models::Card;
 use askama::Template;
 use garde::Validate;
 use serde::{Deserialize, Serialize};
@@ -68,7 +68,7 @@ async fn create_card_common(
         list_id,
         title: card.title,
         description: card.description,
-        status: Status::Todo,
+        sort_order: None,
     })
 }
 
@@ -83,9 +83,9 @@ async fn patch_card_common(
     id: u64,
     title: String,
     description: Option<String>,
-    status: Status,
+    sort_order: Option<i64>,
 ) -> Result<(), KanbanError> {
-    let result = data::update_card(db, id, title, description, status).await?;
+    let result = data::update_card(db, id, title, description, sort_order).await?;
 
     if result != 1 {
         return Err(KanbanError::DatabaseError(
@@ -220,10 +220,10 @@ pub mod tests {
             list_id: 1,
             title: "This is an updated title.".to_string(),
             description: Some("This is an updated description.".to_string()),
-            status: Status::Done,
+            sort_order: None,
         };
 
-        patch_card_common(db.clone(), request.id, request.title, request.description, request.status).await.unwrap();
+        patch_card_common(db.clone(), request.id, request.title, request.description, request.sort_order).await.unwrap();
 
         let updated_card = data::get_card(db, 1).await.unwrap();
 
@@ -234,7 +234,6 @@ pub mod tests {
             "This is an updated description.",
             updated_card.description.unwrap()
         );
-        assert!(matches!(updated_card.status, Status::Done));
 
         Ok(())
     }
@@ -246,10 +245,10 @@ pub mod tests {
             list_id: 1,
             title: "Whatever".to_string(),
             description: None,
-            status: Status::Doing,
+            sort_order: None,
         };
 
-        let response = patch_card_common(db, request.id, request.title, request.description, request.status).await.unwrap_err();
+        let response = patch_card_common(db, request.id, request.title, request.description, request.sort_order).await.unwrap_err();
 
         assert!(matches!(response, KanbanError::DatabaseError(_)));
 
