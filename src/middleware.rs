@@ -46,18 +46,26 @@ pub async fn require_csrf_token(
 ) -> Result<Response, KanbanError> {
     if request.method() == Method::POST {
         let (parts, body) = request.into_parts();
-
         let body_bytes = to_bytes(body, 50000).await?;
 
-        let mut posted_form = form_urlencoded::parse(&body_bytes);
+        let header_token = parts.headers.get("X-CSRF-TOKEN");
 
-        let csrf_token = posted_form
-            .find(|(key, _)| key == "csrf_token")
-            .map(|(_, value)| value.to_string());
+        let csrf_token:String = if let Some(token) = header_token {
+            token.to_str().unwrap_or("").to_string()
+        } else {
+            let mut posted_form = form_urlencoded::parse(&body_bytes);
+
+            let token = posted_form
+                .find(|(key, _) | key == "csrf_token")
+                .map(|(_, value)| value.to_string())
+                .unwrap_or_default().to_string();
+
+            token
+        };
 
         let csrf_secret = get_or_create_secret(&session).await?;
 
-        if let Some(token) = csrf_token && verify(token.as_str(), &csrf_secret) {
+        if verify(&csrf_token, &csrf_secret) {
             Ok(next.run(Request::from_parts(parts, Body::from(body_bytes))).await)
         } else {
             Err(KanbanError::RequestError("No CSRF token found.".to_string()))

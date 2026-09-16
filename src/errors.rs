@@ -1,5 +1,6 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use reqwest::header::ToStrError;
 use serde_json::Error;
 use sqlx::migrate::MigrateError;
 use std::fmt::{Display, Formatter};
@@ -87,6 +88,12 @@ impl From<KanbanError> for (StatusCode, String) {
     fn from(value: KanbanError) -> Self {
         let error_message = value.to_string();
         (StatusCode::INTERNAL_SERVER_ERROR, error_message)
+    }
+}
+
+impl From<ToStrError> for KanbanError {
+    fn from(value: ToStrError) -> Self {
+        KanbanError::RequestError(value.to_string())
     }
 }
 

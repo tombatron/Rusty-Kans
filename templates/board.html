@@ -23,7 +23,7 @@
     {{ macros::board_header(board.id, board.name) }}
 </header>
 
-<turbo-frame id="lists" data-turbo-action="advance">
+<turbo-frame id="lists" data-turbo-action="advance" data-csrf="{{ csrf_token | safe }}">
     {% for list in lists %}
     <div class="list" id="list-{{ list.id }}">
         {{ macros::list_header(list, csrf_token) }}
