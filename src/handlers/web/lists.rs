@@ -10,7 +10,7 @@ use askama::Template;
 use axum::extract::Path;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
-use axum::{Form, Router};
+use axum::{Form, Json, Router};
 use axum::http::StatusCode;
 use garde::Validate;
 use serde::Deserialize;
@@ -22,6 +22,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/lists/{list_id}/rename", post(post_list_rename))
         .route("/lists/{list_id}/header", get(get_list_header))
         .route("/lists/{list_id}/delete", post(post_list_delete))
+        .route("/lists/sort_order", post(post_list_sort_order))
 }
 
 #[derive(Debug, Template)]
@@ -147,6 +148,28 @@ async fn post_list_delete(
         format!("<turbo-stream action=\"remove\" target=\"list-{list_id}\"></turbo-stream>");
 
     Ok(TurboStream(result))
+}
+
+#[derive(Debug, Deserialize)]
+struct CardPosition {
+    id: u64,
+    index: u64,
+}
+
+async fn post_list_sort_order(UserDb(db): UserDb, new_positions: Json<Vec<CardPosition>>) -> Result<StatusCode, KanbanError> {
+    let mut tx = db.begin().await?;
+
+    for card_position in new_positions.0 {
+        sqlx::query("UPDATE cards SET sort_order = ? WHERE card_id = ?;")
+            .bind(card_position.index as i64)
+            .bind(card_position.id as i64)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    tx.commit().await?;
+
+    Ok(StatusCode::OK)
 }
 
 #[cfg(test)]

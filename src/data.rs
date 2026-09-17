@@ -46,7 +46,7 @@ pub async fn get_board_with_lists(
     if !lists.is_empty() {
         let list_ids_placeholders = lists.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
         let query_text = format!(
-            "SELECT card_id, list_id, title, description, sort_order FROM cards WHERE list_id in ({})",
+            "SELECT card_id, list_id, title, description, sort_order FROM cards WHERE list_id in ({}) ORDER BY sort_order",
             list_ids_placeholders
         );
         let mut query = sqlx::query_as::<_, Card>(AssertSqlSafe(query_text));

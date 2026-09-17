@@ -37,15 +37,26 @@ app.register("card-list", class extends Controller {
     getCardPositions(elements) {
         return elements.map((element, index) => {
             return {
-                id: element.dataset.cardId,
+                id: Number(element.dataset.cardId),
                 index: index,
             }
         });
     }
 
     persistSortOrder(...elements) {
-        if (elements.length > 1) {
-            console.log(elements.flat());
+        const positions = elements.flat();
+        
+        if (positions.length > 1) {
+            const csrfToken = document.querySelector("turbo-frame#lists").dataset.csrf;
+
+            fetch("/lists/sort_order", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN": csrfToken,
+                },
+                body: JSON.stringify(positions),
+            });
         }
     }
 });
