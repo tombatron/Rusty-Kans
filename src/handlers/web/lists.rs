@@ -13,7 +13,7 @@ use axum::routing::{get, post};
 use axum::{Form, Json, Router};
 use axum::http::StatusCode;
 use garde::Validate;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -150,7 +150,7 @@ async fn post_list_delete(
     Ok(TurboStream(result))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct CardPosition {
     id: u64,
     index: u64,
@@ -311,6 +311,40 @@ pub mod tests {
         Ok(())
     }
 
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn post_list_order_order_will_reorder_cards(db: SqlitePool) -> sqlx::Result<()> {
+        let cards_to_change = vec!(
+            CardPosition { id: 1, index: 3 }, 
+            CardPosition { id: 2, index: 2 },
+            CardPosition { id: 3, index: 1 }
+        );
+
+        // `sort_order` is nullable, so when we start we're pretty sure that the sort_order we pull from the
+        // database will be null.
+        let before_card_1_position = data::get_card(db.clone(), 1).await.unwrap().sort_order;
+        let before_card_2_position = data::get_card(db.clone(), 2).await.unwrap().sort_order;
+        let before_card_3_position = data::get_card(db.clone(), 3).await.unwrap().sort_order;
+
+        let response = post_list_sort_order(UserDb(db.clone()), Json(cards_to_change)).await.unwrap();
+
+        let after_card_1_position = data::get_card(db.clone(), 1).await.unwrap().sort_order.unwrap();
+        let after_card_2_position = data::get_card(db.clone(), 2).await.unwrap().sort_order.unwrap();
+        let after_card_3_position = data::get_card(db.clone(), 3).await.unwrap().sort_order.unwrap();
+
+
+        assert!(response.is_success());
+
+        assert!(before_card_1_position.is_none());
+        assert!(before_card_2_position.is_none());
+        assert!(before_card_3_position.is_none());
+
+        assert_eq!(3, after_card_1_position);
+        assert_eq!(2, after_card_2_position);
+        assert_eq!(1, after_card_3_position);
+
+        Ok(())
+    }
+
     #[test_case("/lists/1/edit")]
     #[test_case("/lists/1/header")]
     #[tokio::test]
@@ -321,6 +355,7 @@ pub mod tests {
     #[test_case("/boards/1/lists")]
     #[test_case("/lists/1/rename")]
     #[test_case("/lists/1/delete")]
+    #[test_case("/lists/sort_order")]
     #[tokio::test]
     async fn authed_post_pages_redirect_when_anonymous(path: &str) {
         base_auth_post_assertion(path).await;
@@ -329,6 +364,7 @@ pub mod tests {
     #[test_case("/boards/1/lists")]
     #[test_case("/lists/1/rename")]
     #[test_case("/lists/1/delete")]
+    #[test_case("/lists/sort_order")]
     #[tokio::test]
     async fn missing_csrf_token_on_post_is_rejected(path: &str) {
         base_csrf_rejection_assertion(path).await;
