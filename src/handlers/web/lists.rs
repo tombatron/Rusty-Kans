@@ -175,7 +175,7 @@ async fn post_list_sort_order(UserDb(db): UserDb, new_positions: Json<Vec<CardPo
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, base_csrf_rejection_assertion, get_response_body};
+    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, base_csrf_header_json_body_assertion, base_csrf_rejection_assertion, get_response_body};
     use sqlx::SqlitePool;
     use test_case::test_case;
 
@@ -312,7 +312,7 @@ pub mod tests {
     }
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
-    async fn post_list_order_order_will_reorder_cards(db: SqlitePool) -> sqlx::Result<()> {
+    async fn post_list_sort_order_will_reorder_cards(db: SqlitePool) -> sqlx::Result<()> {
         let cards_to_change = vec!(
             CardPosition { id: 1, index: 3 }, 
             CardPosition { id: 2, index: 2 },
@@ -343,6 +343,26 @@ pub mod tests {
         assert_eq!(1, after_card_3_position);
 
         Ok(())
+    }
+
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn post_list_sort_order_will_accept_empty_request(db: SqlitePool) -> sqlx::Result<()> {
+        let empty_request: Vec<CardPosition> = vec!();
+
+        let response = post_list_sort_order(UserDb(db), Json(empty_request)).await.unwrap();
+
+        assert!(response.is_success());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn post_list_sort_order_with_csrf_header_succeeds() {
+        let empty_request: Vec<CardPosition> = vec!();
+        
+        let response = base_csrf_header_json_body_assertion("/lists/sort_order", Some(empty_request)).await;
+        
+        response.assert_status_success();
     }
 
     #[test_case("/lists/1/edit")]

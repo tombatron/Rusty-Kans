@@ -76,6 +76,8 @@ mod tests {
     use axum::http::StatusCode;
     use axum::response::Response;
     use axum_test::{TestResponse, TestServer};
+    
+    use serde::Serialize;
     use sqlx::SqlitePool;
     use std::hash::{DefaultHasher, Hash, Hasher};
     use std::sync::Arc;
@@ -110,7 +112,7 @@ mod tests {
         response.assert_header("location", "/auth");
     }
 
-    async fn base_csrf_assertion(path: &str, csrf_token_present: bool, form: Option<Vec<(String, String)>>) -> TestResponse {
+    async fn base_csrf_assertion(path: &str) -> (String, TestServer) {
         // This might be stupid, but we'll synthesize a user id based on the route that
         // is being tested.
         let mut hasher = DefaultHasher::new();
@@ -152,6 +154,12 @@ mod tests {
 
         let token = mask(&secret);
 
+        (token, server)
+    }
+
+    async fn base_csrf_form_assertion(path: &str, csrf_token_present: bool, form: Option<Vec<(String, String)>>) -> TestResponse {
+        let (token, server) = base_csrf_assertion(path).await;
+
         if let Some(form) = form {
             let mut csrf_form: Vec<(String, String)> = vec![];
 
@@ -165,10 +173,20 @@ mod tests {
         } else {
             server.post(path).await
         }
-    }
+    }      
+
+    pub async fn base_csrf_header_json_body_assertion<T:Serialize>(path: &str, request_body: Option<T>) -> TestResponse {
+        let (token, server) = base_csrf_assertion(path).await;
+
+        if let Some(form) = request_body {
+            server.post(path).json(&form).add_header("X-CSRF-Token", token).await
+        } else {
+            server.post(path).add_header("X-CSRF-Token", token).await
+        }
+    }       
 
     pub async fn base_csrf_rejection_assertion(path: &str) {
-        let response = base_csrf_assertion(path, false, None).await;
+        let response = base_csrf_form_assertion(path, false, None).await;
 
         response.assert_status_bad_request();
         response.assert_text_contains("No CSRF token found.");
@@ -179,14 +197,14 @@ mod tests {
         redirect_url: &str,
         form: Vec<(String, String)>,
     ) {
-        let response = base_csrf_assertion(path, true, Some(form)).await;
+        let response = base_csrf_form_assertion(path, true, Some(form)).await;
 
         response.assert_status(StatusCode::SEE_OTHER);
         response.assert_header("location", redirect_url);
     }
 
     pub async fn base_csrf_acceptance_assertion(path: &str, form: Vec<(String, String)>) {
-        let response = base_csrf_assertion(path, true, Some(form)).await;
+        let response = base_csrf_form_assertion(path, true, Some(form)).await;
 
         response.assert_status_success();
     }
