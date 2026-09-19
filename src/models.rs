@@ -69,6 +69,10 @@ pub struct ListWithCards {
     pub cards: Vec<Card>,
 }
 
+pub struct CardSortUpdate {
+    pub list_ids: Vec<u64>,
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;

@@ -7,7 +7,7 @@ use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
 use askama::Template;
-use axum::extract::Path;
+use axum::extract::{Path, State};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Form, Json, Router};
@@ -156,7 +156,7 @@ struct CardPosition {
     index: u64,
 }
 
-async fn post_list_sort_order(UserDb(db): UserDb, new_positions: Json<Vec<CardPosition>>) -> Result<StatusCode, KanbanError> {
+async fn post_list_sort_order(UserDb(db): UserDb, State(state): State<ApplicationState>, new_positions: Json<Vec<CardPosition>>) -> Result<StatusCode, KanbanError> {
     let mut tx = db.begin().await?;
 
     for card_position in new_positions.0 {
