@@ -1,5 +1,5 @@
 use crate::handlers::auth::AUTHENTICATED_USER_KEY;
-use crate::models::CardMoveEvent;
+use crate::handlers::ws::SocketEvents;
 use crate::models::security::LoggedInUser;
 use axum::extract::{FromRef, FromRequestParts};
 use axum::http::request::Parts;
@@ -37,7 +37,7 @@ pub type GitHubOAuthClient = oauth2::Client<
 #[derive(Clone)]
 pub struct ApplicationState {
     pub db_pools: Arc<DashMap<String, SqlitePool>>,
-    pub tx: tokio::sync::broadcast::Sender<CardMoveEvent>,
+    pub tx: tokio::sync::broadcast::Sender<SocketEvents>,
     pub oauth_client: GitHubOAuthClient,
     pub redis_pool: Option<Pool>
 }
@@ -172,7 +172,7 @@ pub async fn create_application_state() -> ApplicationState {
 
     let db_pools = Arc::new(DashMap::new());
 
-    let (tx, _) = tokio::sync::broadcast::channel::<CardMoveEvent>(512);
+    let (tx, _) = tokio::sync::broadcast::channel::<SocketEvents>(512);
 
     let redis_connection_string = env::var("REDIS_CONNECTION_STRING");
 

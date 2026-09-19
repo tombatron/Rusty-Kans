@@ -10,7 +10,13 @@ use tower_sessions::Session;
 use crate::csrf;
 use crate::csrf::get_or_create_secret;
 use crate::errors::KanbanError;
-use crate::models::CardMoveEvent;
+use crate::models::{CardMoveEvent, CardSortUpdate};
+
+#[derive(Clone)]
+pub enum SocketEvents {
+    CardMoved(CardMoveEvent),
+    ListsSorted(CardSortUpdate),
+}
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new().route("/ws", get(get_ws_handler))
@@ -27,18 +33,29 @@ pub async fn get_ws_handler(
     Ok(ws.on_upgrade(move |socket| handle_socket(socket, rx, secret)))
 }
 
-async fn handle_socket(mut socket: WebSocket, mut rx: Receiver<CardMoveEvent>, secret: [u8; 32]) {
+async fn handle_socket(mut socket: WebSocket, mut rx: Receiver<SocketEvents>, secret: [u8; 32]) {
     while let Ok(event) = rx.recv().await {
-        let event = CardMoveEvent {
-            csrf_token: csrf::mask(&secret),
-            ..event
+        let socket_message = match event {
+            SocketEvents::CardMoved(card_move_event) => {
+                let event = CardMoveEvent {
+                    csrf_token: csrf::mask(&secret),
+                    ..card_move_event
+                };
+
+                event
+                    .render()
+                    .map_err(|e| format!("<div>{e}</div>"))
+                    .unwrap()
+            },
+            SocketEvents::ListsSorted(card_sort_update) => {
+                card_sort_update
+                    .render()
+                    .map_err(|e| format!("<div>{e}</div>"))
+                    .unwrap()
+            },
         };
 
-        let html = event
-            .render()
-            .map_err(|e| format!("<div>{e}</div>"))
-            .unwrap();
-        if socket.send(Message::Text(html.into())).await.is_err() {
+        if socket.send(Message::Text(socket_message.into())).await.is_err() {
             break;
         }
     }
@@ -46,7 +63,7 @@ async fn handle_socket(mut socket: WebSocket, mut rx: Receiver<CardMoveEvent>, s
 
 #[cfg(test)]
 pub mod tests {
-    use crate::{handlers::web::tests::base_test_server, models::{Card, CardMoveEvent}};
+    use crate::{handlers::{web::tests::base_test_server, ws::SocketEvents}, models::{Card, CardMoveEvent}};
 
     #[tokio::test]
     async fn websocket_will_broadcast_card_move_events() {
@@ -72,7 +89,7 @@ pub mod tests {
         };
 
         // Step 4: Let's make sure that sending to the web socket actually worked. 
-        let result = state.tx.send(card_move_event);
+        let result = state.tx.send(SocketEvents::CardMoved(card_move_event));
 
         assert!(result.is_ok());
 

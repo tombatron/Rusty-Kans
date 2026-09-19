@@ -1,8 +1,9 @@
 use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::web::NewContainerFormTemplate;
+use crate::handlers::ws::SocketEvents;
 use crate::handlers::{CreateListRequest, create_list_common};
-use crate::models::{Card, List};
+use crate::models::{Card, CardSortUpdate, List};
 use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
@@ -155,20 +156,25 @@ async fn post_list_delete(
 struct CardPosition {
     id: u64,
     index: u64,
+    list_id: u64,
 }
 
 async fn post_list_sort_order(UserDb(db): UserDb, State(state): State<ApplicationState>, new_positions: Json<Vec<CardPosition>>) -> Result<StatusCode, KanbanError> {
-    let mut tx = db.begin().await?;
+    let mut tran = db.begin().await?;
 
-    for card_position in new_positions.0 {
+    for card_position in new_positions.iter() {
         sqlx::query("UPDATE cards SET sort_order = ? WHERE card_id = ?;")
             .bind(card_position.index as i64)
             .bind(card_position.id as i64)
-            .execute(&mut *tx)
+            .execute(&mut *tran)
             .await?;
     }
 
-    tx.commit().await?;
+    tran.commit().await?;
+
+    let list_ids: Vec<u64> = new_positions.iter().map(|np| np.list_id).collect();
+
+    let _ = state.tx.send(SocketEvents::ListsSorted(CardSortUpdate { list_ids }));
 
     Ok(StatusCode::OK)
 }
@@ -338,9 +344,9 @@ pub mod tests {
         let state = get_fake_application_state();
 
         let cards_to_change = vec!(
-            CardPosition { id: 1, index: 3 }, 
-            CardPosition { id: 2, index: 2 },
-            CardPosition { id: 3, index: 1 }
+            CardPosition { id: 1, index: 3, list_id: 1 }, 
+            CardPosition { id: 2, index: 2, list_id: 1 },
+            CardPosition { id: 3, index: 1, list_id: 2 }
         );
 
         // `sort_order` is nullable, so when we start we're pretty sure that the sort_order we pull from the

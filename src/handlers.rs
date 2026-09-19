@@ -99,7 +99,7 @@ async fn patch_card_common(
 pub mod tests {
     use std::path::PathBuf;
     use super::*;
-    use crate::models::CardMoveEvent;
+    use crate::handlers::ws::SocketEvents;
     use crate::state::{get_database_id, ApplicationState, get_database_path};
     use dashmap::DashMap;
     use oauth2::basic::BasicClient;
@@ -108,7 +108,7 @@ pub mod tests {
     use std::sync::Arc;
 
     pub fn get_fake_application_state() -> ApplicationState {
-        let (tx, _) = tokio::sync::broadcast::channel::<CardMoveEvent>(512);
+        let (tx, _) = tokio::sync::broadcast::channel::<SocketEvents>(512);
 
         let oauth_client = BasicClient::new(ClientId::new("github_client_id".to_string()))
             .set_client_secret(ClientSecret::new("github_client_secret".to_string()))

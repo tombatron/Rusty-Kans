@@ -8,6 +8,7 @@ use garde::Validate;
 use serde::Deserialize;
 use crate::data;
 use crate::errors::KanbanError;
+use crate::handlers::ws::SocketEvents;
 use crate::handlers::{create_card_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest};
 use crate::models::{Card, CardMoveEvent};
 use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
@@ -62,7 +63,7 @@ async fn post_move_card_action(
 
     // Discard the potential error response because send will return an error if there are zero
     // active receivers.
-    let _ = state.tx.send(response.clone().into());
+    let _ = state.tx.send(SocketEvents::CardMoved(response.clone().into()));
 
     Ok(TurboStream(response.render()?))
 }

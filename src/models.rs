@@ -69,6 +69,8 @@ pub struct ListWithCards {
     pub cards: Vec<Card>,
 }
 
+#[derive(Debug, Clone, Template)]
+#[template(path = "turbo_card_sort_refresh.html")]
 pub struct CardSortUpdate {
     pub list_ids: Vec<u64>,
 }

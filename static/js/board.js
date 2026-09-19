@@ -12,14 +12,17 @@ app.register("card-list", class extends Controller {
             onEnd: (event) => {
                 const csrfToken = document.querySelector("turbo-frame#lists").dataset.csrf;
                 const cardId = event.item.dataset.cardId;
+
+                const fromListId = event.from.dataset.cardListListIdValue;
                 const toListId = event.to.dataset.cardListListIdValue;
 
+
                 if (event.from === event.to) {
-                    this.persistSortOrder(this.getCardPositions(Array.from(event.from.querySelectorAll("li"))));
+                    this.persistSortOrder(this.getCardPositions(Array.from(event.from.querySelectorAll("li"), fromListId)));
                 } else {
                     this.persistSortOrder(
-                        this.getCardPositions(Array.from(event.from.querySelectorAll("li"))), 
-                        this.getCardPositions(Array.from(event.to.querySelectorAll("li")))
+                        this.getCardPositions(Array.from(event.from.querySelectorAll("li")), fromListId), 
+                        this.getCardPositions(Array.from(event.to.querySelectorAll("li")), toListId)
                     );
 
                     fetch(`/lists/${toListId}/cards/${cardId}/move`, {
@@ -34,11 +37,12 @@ app.register("card-list", class extends Controller {
         })
     }
 
-    getCardPositions(elements) {
+    getCardPositions(elements, listId) {
         return elements.map((element, index) => {
             return {
                 id: Number(element.dataset.cardId),
                 index: index,
+                listId: listId,
             }
         });
     }
