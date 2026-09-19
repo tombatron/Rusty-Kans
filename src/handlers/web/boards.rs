@@ -91,7 +91,7 @@ async fn post_board_form(
 #[template(path = "board.html")]
 struct BoardTemplate {
     board: Board,
-    lists: Vec<List>,
+    list_ids: Vec<u64>,
     new_list: NewContainerFormTemplate<List>,
     csrf_token: String,
 }
@@ -114,7 +114,7 @@ pub async fn get_board(
 
     let response_template = BoardTemplate {
         board: board.board,
-        lists: board.lists,
+        list_ids: board.list_ids,
         new_list,
         csrf_token,
     };

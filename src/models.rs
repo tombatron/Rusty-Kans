@@ -59,9 +59,9 @@ pub struct CardMoveEvent {
     pub csrf_token: String,
 }
 
-pub struct BoardWithCards {
+pub struct BoardWithListIds {
     pub board: Board,
-    pub lists: Vec<List>,
+    pub list_ids: Vec<u64>,
 }
 
 pub struct ListWithCards {

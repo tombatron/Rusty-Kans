@@ -1,6 +1,6 @@
 use crate::errors::KanbanError;
-use crate::models::{Board, BoardWithCards, Card, List, ListWithCards};
-use sqlx::{AssertSqlSafe, SqlitePool};
+use crate::models::{Board, BoardWithListIds, Card, List, ListWithCards};
+use sqlx::SqlitePool;
 
 pub async fn insert_board(db: SqlitePool, board_name: &String) -> Result<u64, KanbanError> {
     let result = sqlx::query("INSERT INTO boards (name) VALUES (?);")
@@ -34,39 +34,18 @@ pub async fn get_all_boards(db: SqlitePool) -> Result<Vec<Board>, KanbanError> {
 pub async fn get_board_with_lists(
     db: SqlitePool,
     board_id: u64,
-) -> Result<BoardWithCards, KanbanError> {
+) -> Result<BoardWithListIds, KanbanError> {
     let board = get_board(db.clone(), board_id).await?;
 
-    let mut lists: Vec<List> =
-        sqlx::query_as::<_, List>("SELECT list_id, board_id, name FROM lists WHERE board_id = ? ORDER BY list_id;")
+    let rows: Vec<(u64,)> =
+        sqlx::query_as("SELECT list_id FROM lists WHERE board_id = ? ORDER BY list_id;")
             .bind(board_id as i64)
             .fetch_all(&db)
             .await?;
+    
+    let list_ids = rows.into_iter().map(|(id,)| id).collect();
 
-    if !lists.is_empty() {
-        let list_ids_placeholders = lists.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
-        let query_text = format!(
-            "SELECT card_id, list_id, title, description, sort_order FROM cards WHERE list_id in ({}) ORDER BY sort_order",
-            list_ids_placeholders
-        );
-        let mut query = sqlx::query_as::<_, Card>(AssertSqlSafe(query_text));
-
-        for id in &lists {
-            query = query.bind(id.id as i64);
-        }
-
-        let cards: Vec<Card> = query.fetch_all(&db).await?;
-
-        for l in lists.iter_mut() {
-            l.cards = cards
-                .iter()
-                .filter(|c| c.list_id == l.id)
-                .cloned()
-                .collect()
-        }
-    }
-
-    let result = BoardWithCards { board, lists };
+    let result = BoardWithListIds { board, list_ids };
 
     Ok(result)
 }
@@ -258,8 +237,7 @@ mod tests {
         let result = data::get_board_with_lists(pool, 3).await.unwrap();
 
         assert_eq!("A third board?!", result.board.name);
-        assert_eq!(2, result.lists.len());
-        assert_eq!("Card 12", result.lists[0].cards[0].title);
+        assert_eq!(2, result.list_ids.len());
 
         Ok(())
     }
@@ -377,10 +355,10 @@ mod tests {
         let result = data::insert_list(pool.clone(), 1, &new_list_name).await.unwrap();
 
         let board = data::get_board_with_lists(pool, 1).await.unwrap();
-        let new_list = board.lists.iter().find(|l| l.id == result).unwrap();
+        let new_list = board.list_ids.iter().find(|l| **l == result).unwrap();
 
         assert_eq!(7, result);
-        assert_eq!(result, new_list.id);
+        assert_eq!(result, *new_list);
 
         Ok(())
     }

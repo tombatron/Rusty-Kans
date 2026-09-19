@@ -17,7 +17,7 @@ async fn get_board(ApiDb(db): ApiDb, Path(board_id): Path<u64>) -> Result<Json<V
     Ok(Json(json!({
         "id": board_id,
         "name": result.board.name,
-        "lists": result.lists
+        "list_ids": result.list_ids
     })))
 }
 

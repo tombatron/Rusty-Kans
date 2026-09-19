@@ -2,7 +2,7 @@ use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::web::NewContainerFormTemplate;
 use crate::handlers::{CreateListRequest, create_list_common};
-use crate::models::List;
+use crate::models::{Card, List};
 use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
         .route("/boards/{board_id}/lists", post(post_list_form))
+        .route("/lists/{list_id}", get(get_list))
         .route("/lists/{list_id}/edit", get(get_list_edit))
         .route("/lists/{list_id}/rename", post(post_list_rename))
         .route("/lists/{list_id}/header", get(get_list_header))
@@ -172,10 +173,31 @@ async fn post_list_sort_order(UserDb(db): UserDb, State(state): State<Applicatio
     Ok(StatusCode::OK)
 }
 
+#[derive(Debug, Template)]
+#[template(path = "list.html")]
+struct ListTemplate  {
+    list: List,
+    cards: Vec<Card>,
+    csrf_token: String,
+}
+
+async fn get_list(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): UserDb, Path(list_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+    let list = data::get_list_with_cards(db.clone(), list_id).await?;
+
+    let template = ListTemplate {
+        list: list.list,
+        cards: list.cards,
+        csrf_token,
+    };
+
+
+    Ok(Html(template.render()?))
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, base_csrf_header_json_body_assertion, base_csrf_rejection_assertion, get_response_body};
+    use crate::handlers::{tests::get_fake_application_state, web::tests::{base_auth_get_assertion, base_auth_post_assertion, base_csrf_header_json_body_assertion, base_csrf_rejection_assertion, get_response_body}};
     use sqlx::SqlitePool;
     use test_case::test_case;
 
@@ -313,6 +335,8 @@ pub mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_list_sort_order_will_reorder_cards(db: SqlitePool) -> sqlx::Result<()> {
+        let state = get_fake_application_state();
+
         let cards_to_change = vec!(
             CardPosition { id: 1, index: 3 }, 
             CardPosition { id: 2, index: 2 },
@@ -325,7 +349,7 @@ pub mod tests {
         let before_card_2_position = data::get_card(db.clone(), 2).await.unwrap().sort_order;
         let before_card_3_position = data::get_card(db.clone(), 3).await.unwrap().sort_order;
 
-        let response = post_list_sort_order(UserDb(db.clone()), Json(cards_to_change)).await.unwrap();
+        let response = post_list_sort_order(UserDb(db.clone()), State(state), Json(cards_to_change)).await.unwrap();
 
         let after_card_1_position = data::get_card(db.clone(), 1).await.unwrap().sort_order.unwrap();
         let after_card_2_position = data::get_card(db.clone(), 2).await.unwrap().sort_order.unwrap();
@@ -349,7 +373,9 @@ pub mod tests {
     async fn post_list_sort_order_will_accept_empty_request(db: SqlitePool) -> sqlx::Result<()> {
         let empty_request: Vec<CardPosition> = vec!();
 
-        let response = post_list_sort_order(UserDb(db), Json(empty_request)).await.unwrap();
+        let state = get_fake_application_state();
+
+        let response = post_list_sort_order(UserDb(db), State(state), Json(empty_request)).await.unwrap();
 
         assert!(response.is_success());
 
