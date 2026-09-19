@@ -36,8 +36,7 @@ mod tests {
 
         assert_eq!(1, response["id"]);
         assert_eq!("Whatever", response["name"]);
-        assert_eq!(2, response["lists"].as_array().unwrap().len());
-        assert_eq!("Card 1", response["lists"].as_array().unwrap()[0]["cards"][0]["title"]);
+        assert_eq!(2, response["list_ids"].as_array().unwrap().len());
 
         Ok(())
     }
