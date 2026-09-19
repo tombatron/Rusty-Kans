@@ -248,5 +248,38 @@
 - `LIKE ?` with `format!("%{}%", keyword)` for wildcard search — wildcards go in the bound value
 - `models.rs` entirely replaced by inline SQL queries — no intermediate model layer needed
 
+### Phase 4 — Turbo, CSRF, and card status removal
+*(This phase happened across several sessions before this log was brought current — summarized from commit history rather than turn-by-turn notes.)*
+
+- Hotwire Turbo integration: `turbo-stream` responses for board/list/card partials, `turbo-frame` for inline edit forms, a `turbo-stream-source` websocket for live updates
+- CSRF protection built from scratch: `csrf.rs` (secret generation, HMAC-style mask/verify), `require_csrf_token` middleware parsing `application/x-www-form-urlencoded` bodies for a `csrf_token` field, a per-session secret stored via `tower-sessions`
+- Every form template threading a hidden `csrf_token` input through `macros.html`
+- Per-user CSRF secrets extended to the websocket endpoint (`ws.rs`)
+- Base test helpers consolidated (`base_auth_get_assertion`, `base_csrf_rejection_assertion`, etc.) to cut duplicate test setup across `boards.rs`/`cards.rs`/`lists.rs`
+- Card `status` removed entirely (column, model field, queries, tests) in favor of `sort_order` — ordering, not a status enum, is now how a card's position is tracked
+- Minor UI/layout pass: `:focus-visible` outline for buttons/links, Turbo stream inserts placing new lists/boards before the add-form instead of appending after it
+
+### Phase 5 — Drag-and-drop card reordering
+The board already had client-side drag-and-drop (Sortable.js) but reorders didn't survive a page reload — nothing persisted them. This phase closed that gap end-to-end: client, CSRF, and a new Rust endpoint with a DB transaction.
+
+- Split the inline Stimulus/Sortable script out of `base.html` into `static/js/board.js` as a real ES module (`<script type="module" src="...">`), including that module scripts are deferred automatically and run in their own scope (no accidental globals)
+- Diagnosed a live CSRF bug: `fetch`'s `body: someFormDataInstance` sends `multipart/form-data`, but `require_csrf_token` only parses `application/x-www-form-urlencoded` — switched to `URLSearchParams` so the client's encoding actually matches what the middleware expects
+- Extended `require_csrf_token` to also accept the token via an `X-CSRF-Token` header (for JSON POSTs, where a form-encoded body doesn't make sense) — the header check reads `parts.headers.get(...)` directly rather than binding the whole `HeaderMap` to a variable, so `parts` stays whole and movable into `Request::from_parts` afterward
+- `Cow<'a, str>` from `form_urlencoded::parse`: `.to_string()` detaches an owned value that can escape a closure; `.as_ref()`/`Deref` ties the output lifetime to the local borrow instead, which can't escape — this is *why* the existing form-token code already used `.to_string()`
+- Verified `verify("")` fails safely (its `token.split(":")` length check rejects it before any indexing) — meant collapsing "no token found" to an empty-string sentinel was safe to do without an `Option` check first
+- Designed the reorder endpoint's shape through several iterations: rejected embedding `list_id` inside each card's position data once it became clear the existing `/lists/{id}/cards/{id}/move` endpoint already owns `list_id`, leaving the new endpoint to do one thing — `UPDATE cards SET sort_order = ? WHERE card_id = ?` per card, no list scoping needed at all
+- `sqlx::Pool::begin()` → `Transaction`, looping `.execute(&mut *tx)`, `tx.commit().await?` — and *why* `&mut *tx` is required: `Transaction` only implements `Deref`/`DerefMut` to the underlying connection, not `Executor` itself, and Rust's automatic deref coercion doesn't apply when the target is a generic trait-bound parameter being inferred, only when there's a known concrete expected type
+- `axum::Json<T>` (a request/response extractor, `FromRequest`/`IntoResponse`) vs `serde_json::Value` (just data) — conflated once, corrected: a test helper building a request to *send* has no axum extraction happening, so it wants a plain serializable value, not `Json<T>`
+- Test helper design: a shared helper taking `Option<T: Serialize>` needs `T` concrete at every call site (including `None::<T>` ones) if it's generic — `serde_json::Value`-style concreteness avoids forcing turbofish annotations everywhere the helper is already called with `None`
+- `pub` makes an item reachable from other modules, but doesn't add it to another module's namespace — still need an explicit `use` at each call site (`E0425: cannot find function` despite the function existing and being `pub`)
+- A `TestResponse` that's `.await`ed but never bound to a variable, with no `assert_*` call on it, compiles clean with no warning and the test passes regardless of the actual response — passing, but testing nothing
+
+## Struggles / Watch For
+- CSRF body-encoding mismatches bit twice in a row: once via `FormData` (multipart) against a form-urlencoded-only middleware, once in reasoning about a hypothetical JSON body against the same middleware before it was extended. Watch for this pattern recurring — "the client's Content-Type doesn't match what the server parses" is an easy one to reintroduce when adding a new endpoint.
+- Confused `elements.length` (the rest-parameter argument count — 1 or 2 depending on same-list vs. cross-list) with "how many cards actually changed." The fix was checking the *flattened* array's length instead. Worth remembering when reasoning about rest parameters generally: the outer arity and the inner data size are unrelated.
+- The `&mut *tx` deref-for-a-generic-bound explanation landed as genuinely new/hard ("I would need some time to really learn that") — good candidate to revisit once more generics/trait material comes up again, per the existing Milestone 10 note on this same territory (`Deref` coercion, trait bounds).
+
 ## Current Position
-**Turbo phase** — HTML responses and Hotwire Turbo integration
+**Post-curriculum, feature work** — CSRF protection and drag-and-drop card reordering (with DB-persisted `sort_order`) are both done, tested, and committed. Card `status` has been fully replaced by list membership + `sort_order`.
+
+Next candidate: same-list reorders don't broadcast over the existing websocket (`state.tx` / `CardMoveEvent`) the way cross-list moves already do via `post_move_card_action` — so a second viewer on the same board doesn't see a reorder live, only a cross-list move. `post_list_sort_order` would need a `State` extractor and a turbo-stream payload shape (likely re-rendering the affected list rather than one card).

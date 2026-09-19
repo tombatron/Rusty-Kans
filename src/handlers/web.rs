@@ -66,13 +66,13 @@ pub struct NewContainerFormTemplate<T> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::csrf::{get_or_create_secret, mask};
     use crate::handlers::auth::AUTHENTICATED_USER_KEY;
     use crate::handlers::tests::TestDatabaseGuard;
     use crate::handlers::web::get_landing;
     use crate::router::{create_router, create_router_with_session};
-    use crate::state::{CsrfTokenValue, UserDb, create_application_state};
+    use crate::state::{ApplicationState, CsrfTokenValue, UserDb, create_application_state};
     use axum::http::StatusCode;
     use axum::response::Response;
     use axum_test::{TestResponse, TestServer};
@@ -112,7 +112,7 @@ mod tests {
         response.assert_header("location", "/auth");
     }
 
-    async fn base_csrf_assertion(path: &str) -> (String, TestServer) {
+    pub async fn base_test_server(path: &str, http_transport: bool) -> (String, ApplicationState, TestServer) {
         // This might be stupid, but we'll synthesize a user id based on the route that
         // is being tested.
         let mut hasher = DefaultHasher::new();
@@ -127,9 +127,17 @@ mod tests {
         let store = MemoryStore::default();
         let state = create_application_state().await;
 
-        let server = TestServer::builder()
-            .save_cookies()
-            .build(create_router_with_session(state, store.clone()));
+        let mut server_builder = TestServer::builder();
+
+        if http_transport{
+            server_builder = server_builder.http_transport();
+        }
+
+        server_builder = server_builder
+                .save_cookies();
+
+        let server = server_builder.build(create_router_with_session(state.clone(), store.clone()));
+                
 
         // Establish a session.
         let response = server.get("/auth/login").await;
@@ -154,11 +162,11 @@ mod tests {
 
         let token = mask(&secret);
 
-        (token, server)
+        (token, state.clone(), server)
     }
 
     async fn base_csrf_form_assertion(path: &str, csrf_token_present: bool, form: Option<Vec<(String, String)>>) -> TestResponse {
-        let (token, server) = base_csrf_assertion(path).await;
+        let (token, _, server) = base_test_server(path, false).await;
 
         if let Some(form) = form {
             let mut csrf_form: Vec<(String, String)> = vec![];
@@ -176,7 +184,7 @@ mod tests {
     }      
 
     pub async fn base_csrf_header_json_body_assertion<T:Serialize>(path: &str, request_body: Option<T>) -> TestResponse {
-        let (token, server) = base_csrf_assertion(path).await;
+        let (token, _, server) = base_test_server(path, false).await;
 
         if let Some(form) = request_body {
             server.post(path).json(&form).add_header("X-CSRF-Token", token).await

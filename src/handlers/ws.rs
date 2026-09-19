@@ -5,6 +5,7 @@ use axum::extract::{State, WebSocketUpgrade};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
+use tokio::sync::broadcast::Receiver;
 use tower_sessions::Session;
 use crate::csrf;
 use crate::csrf::get_or_create_secret;
@@ -21,13 +22,12 @@ pub async fn get_ws_handler(
     State(state): State<ApplicationState>,
 ) -> Result<impl IntoResponse, KanbanError> {
     let secret = get_or_create_secret(&session).await?;
+    let rx = state.tx.subscribe();
 
-    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, secret)))
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, rx, secret)))
 }
 
-async fn handle_socket(mut socket: WebSocket, state: ApplicationState, secret: [u8; 32]) {
-    let mut rx = state.tx.subscribe();
-
+async fn handle_socket(mut socket: WebSocket, mut rx: Receiver<CardMoveEvent>, secret: [u8; 32]) {
     while let Ok(event) = rx.recv().await {
         let event = CardMoveEvent {
             csrf_token: csrf::mask(&secret),
@@ -41,5 +41,42 @@ async fn handle_socket(mut socket: WebSocket, state: ApplicationState, secret: [
         if socket.send(Message::Text(html.into())).await.is_err() {
             break;
         }
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use crate::{handlers::web::tests::base_test_server, models::{Card, CardMoveEvent}};
+
+    #[tokio::test]
+    async fn websocket_will_broadcast_card_move_events() {
+        // Step 1: Setup a basic test server.
+        let (token, state, server) = base_test_server("/ws", true).await;
+
+        // Step 2: Open a websocket and start listening. 
+        let mut test_websocket = server.get_websocket("/ws").await.into_websocket().await;
+
+        // Step 3: Create and send a CardMoveEvent through the transmission side of the web socket thats
+        //         available through the application state. 
+        let card_move_event = CardMoveEvent {
+            card_id: 10000,
+            to_list_id: 1,
+            card: Card {
+                id: 10000,
+                list_id: 1,
+                title: "Whatever".to_string(),
+                description: None,
+                sort_order: None,
+            },
+            csrf_token: token,
+        };
+
+        // Step 4: Let's make sure that sending to the web socket actually worked. 
+        let result = state.tx.send(card_move_event);
+
+        assert!(result.is_ok());
+
+        // Step 5: Finally, let's make sure that we got the content we were looking for.
+        test_websocket.assert_receive_text_contains("<turbo-stream action=\"remove\" target=\"card-10000\"></turbo-stream>").await;
     }
 }
