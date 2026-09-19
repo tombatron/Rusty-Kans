@@ -89,7 +89,7 @@ pub async fn get_list_with_cards(
     let list = get_list_header(db.clone(), list_id).await?;
 
     let cards = sqlx::query_as::<_, Card>(
-        "SELECT card_id, list_id, title, description, sort_order FROM cards WHERE list_id = ?",
+        "SELECT card_id, list_id, title, description, sort_order FROM cards WHERE list_id = ? ORDER BY sort_order ASC",
     )
     .bind(list_id as i64)
     .fetch_all(&db)

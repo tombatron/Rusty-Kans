@@ -13,12 +13,13 @@ app.register("card-list", class extends Controller {
                 const csrfToken = document.querySelector("turbo-frame#lists").dataset.csrf;
                 const cardId = event.item.dataset.cardId;
 
-                const fromListId = event.from.dataset.cardListListIdValue;
-                const toListId = event.to.dataset.cardListListIdValue;
+                const fromListId = Number(event.from.dataset.cardListListIdValue);
+                const toListId = Number(event.to.dataset.cardListListIdValue);
 
 
                 if (event.from === event.to) {
-                    this.persistSortOrder(this.getCardPositions(Array.from(event.from.querySelectorAll("li"), fromListId)));
+                    this.persistSortOrder(
+                        this.getCardPositions(Array.from(event.from.querySelectorAll("li")), fromListId));
                 } else {
                     this.persistSortOrder(
                         this.getCardPositions(Array.from(event.from.querySelectorAll("li")), fromListId), 

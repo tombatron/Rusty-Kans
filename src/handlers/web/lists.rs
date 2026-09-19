@@ -156,6 +156,7 @@ async fn post_list_delete(
 struct CardPosition {
     id: u64,
     index: u64,
+    #[serde(rename = "listId")]
     list_id: u64,
 }
 

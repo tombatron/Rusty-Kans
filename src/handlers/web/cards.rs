@@ -29,8 +29,6 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 struct MoveCardTemplate {
     card_id: u64,
     to_list_id: u64,
-    card: Card,
-    csrf_token: String,
 }
 
 impl Into<CardMoveEvent> for MoveCardTemplate {
@@ -38,27 +36,20 @@ impl Into<CardMoveEvent> for MoveCardTemplate {
         CardMoveEvent {
             card_id: self.card_id,
             to_list_id: self.to_list_id,
-            card: self.card,
-            csrf_token: self.csrf_token,
         }
     }
 }
 
 async fn post_move_card_action(
-    CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
     State(state): State<ApplicationState>,
     Path((list_id, card_id)): Path<(u64, u64)>,
 ) -> Result<TurboStream, KanbanError> {
     move_card_common(db.clone(), list_id, card_id).await?;
 
-    let card = data::get_card(db, card_id).await?;
-
     let response = MoveCardTemplate {
         card_id,
         to_list_id: list_id,
-        card,
-        csrf_token: csrf_token.clone(),
     };
 
     // Discard the potential error response because send will return an error if there are zero
@@ -238,12 +229,12 @@ mod tests {
         let state = State(get_fake_application_state());
         let db = UserDb(db);
 
-        let response = post_move_card_action(CsrfTokenValue("token".to_string()), db.clone(), state, Path((2, 1))).await.unwrap().0;
+        let response = post_move_card_action(db.clone(), state, Path((2, 1))).await.unwrap().0;
 
         let card = data::get_card(db.0, 1).await.unwrap();
 
         assert!(response.contains("card-1"));
-        assert!(response.contains("list-cards-2"));
+        assert!(response.contains("list-2"));
         assert_eq!(2, card.list_id);
 
         Ok(())

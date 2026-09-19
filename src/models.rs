@@ -55,8 +55,6 @@ impl Display for List {
 pub struct CardMoveEvent {
     pub card_id: u64,
     pub to_list_id: u64,
-    pub card: Card,
-    pub csrf_token: String,
 }
 
 pub struct BoardWithListIds {
