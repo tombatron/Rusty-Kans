@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::web::NewContainerFormTemplate;
@@ -173,7 +175,10 @@ async fn post_list_sort_order(UserDb(db): UserDb, State(state): State<Applicatio
 
     tran.commit().await?;
 
-    let list_ids: Vec<u64> = new_positions.iter().map(|np| np.list_id).collect();
+    let list_ids: Vec<u64> = new_positions.iter().map(|np| np.list_id)
+        .collect::<HashSet<_>>() // Collect to HashSet to make a unique list. 
+        .into_iter()
+        .collect();
 
     let _ = state.tx.send(SocketEvents::ListsSorted(CardSortUpdate { list_ids }));
 

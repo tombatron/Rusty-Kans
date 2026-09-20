@@ -1,6 +1,6 @@
 {% import "macros.html" as macros %}
 <turbo-frame id="list-{{ list.id }}">
-    <div class="list" id="list-{{ list.id }}">
+    <div class="list">
         {{ macros::list_header(list, csrf_token) }}
 
         <ul id="list-cards-{{ list.id }}" data-controller="card-list" data-card-list-list-id-value="{{ list.id }}">
