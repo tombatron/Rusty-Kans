@@ -34,10 +34,12 @@ pub type GitHubOAuthClient = oauth2::Client<
     EndpointSet,
 >;
 
+pub type SocketEventsSender = tokio::sync::broadcast::Sender<SocketEvents>;
+
 #[derive(Clone)]
 pub struct ApplicationState {
     pub db_pools: Arc<DashMap<String, SqlitePool>>,
-    pub tx: tokio::sync::broadcast::Sender<SocketEvents>,
+    pub tx_pool: Arc<DashMap<String, SocketEventsSender>>,
     pub oauth_client: GitHubOAuthClient,
     pub redis_pool: Option<Pool>
 }
@@ -172,7 +174,7 @@ pub async fn create_application_state() -> ApplicationState {
 
     let db_pools = Arc::new(DashMap::new());
 
-    let (tx, _) = tokio::sync::broadcast::channel::<SocketEvents>(512);
+    let tx_pool = Arc::new(DashMap::new());
 
     let redis_connection_string = env::var("REDIS_CONNECTION_STRING");
 
@@ -190,7 +192,7 @@ pub async fn create_application_state() -> ApplicationState {
 
     ApplicationState {
         db_pools,
-        tx,
+        tx_pool,
         oauth_client,
         redis_pool
     }
@@ -214,6 +216,46 @@ impl<S> FromRequestParts<S> for CsrfTokenValue where S: Send + Sync {
     }
 }
 
+fn get_or_create_ws_sender(tx_pool: &Arc<DashMap<String, SocketEventsSender>>, user_id: i64, source: String) -> Result<SocketEventsSender, KanbanError> {
+    let tx_instance_id = get_database_id(user_id, source);
+
+    if let Some(tx) = tx_pool.get(&tx_instance_id) {
+        return Ok(tx.clone());
+    }
+
+    let tx = SocketEventsSender::new(512);
+
+    tx_pool.insert(tx_instance_id, tx.clone());
+
+    Ok(tx)
+}
+
+#[derive(Clone)]
+pub struct UserBroadcast(pub SocketEventsSender);
+
+impl<S> FromRequestParts<S> for UserBroadcast 
+where 
+    ApplicationState: FromRef<S>, 
+    S: Send + Sync, 
+{
+    type Rejection = (StatusCode, String);
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let unauthed_response = || (StatusCode::UNAUTHORIZED, "There doesn't seem to be anyone logged in...".to_string());
+
+        let session = Session::from_request_parts(parts, state).await.map_err(|_| unauthed_response())?;
+
+        let state = ApplicationState::from_ref(state);
+
+        let current_user = session.get::<LoggedInUser>(AUTHENTICATED_USER_KEY).await.map_err(|_| unauthed_response())?.ok_or(unauthed_response())?;
+
+        let tx = get_or_create_ws_sender(&state.tx_pool, current_user.id, current_user.source);
+
+        Ok(UserBroadcast(tx?))
+    }
+}
+
+
 #[cfg(test)]
 pub mod tests  {
     use crate::state::get_database_id;
@@ -225,3 +267,4 @@ pub mod tests  {
         assert_eq!("a032aacdf2aaa5fb2dd0903d2123ae0c06a7a095a86a8834125cc706254bfa40", result_database_id);
     }
 }
+

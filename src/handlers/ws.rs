@@ -1,7 +1,7 @@
-use crate::state::ApplicationState;
+use crate::state::{ApplicationState, UserBroadcast};
 use askama::Template;
 use axum::extract::ws::{Message, WebSocket};
-use axum::extract::{State, WebSocketUpgrade};
+use axum::extract::WebSocketUpgrade;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
@@ -21,9 +21,9 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 
 pub async fn get_ws_handler(
     ws: WebSocketUpgrade,
-    State(state): State<ApplicationState>,
+    UserBroadcast(tx): UserBroadcast,
 ) -> Result<impl IntoResponse, KanbanError> {
-    let rx = state.tx.subscribe();
+    let rx = tx.subscribe();
 
     Ok(ws.on_upgrade(move |socket| handle_socket(socket, rx)))
 }

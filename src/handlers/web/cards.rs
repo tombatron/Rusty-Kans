@@ -1,5 +1,5 @@
 use askama::Template;
-use axum::extract::{Path, State};
+use axum::extract::Path;
 use axum::{Form, Router};
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Redirect, Response};
@@ -11,7 +11,7 @@ use crate::errors::KanbanError;
 use crate::handlers::ws::SocketEvents;
 use crate::handlers::{create_card_common, delete_card_common, move_card_common, patch_card_common, CreateCardRequest};
 use crate::models::{Card, CardMoveEvent};
-use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
+use crate::state::{ApplicationState, CsrfTokenValue, UserBroadcast, UserDb};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
 
@@ -41,8 +41,8 @@ impl Into<CardMoveEvent> for MoveCardTemplate {
 }
 
 async fn post_move_card_action(
+    UserBroadcast(tx): UserBroadcast,
     UserDb(db): UserDb,
-    State(state): State<ApplicationState>,
     Path((list_id, card_id)): Path<(u64, u64)>,
 ) -> Result<TurboStream, KanbanError> {
     move_card_common(db.clone(), list_id, card_id).await?;
@@ -54,7 +54,7 @@ async fn post_move_card_action(
 
     // Discard the potential error response because send will return an error if there are zero
     // active receivers.
-    let _ = state.tx.send(SocketEvents::CardMoved(response.clone().into()));
+    let _ = tx.send(SocketEvents::CardMoved(response.clone().into()));
 
     Ok(TurboStream(response.render()?))
 }

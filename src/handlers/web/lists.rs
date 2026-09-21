@@ -6,11 +6,11 @@ use crate::handlers::web::NewContainerFormTemplate;
 use crate::handlers::ws::SocketEvents;
 use crate::handlers::{CreateListRequest, create_list_common};
 use crate::models::{Card, CardSortUpdate, List};
-use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
+use crate::state::{ApplicationState, CsrfTokenValue, UserBroadcast, UserDb};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
 use askama::Template;
-use axum::extract::{Path, State};
+use axum::extract::Path;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Form, Json, Router};
@@ -162,7 +162,7 @@ struct CardPosition {
     list_id: u64,
 }
 
-async fn post_list_sort_order(UserDb(db): UserDb, State(state): State<ApplicationState>, new_positions: Json<Vec<CardPosition>>) -> Result<StatusCode, KanbanError> {
+async fn post_list_sort_order(UserBroadcast(tx): UserBroadcast, UserDb(db): UserDb, new_positions: Json<Vec<CardPosition>>) -> Result<StatusCode, KanbanError> {
     let mut tran = db.begin().await?;
 
     for card_position in new_positions.iter() {
@@ -180,7 +180,7 @@ async fn post_list_sort_order(UserDb(db): UserDb, State(state): State<Applicatio
         .into_iter()
         .collect();
 
-    let _ = state.tx.send(SocketEvents::ListsSorted(CardSortUpdate { list_ids }));
+    let _ = tx.send(SocketEvents::ListsSorted(CardSortUpdate { list_ids }));
 
     Ok(StatusCode::OK)
 }
