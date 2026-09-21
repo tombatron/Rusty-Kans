@@ -35,17 +35,15 @@ async fn handle_socket(mut socket: WebSocket, mut rx: Receiver<SocketEvents>) {
                 card_move_event
                     .render()
                     .map_err(|e| format!("<div>{e}</div>"))
-                    .unwrap()
             },
             SocketEvents::ListsSorted(card_sort_update) => {
                 card_sort_update
                     .render()
                     .map_err(|e| format!("<div>{e}</div>"))
-                    .unwrap()
             },
         };
 
-        if socket.send(Message::Text(socket_message.into())).await.is_err() {
+        if socket.send(Message::Text(socket_message.unwrap_or_else(|e|e).into())).await.is_err() {
             break;
         }
     }
