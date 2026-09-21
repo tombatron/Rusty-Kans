@@ -1,6 +1,6 @@
 use crate::data;
 use crate::errors::KanbanError;
-use crate::handlers::{CreateListRequest, create_list_common};
+use crate::handlers::CreateListRequest;
 use crate::state::{ApiDb, ApplicationState};
 use axum::extract::Path;
 use axum::routing::{get, post};
@@ -37,11 +37,14 @@ async fn post_list(
     Path(board_id): Path<u64>,
     Json(list): Json<CreateListRequest>,
 ) -> Result<Json<Value>, KanbanError> {
-    // TODO: Gotta figure out what I need to do in order to not emit a csrf token with the regular api response. 
-    //       that's kind of sloppy. 
-    let created_list = create_list_common("_".to_string(), db, board_id, list).await?;
+    let list_id = data::insert_list(db, board_id, &list.name).await?;
 
-    Ok(Json(json!(created_list)))
+    let created_list = json!({
+        "list_id": list_id as i64,
+        "name": list.name
+    });
+
+    Ok(Json(created_list))
 }
 
 #[cfg(test)]

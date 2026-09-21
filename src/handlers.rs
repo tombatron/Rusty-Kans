@@ -1,11 +1,9 @@
 use crate::data;
 use crate::errors::KanbanError;
 use crate::models::Card;
-use askama::Template;
 use garde::Validate;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sqlx::SqlitePool;
-use crate::validation::FormErrors;
 
 pub mod api;
 pub mod auth;
@@ -13,33 +11,10 @@ pub mod utility;
 pub mod web;
 pub mod ws;
 
-#[derive(Debug, Serialize, Template)]
-#[template(path = "turbo_list_item.html")]
-struct ListItemTemplate {
-    list_id: u64,
-    name: String,
-    csrf_token: String,
-}
-
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateListRequest {
     #[garde(length(min = 1, max = 100))]
     name: String,
-}
-
-async fn create_list_common(
-    csrf_token: String,
-    db: SqlitePool,
-    board_id: u64,
-    list_info: CreateListRequest,
-) -> Result<ListItemTemplate, KanbanError> {
-    let list_id = data::insert_list(db, board_id, &list_info.name).await?;
-
-    Ok(ListItemTemplate {
-        list_id,
-        name: list_info.name,
-        csrf_token,
-    })
 }
 
 async fn move_card_common(db: SqlitePool, list_id: u64, card_id: u64) -> Result<(), KanbanError> {
@@ -153,20 +128,6 @@ pub mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_file(&self.path);
         }
-    }
-
-    #[sqlx::test(fixtures("boards"))]
-    async fn create_list_common_does_the_thing(db: SqlitePool) -> sqlx::Result<()> {
-        let request = CreateListRequest {
-            name: "Totally new list.".to_string(),
-        };
-
-        let response = create_list_common("token".to_string(), db, 1, request).await.unwrap();
-
-        assert_eq!(7, response.list_id);
-        assert_eq!("Totally new list.", response.name);
-
-        Ok(())
     }
 
     #[sqlx::test(fixtures("boards"))]

@@ -97,6 +97,12 @@ impl From<ToStrError> for KanbanError {
     }
 }
 
+impl From<tower_sessions_redis_store::fred::error::Error> for KanbanError {
+    fn from(value: tower_sessions_redis_store::fred::error::Error) -> Self {
+        KanbanError::DatabaseError(value.to_string())
+    }
+}
+
 impl IntoResponse for KanbanError {
     fn into_response(self) -> Response {
         match self {

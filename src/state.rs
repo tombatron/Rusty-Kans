@@ -156,6 +156,16 @@ async fn get_database(database_id: String) -> Result<SqlitePool, KanbanError> {
     Ok(db_pool)
 }
 
+async fn create_redis_pool(redis_connection_string: String) -> Result<Pool, KanbanError> {
+    let config = Config::from_url(redis_connection_string.as_str())?;
+    let pool = Pool::new(config, None, None, None, 6)?;
+
+    pool.connect();
+    pool.wait_for_connect().await?;
+
+    Ok(pool)
+}
+
 pub async fn create_application_state() -> ApplicationState {
     dotenv().ok();
 
@@ -180,12 +190,7 @@ pub async fn create_application_state() -> ApplicationState {
 
     let redis_pool: Option<Pool> = match redis_connection_string {
         Ok(conn_string) => {
-            let config = Config::from_url(conn_string.as_str()).unwrap();
-            let pool = Pool::new(config, None, None, None, 6).unwrap();
-            pool.connect();
-            pool.wait_for_connect().await.unwrap();
-
-            Some(pool)
+            create_redis_pool(conn_string).await.ok()
         },
         Err(_) => None
     };

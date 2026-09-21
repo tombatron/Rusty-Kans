@@ -4,7 +4,7 @@ use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::web::NewContainerFormTemplate;
 use crate::handlers::ws::SocketEvents;
-use crate::handlers::{CreateListRequest, create_list_common};
+use crate::handlers::CreateListRequest;
 use crate::models::{Card, CardSortUpdate, List};
 use crate::state::{ApplicationState, CsrfTokenValue, UserBroadcast, UserDb};
 use crate::turbo::TurboStream;
@@ -39,6 +39,14 @@ struct NewListErrorTemplate {
     csrf_token: String,
 }
 
+#[derive(Debug, Serialize, Template)]
+#[template(path = "turbo_list_item.html")]
+struct ListItemTemplate {
+    list_id: u64,
+    name: String,
+    csrf_token: String,
+}
+
 async fn post_list_form(
     CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
@@ -63,7 +71,13 @@ async fn post_list_form(
         return Ok((StatusCode::UNPROCESSABLE_ENTITY, TurboStream(validation_response.render()?)).into_response());
     }
 
-    let created_list = create_list_common(csrf_token, db, board_id, list_info).await?;
+    let list_id = data::insert_list(db, board_id, &list_info.name).await?;
+
+    let created_list = ListItemTemplate {
+        list_id,
+        name: list_info.name,
+        csrf_token
+    };
 
     Ok(TurboStream(created_list.render()?).into_response())
 }
