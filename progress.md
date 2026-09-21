@@ -291,9 +291,22 @@ While wiring this up, caught a real bug on their own: the websocket broadcast ch
 - First instinct for that gap was "just grab the only entry in the DashMap" (works today, single-user-per-test) — talked through why that doesn't actually test per-user isolation and would rot the moment a test exercises two users; landed on adding `user_id` to `base_test_server`'s return tuple instead, so the test recomputes the same `get_database_id` key the extractor uses
 - Result: `websocket_will_broadcast_card_move_events` now genuinely proves the right channel is used for the right user, not just that *a* channel receives the message
 
-## Current Position
-**Post-curriculum, feature work.** CSRF protection, drag-and-drop reordering, and now live same-list-reorder broadcast are all done. `cargo build` and `cargo test` are both green (138 passed, no warnings). Card `status` has been fully replaced by list membership + `sort_order`.
+### Phase 5 (continued) — Websocket error handling fix
+`handle_socket` was rendering the outgoing message with `.render().map_err(|e| format!("<div>{e}</div>")).unwrap()` — the `.unwrap()` on a `Result<String, String>` discarded exactly the error text `map_err` had just formatted, panicking the task instead of ever sending it. Fixed by sending whichever `String` came out of either arm.
 
-One uncommitted change on disk: `src/state.rs` — `get_or_create_ws_sender`/`UserBroadcast` no longer wrap in `Result` (see above). Worth committing before starting anything new.
+- `unwrap_or_else(|e| e)` on a `Result<String, String>`: both arms are the same type, so the "error" can be extracted and used directly instead of panicking — a `Result` doesn't have to mean success/failure semantically, just "which branch produced this value"
+
+### Phase 5 (continued) — Cleanup pass (Claude-flagged fixes)
+A batch of fixes from feedback Claude gave on the existing code, spanning error handling and a dead shared-helper split.
+
+- `create_redis_pool` extracted out of `create_application_state`: the inline block used three `.unwrap()`s (`Config::from_url`, `Pool::new`, `wait_for_connect`) that would panic at startup if Redis was misconfigured or unreachable; now returns `Result<Pool, KanbanError>` and the call site does `.ok()` to fall back to `None` (sessions/redis stay optional) instead of crashing
+- `impl From<tower_sessions_redis_store::fred::error::Error> for KanbanError` added so `?` can convert redis errors the same way other error types already do
+- Resolved a long-standing TODO by recognizing `create_list_common` was serving two genuinely different response shapes wearing one signature: the web-form path renders a CSRF-templated `turbo-stream` HTML fragment, the JSON API path needs neither the template nor a CSRF token. The shared helper's `"_".to_string()` CSRF-token placeholder for the API path was a symptom of forcing both through one function
+- Deleted `create_list_common`, its `ListItemTemplate`, and the now-pointless test from `handlers.rs`; `ListItemTemplate` moved into `handlers/web/lists.rs` where it's actually used; `handlers/api/lists.rs` now builds its JSON response directly with `serde_json::json!`, no template, no CSRF token in an API response at all
+
+## Current Position
+**Post-curriculum, feature work.** CSRF protection, drag-and-drop reordering, live same-list-reorder broadcast, and the follow-up cleanup pass are all done and committed. `cargo build` is green. Card `status` has been fully replaced by list membership + `sort_order`.
+
+Working tree is clean — nothing pending. Open for new feature work.
 
 No specific next feature queued yet — last session was entirely a catch-up/review + fixing test-suite drift after independent feature work. Good moment to ask the student what they want to tackle next, or propose: broadcasting board-level events (new list/card added) the same way card moves and sorts already are, since that's the one remaining gap between "some things are live" and "the whole board is live."
