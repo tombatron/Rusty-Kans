@@ -209,7 +209,7 @@ async fn get_list(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): UserDb
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::handlers::{tests::get_fake_application_state, web::tests::{base_auth_get_assertion, base_auth_post_assertion, base_csrf_header_json_body_assertion, base_csrf_rejection_assertion, get_response_body}};
+    use crate::{handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, base_csrf_header_json_body_assertion, base_csrf_rejection_assertion, get_response_body}, state::SocketEventsSender};
     use sqlx::SqlitePool;
     use test_case::test_case;
 
@@ -347,7 +347,7 @@ pub mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_list_sort_order_will_reorder_cards(db: SqlitePool) -> sqlx::Result<()> {
-        let state = get_fake_application_state();
+        let socket = SocketEventsSender::new(1);
 
         let cards_to_change = vec!(
             CardPosition { id: 1, index: 3, list_id: 1 }, 
@@ -361,7 +361,7 @@ pub mod tests {
         let before_card_2_position = data::get_card(db.clone(), 2).await.unwrap().sort_order;
         let before_card_3_position = data::get_card(db.clone(), 3).await.unwrap().sort_order;
 
-        let response = post_list_sort_order(UserDb(db.clone()), State(state), Json(cards_to_change)).await.unwrap();
+        let response = post_list_sort_order(UserBroadcast(socket), UserDb(db.clone()), Json(cards_to_change)).await.unwrap();
 
         let after_card_1_position = data::get_card(db.clone(), 1).await.unwrap().sort_order.unwrap();
         let after_card_2_position = data::get_card(db.clone(), 2).await.unwrap().sort_order.unwrap();
@@ -385,9 +385,9 @@ pub mod tests {
     async fn post_list_sort_order_will_accept_empty_request(db: SqlitePool) -> sqlx::Result<()> {
         let empty_request: Vec<CardPosition> = vec!();
 
-        let state = get_fake_application_state();
+        let socket = SocketEventsSender::new(1);
 
-        let response = post_list_sort_order(UserDb(db), State(state), Json(empty_request)).await.unwrap();
+        let response = post_list_sort_order(UserBroadcast(socket), UserDb(db), Json(empty_request)).await.unwrap();
 
         assert!(response.is_success());
 

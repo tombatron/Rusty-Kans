@@ -216,20 +216,20 @@ async fn get_card_by_id(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): 
 
 #[cfg(test)]
 mod tests {
-    use axum::extract::{Path, State};
+    use axum::extract::Path;
     use sqlx::SqlitePool;
     use crate::data;
-    use crate::handlers::tests::get_fake_application_state;
     use crate::handlers::web::cards::*;
     use crate::handlers::web::tests::{base_auth_get_assertion, base_auth_post_assertion, base_csrf_acceptance_assertion, base_csrf_rejection_assertion, get_response_body};
+    use crate::state::SocketEventsSender;
     use test_case::test_case;
 
     #[sqlx::test(fixtures(path="../../fixtures", scripts("boards")))]
     async fn post_move_card_action_returns_turbo_directives(db: SqlitePool) -> sqlx::Result<()> {
-        let state = State(get_fake_application_state());
+        let socket = SocketEventsSender::new(1);
         let db = UserDb(db);
 
-        let response = post_move_card_action(db.clone(), state, Path((2, 1))).await.unwrap().0;
+        let response = post_move_card_action(UserBroadcast(socket), db.clone(), Path((2, 1))).await.unwrap().0;
 
         let card = data::get_card(db.0, 1).await.unwrap();
 

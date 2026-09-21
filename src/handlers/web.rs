@@ -112,7 +112,7 @@ pub mod tests {
         response.assert_header("location", "/auth");
     }
 
-    pub async fn base_test_server(path: &str, http_transport: bool) -> (String, ApplicationState, TestServer) {
+    pub async fn base_test_server(path: &str, http_transport: bool) -> (String, i64, ApplicationState, TestServer) {
         // This might be stupid, but we'll synthesize a user id based on the route that
         // is being tested.
         let mut hasher = DefaultHasher::new();
@@ -162,11 +162,11 @@ pub mod tests {
 
         let token = mask(&secret);
 
-        (token, state.clone(), server)
+        (token, user_id, state.clone(), server)
     }
 
     async fn base_csrf_form_assertion(path: &str, csrf_token_present: bool, form: Option<Vec<(String, String)>>) -> TestResponse {
-        let (token, _, server) = base_test_server(path, false).await;
+        let (token, _, _, server) = base_test_server(path, false).await;
 
         if let Some(form) = form {
             let mut csrf_form: Vec<(String, String)> = vec![];
@@ -184,7 +184,7 @@ pub mod tests {
     }      
 
     pub async fn base_csrf_header_json_body_assertion<T:Serialize>(path: &str, request_body: Option<T>) -> TestResponse {
-        let (token, _, server) = base_test_server(path, false).await;
+        let (token, _, _, server) = base_test_server(path, false).await;
 
         if let Some(form) = request_body {
             server.post(path).json(&form).add_header("X-CSRF-Token", token).await
