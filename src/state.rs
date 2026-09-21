@@ -216,18 +216,18 @@ impl<S> FromRequestParts<S> for CsrfTokenValue where S: Send + Sync {
     }
 }
 
-fn get_or_create_ws_sender(tx_pool: &Arc<DashMap<String, SocketEventsSender>>, user_id: i64, source: String) -> Result<SocketEventsSender, KanbanError> {
+fn get_or_create_ws_sender(tx_pool: &Arc<DashMap<String, SocketEventsSender>>, user_id: i64, source: String) -> SocketEventsSender {
     let tx_instance_id = get_database_id(user_id, source);
 
     if let Some(tx) = tx_pool.get(&tx_instance_id) {
-        return Ok(tx.clone());
+        return tx.clone();
     }
 
     let tx = SocketEventsSender::new(512);
 
     tx_pool.insert(tx_instance_id, tx.clone());
 
-    Ok(tx)
+    tx
 }
 
 #[derive(Clone)]
@@ -251,7 +251,7 @@ where
 
         let tx = get_or_create_ws_sender(&state.tx_pool, current_user.id, current_user.source);
 
-        Ok(UserBroadcast(tx?))
+        Ok(UserBroadcast(tx))
     }
 }
 
