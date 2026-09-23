@@ -39,3 +39,5 @@ INSERT INTO boards (name) VALUES ('A third board?!'); -- board_id, 3
         INSERT INTO cards (list_id, title, description) VALUES (6, 'Card 15', 'This is a description'); -- card_id, 16
         INSERT INTO cards (list_id, title, description) VALUES (6, 'Card 16', NULL); -- card_id, 17
         INSERT INTO cards (list_id, title, description) VALUES (6, 'Card 17', 'This is another description'); -- card_id, 18
+
+INSERT INTO users (user_id, source, oauth_login, display_name, avatar_url) VALUES (-10000, 'dev', 'dev_login', 'test user', 'http://example.com/whatever.gif');

@@ -73,6 +73,15 @@ pub struct CardSortUpdate {
     pub list_ids: Vec<u64>,
 }
 
+#[derive(Debug, FromRow)]
+pub struct User {
+    pub user_id: i64,
+    pub source: String, 
+    pub oauth_login: String,
+    pub display_name: Option<String>,
+    pub avatar_url: Option<String>,
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;

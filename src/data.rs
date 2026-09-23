@@ -1,5 +1,5 @@
 use crate::errors::KanbanError;
-use crate::models::{Board, BoardWithListIds, Card, List, ListWithCards};
+use crate::models::{Board, BoardWithListIds, Card, List, ListWithCards, User};
 use sqlx::SqlitePool;
 
 pub async fn insert_board(db: SqlitePool, board_name: &String) -> Result<u64, KanbanError> {
@@ -190,10 +190,39 @@ pub async fn update_list(db: SqlitePool, list_id: u64, name: String) -> Result<u
     Ok(result.rows_affected())
 }
 
+pub async fn get_user(db: SqlitePool, user_id: i64, source: String) -> Result<Option<User>, KanbanError> {
+    Ok(sqlx::query_as::<_, User>(
+        "SELECT user_id, source, oauth_login, display_name, avatar_url FROM Users WHERE user_id = $1 and source = $2;")
+        .bind(user_id)
+        .bind(source)
+        .fetch_optional(&db)
+        .await?)
+}
+
+pub async fn upsert_user(db: SqlitePool, user: User) -> Result<u64, KanbanError> {
+    let upsert_query = r#"
+    INSERT INTO Users (user_id, source, oauth_login, display_name, avatar_url)
+    VALUES ($1, $2, $3, $4, $5)
+    ON CONFLICT (user_id, source)
+    DO UPDATE SET oauth_login = $3, display_name = $4, avatar_url = $5;
+    "#;
+
+    let result = sqlx::query(upsert_query)
+        .bind(user.user_id as i64)
+        .bind(user.source)
+        .bind(user.oauth_login)
+        .bind(user.display_name)
+        .bind(user.avatar_url)
+        .execute(&db)
+        .await?;
+
+    Ok(result.rows_affected())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::data;
-    use crate::models::Board;
+    use crate::models::{Board, User};
     use sqlx::SqlitePool;
 
     #[sqlx::test]
@@ -381,6 +410,68 @@ mod tests {
 
         assert_eq!(1, result);
         assert_eq!(new_list_name, updated_list.name);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn upsert_user_will_add_a_new_user(pool: SqlitePool) -> sqlx::Result<()> {
+        let test_user = User {
+            user_id: -10,
+            source: "test".to_string(),
+            oauth_login: "whatever".to_string(),
+            display_name: Some("some name".to_string()),
+            avatar_url: Some("this is a bogus value".to_string())
+        };
+
+        let upsert_result = data::upsert_user(pool, test_user).await.unwrap();
+        
+        assert_eq!(1, upsert_result);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn upsert_will_update_a_user_if_they_already_exist(pool: SqlitePool) -> sqlx::Result<()> {
+        let test_user = User {
+            user_id: -10000,
+            source: "dev".to_string(),
+            oauth_login: "updated oauth login".to_string(),
+            display_name: Some("updated display name".to_string()),
+            avatar_url: Some("updated avatar url".to_string())
+        }; 
+
+        let upsert_result = data::upsert_user(pool.clone(), test_user).await.unwrap();
+
+        assert_eq!(1, upsert_result);
+
+        let upserted_user = data::get_user(pool.clone(), -10000, "dev".to_string()).await.unwrap().unwrap();
+
+        assert_eq!("updated oauth login", upserted_user.oauth_login);
+        assert_eq!("updated display name", upserted_user.display_name.unwrap());
+        assert_eq!("updated avatar url", upserted_user.avatar_url.unwrap());
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn get_user_will_get_an_existing_user(pool: SqlitePool) -> sqlx::Result<()> {
+        let test_user = data::get_user(pool, -10000, "dev".to_string()).await.unwrap().unwrap();
+
+        assert_eq!(-10000, test_user.user_id);
+        assert_eq!("dev", test_user.source);
+        assert_eq!("dev_login", test_user.oauth_login);
+        assert_eq!("test user", test_user.display_name.unwrap());
+        assert_eq!("http://example.com/whatever.gif", test_user.avatar_url.unwrap());
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn get_user_will_return_an_empty_result_if_missing_user(pool: SqlitePool) -> sqlx::Result<()> {
+        let nonexistant_user = data::get_user(pool, -9000000, "whatever".to_string()).await.unwrap();
+
+        assert!(nonexistant_user.is_none());
 
         Ok(())
     }
