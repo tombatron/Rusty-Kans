@@ -1,6 +1,11 @@
+use crate::data;
 use crate::errors::KanbanError;
+#[cfg(debug_assertions)]
+use crate::models::User;
 use crate::models::security::{GitHubUser, LoggedInUser};
-use crate::state::{ApplicationState, CsrfTokenValue};
+use crate::state::{ApplicationState, get_or_create_pool};
+#[cfg(debug_assertions)]
+use crate::state::CsrfTokenValue;
 use askama::Template;
 use axum::extract::{Query, State};
 use axum::response::{Html, Redirect};
@@ -19,6 +24,14 @@ const CSRF_TOKEN_KEY: &str = "CSRF_TOKEN";
 const PKCE_VERIFIER_KEY: &str = "PKCE_VERIFIER";
 pub const AUTHENTICATED_USER_KEY: &str = "AUTHENTICATED_USER";
 const GITHUB_USER_API_URL: &str = "https://api.github.com/user";
+
+pub struct AuthSources;
+
+impl AuthSources {
+    pub const GITHUB: &'static str = "github";
+    #[allow(dead_code)] // only referenced from the debug-only dev auth path and from tests
+    pub const DEV: &'static str = "dev";
+}
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     let router = Router::new()
@@ -131,6 +144,10 @@ async fn get_callback(
         .await
         .map_err(|e| KanbanError::RequestError(e.to_string()))?;
 
+    let db_pool = get_or_create_pool(&state.db_pools, github_user.id, AuthSources::GITHUB.to_string()).await?;
+
+    let _ = data::upsert_user(db_pool, github_user.clone().into()).await?;
+
     session
         .insert(AUTHENTICATED_USER_KEY, LoggedInUser::from(github_user))
         .await?;
@@ -157,7 +174,7 @@ async fn get_auth_dev(CsrfTokenValue(csrf_token): CsrfTokenValue) -> Result<Html
 }
 
 #[cfg(debug_assertions)]
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct AuthDevForm {
     id: i64,
     name: String,
@@ -169,19 +186,37 @@ impl From<AuthDevForm> for LoggedInUser {
         LoggedInUser {
             id: value.id,
             name: value.name,
-            source: "dev".to_string(),
+            source: AuthSources::DEV.to_string(),
+        }
+    }
+}
+
+#[cfg(debug_assertions)]
+impl From<AuthDevForm> for User {
+    fn from(value: AuthDevForm) -> Self {
+        User {
+            user_id: value.id,
+            source: AuthSources::DEV.to_string(),
+            oauth_login: format!("dev--{}", value.id),
+            display_name: None, // For now...
+            avatar_url: None, // For now...
         }
     }
 }
 
 #[cfg(debug_assertions)]
 async fn post_auth_dev(
+    State(state): State<ApplicationState>,
     session: Session,
     Form(auth_dev): Form<AuthDevForm>,
 ) -> Result<Redirect, KanbanError> {
     session
-        .insert(AUTHENTICATED_USER_KEY, LoggedInUser::from(auth_dev))
+        .insert(AUTHENTICATED_USER_KEY, LoggedInUser::from(auth_dev.clone()))
         .await?;
+
+    let db = get_or_create_pool(&state.db_pools, auth_dev.id, AuthSources::DEV.to_string()).await?;
+
+    let _ = data::upsert_user(db, auth_dev.into()).await?;
 
     Ok(Redirect::to("/"))
 }
@@ -189,12 +224,26 @@ async fn post_auth_dev(
 #[cfg(test)]
 pub mod tests {
     use std::sync::Arc;
+    #[cfg(debug_assertions)]
+    use crate::data;
     use crate::handlers::tests::get_fake_application_state;
     use crate::router::create_router_with_session;
+    #[cfg(debug_assertions)]
+    use axum::Form;
+    #[cfg(debug_assertions)]
+    use axum::extract::State;
     use axum_test::TestServer;
+    #[cfg(debug_assertions)]
+    use sqlx::SqlitePool;
+    #[cfg(debug_assertions)]
+    use tower_sessions::session::Id;
     use tower_sessions::{MemoryStore, Session, SessionStore};
     use crate::csrf::{get_or_create_secret, mask};
     use crate::handlers::auth::AUTHENTICATED_USER_KEY;
+    #[cfg(debug_assertions)]
+    use crate::handlers::auth::AuthSources;
+    #[cfg(debug_assertions)]
+    use crate::handlers::auth::post_auth_dev;
 
     #[tokio::test]
     async fn post_logout_deletes_sessions() {
@@ -240,5 +289,37 @@ pub mod tests {
         let result = store.load(&session_id).await.unwrap();
 
         assert!(result.is_none());
+    }
+
+    #[sqlx::test(fixtures(path = "../fixtures", scripts("boards")))]
+    #[cfg(debug_assertions)]
+    async fn post_auth_dev_persists_new_user_record(db_pool: SqlitePool) -> sqlx::Result<()> {
+        use crate::{handlers::auth::AuthDevForm, state::get_database_id};
+
+        let state = get_fake_application_state();
+
+        state.db_pools.insert(get_database_id(-1000, AuthSources::DEV.to_string()), db_pool.clone());
+
+        let session_store = MemoryStore::default();
+        let session = Session::new(Some(Id(67)), Arc::new(session_store.clone()), None);
+
+        let auth_dev_form = AuthDevForm {
+            id: -1000,
+            name: "your face".to_string(),
+        };
+
+        let result = post_auth_dev(State(state), session, Form(auth_dev_form)).await.unwrap();
+
+        assert_eq!("/", result.location());
+
+        let persisted_user = data::get_user(db_pool, -1000, AuthSources::DEV.to_string()).await.unwrap().unwrap();
+
+        assert_eq!(-1000, persisted_user.user_id);
+        assert_eq!("dev", persisted_user.source);
+        assert_eq!("dev---1000", persisted_user.oauth_login);
+        assert!(persisted_user.display_name.is_none());
+        assert!(persisted_user.avatar_url.is_none());
+
+        Ok(())
     }
 }

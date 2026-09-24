@@ -44,13 +44,14 @@ pub struct ApplicationState {
     pub redis_pool: Option<Pool>
 }
 
-async fn get_or_create_pool(db_pools: &Arc<DashMap<String, SqlitePool>>, user_id: i64, source: String) -> Result<SqlitePool, KanbanError> {
+pub async fn get_or_create_pool(db_pools: &Arc<DashMap<String, SqlitePool>>, user_id: i64, source: String) -> Result<SqlitePool, KanbanError> {
     let database_id = get_database_id(user_id, source);
 
     Ok(get_or_create_pool_with_id(&db_pools, database_id).await?)
 }
 
 async fn get_or_create_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>, database_id: String) -> Result<SqlitePool, KanbanError> {
+    dbg!();
     if let Some(pool) = db_pools.get(&database_id) {
         return Ok(pool.clone());
     }

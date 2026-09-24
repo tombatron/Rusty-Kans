@@ -222,7 +222,8 @@ pub async fn upsert_user(db: SqlitePool, user: User) -> Result<u64, KanbanError>
 #[cfg(test)]
 mod tests {
     use crate::data;
-    use crate::models::{Board, User};
+    use crate::handlers::auth::AuthSources;
+use crate::models::{Board, User};
     use sqlx::SqlitePool;
 
     #[sqlx::test]
@@ -435,7 +436,7 @@ mod tests {
     async fn upsert_will_update_a_user_if_they_already_exist(pool: SqlitePool) -> sqlx::Result<()> {
         let test_user = User {
             user_id: -10000,
-            source: "dev".to_string(),
+            source: AuthSources::DEV.to_string(),
             oauth_login: "updated oauth login".to_string(),
             display_name: Some("updated display name".to_string()),
             avatar_url: Some("updated avatar url".to_string())
@@ -445,7 +446,7 @@ mod tests {
 
         assert_eq!(1, upsert_result);
 
-        let upserted_user = data::get_user(pool.clone(), -10000, "dev".to_string()).await.unwrap().unwrap();
+        let upserted_user = data::get_user(pool.clone(), -10000, AuthSources::DEV.to_string()).await.unwrap().unwrap();
 
         assert_eq!("updated oauth login", upserted_user.oauth_login);
         assert_eq!("updated display name", upserted_user.display_name.unwrap());
@@ -456,10 +457,10 @@ mod tests {
 
     #[sqlx::test(fixtures("boards"))]
     async fn get_user_will_get_an_existing_user(pool: SqlitePool) -> sqlx::Result<()> {
-        let test_user = data::get_user(pool, -10000, "dev".to_string()).await.unwrap().unwrap();
+        let test_user = data::get_user(pool, -10000, AuthSources::DEV.to_string()).await.unwrap().unwrap();
 
         assert_eq!(-10000, test_user.user_id);
-        assert_eq!("dev", test_user.source);
+        assert_eq!(AuthSources::DEV.to_string(), test_user.source);
         assert_eq!("dev_login", test_user.oauth_login);
         assert_eq!("test user", test_user.display_name.unwrap());
         assert_eq!("http://example.com/whatever.gif", test_user.avatar_url.unwrap());

@@ -51,7 +51,7 @@ async fn handle_socket(mut socket: WebSocket, mut rx: Receiver<SocketEvents>) {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::{handlers::{web::tests::base_test_server, ws::SocketEvents}, models::CardMoveEvent, state::get_database_id};
+    use crate::{handlers::{auth::AuthSources, web::tests::base_test_server, ws::SocketEvents}, models::CardMoveEvent, state::get_database_id};
 
     #[tokio::test]
     async fn websocket_will_broadcast_card_move_events() {
@@ -69,7 +69,7 @@ pub mod tests {
         };
 
         // Step 4: Let's make sure that sending to the web socket actually worked. 
-        let socket_id = get_database_id(user_id, "dev".to_string());
+        let socket_id = get_database_id(user_id, AuthSources::DEV.to_string());
         let socket = state.tx_pool.get(&socket_id).unwrap().clone();
 
         let result = socket.send(SocketEvents::CardMoved(card_move_event));

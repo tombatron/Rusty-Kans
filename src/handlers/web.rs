@@ -68,7 +68,7 @@ pub struct NewContainerFormTemplate<T> {
 #[cfg(test)]
 pub mod tests {
     use crate::csrf::{get_or_create_secret, mask};
-    use crate::handlers::auth::AUTHENTICATED_USER_KEY;
+    use crate::handlers::auth::{AUTHENTICATED_USER_KEY, AuthSources};
     use crate::handlers::tests::TestDatabaseGuard;
     use crate::handlers::web::get_landing;
     use crate::router::{create_router, create_router_with_session};
@@ -151,7 +151,7 @@ pub mod tests {
         let mut record = store.load(&session_id).await.unwrap().unwrap();
         record.data.insert(
             AUTHENTICATED_USER_KEY.to_string(),
-            serde_json::json!({ "id": user_id, "name": path, "source": "dev" }),
+            serde_json::json!({ "id": user_id, "name": path, "source": AuthSources::DEV }),
         );
         store.save(&record).await.unwrap();
 

@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+use crate::handlers::auth::AuthSources;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitHubUser {
     pub id: i64,
     pub login: String,
@@ -11,7 +13,7 @@ impl From<GitHubUser> for LoggedInUser {
         LoggedInUser {
             id: value.id,
             name: value.login,
-            source: "github".to_string()
+            source: AuthSources::GITHUB.to_string()
         }
     }
 }

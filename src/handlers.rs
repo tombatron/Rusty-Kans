@@ -74,7 +74,8 @@ async fn patch_card_common(
 pub mod tests {
     use std::path::PathBuf;
     use super::*;
-    use crate::state::{ApplicationState, SocketEventsSender, get_database_id, get_database_path};
+    use crate::handlers::auth::AuthSources;
+use crate::state::{ApplicationState, SocketEventsSender, get_database_id, get_database_path};
     use dashmap::DashMap;
     use oauth2::basic::BasicClient;
     use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
@@ -110,7 +111,7 @@ pub mod tests {
     
     impl TestDatabaseGuard {
         pub fn new(user_id: i64) -> Self {
-            let database_id = get_database_id(user_id, "dev".to_string());
+            let database_id = get_database_id(user_id, AuthSources::DEV.to_string());
             
             let database_path = get_database_path(&database_id);
             

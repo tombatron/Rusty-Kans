@@ -5,6 +5,8 @@ use sqlx::FromRow;
 use std::fmt::{Display, Formatter};
 use askama::Template;
 
+use crate::{handlers::auth::AuthSources, models::security::GitHubUser};
+
 #[derive(Debug, FromRow)]
 pub struct Board {
     #[sqlx(rename = "board_id")]
@@ -80,6 +82,18 @@ pub struct User {
     pub oauth_login: String,
     pub display_name: Option<String>,
     pub avatar_url: Option<String>,
+}
+
+impl From<GitHubUser> for User {
+    fn from(value: GitHubUser) -> Self {
+        User {
+            user_id: value.id,
+            source: AuthSources::GITHUB.to_string(),
+            oauth_login: value.login,
+            display_name: None,
+            avatar_url: None,
+        }
+    }
 }
 
 #[cfg(test)]
