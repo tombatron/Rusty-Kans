@@ -1,5 +1,5 @@
 use crate::errors::KanbanError;
-use crate::models::{Board, BoardWithListIds, Card, List, ListWithCards, User};
+use crate::models::{Board, BoardAccess, BoardWithListIds, Card, List, ListWithCards, User};
 use sqlx::SqlitePool;
 
 pub async fn insert_board(db: SqlitePool, board_name: &String) -> Result<u64, KanbanError> {
@@ -217,6 +217,18 @@ pub async fn upsert_user(db: SqlitePool, user: User) -> Result<u64, KanbanError>
         .await?;
 
     Ok(result.rows_affected())
+}
+
+pub async fn create_board_access(db: SqlitePool, board_access: BoardAccess) -> Result<u64, KanbanError> {
+    todo!();
+}
+
+pub async fn get_board_access(db: SqlitePool, user_id: i64, source: String) -> Result<Option<BoardAccess>, KanbanError> {
+    todo!();
+}
+
+pub async fn remove_board_access(db: SqlitePool, board_id: i64, user_id: i64, source: String) -> Result<u64, KanbanError> {
+    todo!();
 }
 
 #[cfg(test)]
