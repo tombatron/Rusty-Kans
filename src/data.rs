@@ -220,23 +220,82 @@ pub async fn upsert_user(db: SqlitePool, user: User) -> Result<u64, KanbanError>
 }
 
 pub async fn create_board_access(db: SqlitePool, board_access: BoardAccess) -> Result<u64, KanbanError> {
-    todo!();
+    let insert_query = r#"
+    INSERT INTO board_access (board_id, granted_to_user_id, granted_to_user_source, permission, granted_at)
+    VALUES ($1, $2, $3, $4, $5);
+    "#;
+
+    let result = sqlx::query(insert_query)
+        .bind(board_access.board_id)
+        .bind(board_access.granted_to_user_id)
+        .bind(board_access.granted_to_user_source)
+        .bind(board_access.permission)
+        .bind(board_access.granted_at)
+        .execute(&db)
+        .await?;
+
+    Ok(result.rows_affected())
 }
 
-pub async fn get_board_access(db: SqlitePool, user_id: i64, source: String) -> Result<Option<BoardAccess>, KanbanError> {
-    todo!();
+pub async fn get_board_access_for_user(db: SqlitePool, board_id: i64, user_id: i64, source: String) -> Result<Option<BoardAccess>, KanbanError> {
+    let select_query = r#"
+    SELECT board_id, granted_to_user_id, granted_to_user_source, permission, granted_at
+    FROM board_access
+    WHERE board_id = $1
+    AND granted_to_user_id = $2
+    AND granted_to_user_source = $3;
+    "#;
+
+    let result = sqlx::query_as::<_,BoardAccess>(select_query)
+        .bind(board_id)
+        .bind(user_id)
+        .bind(source)
+        .fetch_optional(&db)
+        .await?;
+
+    Ok(result)
+}
+
+pub async fn get_board_access(db: SqlitePool, board_id: i64) -> Result<Vec<BoardAccess>, KanbanError> {
+    let select_query = r#"
+    SELECT board_id, granted_to_user_id, granted_to_user_source, permission, granted_at
+    FROM board_access
+    WHERE board_id = $1;
+    "#;
+
+    let result = sqlx::query_as::<_, BoardAccess>(select_query)
+        .bind(board_id)
+        .fetch_all(&db)
+        .await?;
+
+    Ok(result)
 }
 
 pub async fn remove_board_access(db: SqlitePool, board_id: i64, user_id: i64, source: String) -> Result<u64, KanbanError> {
-    todo!();
+    let delete_query = r#"
+    DELETE FROM board_access 
+    WHERE board_id = $1 
+    AND granted_to_user_id = $2
+    AND granted_to_user_source = $3;
+    "#;
+
+    let result = sqlx::query(delete_query)
+        .bind(board_id)
+        .bind(user_id)
+        .bind(source)
+        .execute(&db)
+        .await?;
+
+    Ok(result.rows_affected())
 }
 
 #[cfg(test)]
 mod tests {
     use crate::data;
     use crate::handlers::auth::AuthSources;
-use crate::models::{Board, User};
+    use crate::models::{Board, BoardAccess, Permission, User};
     use sqlx::SqlitePool;
+    use sqlx::types::chrono::Utc;
 
     #[sqlx::test]
     async fn insert_board_returns_new_id(pool: SqlitePool) -> sqlx::Result<()> {
@@ -485,6 +544,65 @@ use crate::models::{Board, User};
         let nonexistant_user = data::get_user(pool, -9000000, "whatever".to_string()).await.unwrap();
 
         assert!(nonexistant_user.is_none());
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn create_board_access_writes_a_new_board_access_record(pool: SqlitePool) -> sqlx::Result<()> {
+        let board_access = BoardAccess {
+            board_id: 1,
+            granted_to_user_id: -10000,
+            granted_to_user_source: "dev".to_string(),
+            permission: Permission::Edit,
+            granted_at: Utc::now()
+        };
+
+        let result = data::create_board_access(pool.clone(), board_access).await.unwrap();
+
+        let inserted_result = sqlx::query_as::<_, BoardAccess>(
+                "SELECT * FROM board_access WHERE board_id = 1 AND granted_to_user_id = -10000 AND granted_to_user_source = 'dev';"
+            )
+            .fetch_one(&pool)
+            .await.unwrap();
+
+        assert_eq!(1, result);
+
+        assert_eq!(1, inserted_result.board_id);
+        assert_eq!(-10000, inserted_result.granted_to_user_id);
+        assert_eq!("dev", inserted_result.granted_to_user_source);
+        assert_eq!(Permission::Edit, inserted_result.permission);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn get_board_access_for_user_returns_board_access(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::get_board_access_for_user(pool, 1, -20000, "dev".to_string()).await.unwrap();
+
+        assert!(result.is_some());
+
+        assert_eq!(Permission::Edit, result.unwrap().permission);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn get_board_access_returns_all_access_for_a_board(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::get_board_access(pool, 1).await.unwrap();
+
+        assert_eq!(2, result.len());
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn remove_board_access_deletes_the_board_access(pool: SqlitePool) -> sqlx::Result<()> {
+        let result = data::remove_board_access(pool.clone(), 1, -20000, "dev".to_string()).await.unwrap();
+        let should_be_none = data::get_board_access_for_user(pool, 1, -20000, "dev".to_string()).await.unwrap();
+
+        assert_eq!(1, result);
+        assert!(should_be_none.is_none());
 
         Ok(())
     }

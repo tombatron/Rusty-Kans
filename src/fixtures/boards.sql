@@ -41,3 +41,8 @@ INSERT INTO boards (name) VALUES ('A third board?!'); -- board_id, 3
         INSERT INTO cards (list_id, title, description) VALUES (6, 'Card 17', 'This is another description'); -- card_id, 18
 
 INSERT INTO users (user_id, source, oauth_login, display_name, avatar_url) VALUES (-10000, 'dev', 'dev_login', 'test user', 'http://example.com/whatever.gif');
+INSERT INTO users (user_id, source, oauth_login, display_name, avatar_url) VALUES (-20000, 'dev', 'dev_login_2', 'test user 2', 'http://example.com/whatever_2.gif');
+INSERT INTO users (user_id, source, oauth_login, display_name, avatar_url) VALUES (-30000, 'dev', 'dev_login_3', 'test user 3', 'http://example.com/whatever_3.gif');
+
+INSERT INTO board_access (board_id, granted_to_user_id, granted_to_user_source, permission, granted_at) VALUES (1, -20000, 'dev', 'edit', '2026-09-26T14:32:07+00:00');
+INSERT INTO board_access (board_id, granted_to_user_id, granted_to_user_source, permission, granted_at) VALUES (1, -30000, 'dev', 'edit', '2026-09-26T15:32:07+00:00');

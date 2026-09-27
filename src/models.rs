@@ -96,12 +96,19 @@ impl From<GitHubUser> for User {
     }
 }
 
+#[derive(Debug, PartialEq, sqlx::Type)]
+#[sqlx(rename_all="lowercase")]
+pub enum Permission {
+    View,
+    Edit,
+}
+
 #[derive(Debug, FromRow)]
 pub struct BoardAccess {
     pub board_id: i64,
     pub granted_to_user_id: i64,
     pub granted_to_user_source: String,
-    pub permission: String,
+    pub permission: Permission,
     pub granted_at: DateTime<Utc>,
 }
 
