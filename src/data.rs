@@ -1,5 +1,7 @@
 use crate::errors::KanbanError;
-use crate::models::{Board, BoardAccess, BoardWithListIds, Card, List, ListWithCards, User};
+use crate::models::{
+    Board, BoardAccess, BoardAccessGrant, BoardWithListIds, Card, List, ListWithCards, User,
+};
 use sqlx::SqlitePool;
 
 pub async fn insert_board(db: SqlitePool, board_name: &String) -> Result<u64, KanbanError> {
@@ -27,7 +29,7 @@ pub async fn get_all_boards(db: SqlitePool) -> Result<Vec<Board>, KanbanError> {
     Ok(
         sqlx::query_as::<_, Board>("SELECT board_id, name FROM boards ORDER BY board_id;")
             .fetch_all(&db)
-            .await?
+            .await?,
     )
 }
 
@@ -42,7 +44,7 @@ pub async fn get_board_with_lists(
             .bind(board_id as i64)
             .fetch_all(&db)
             .await?;
-    
+
     let list_ids = rows.into_iter().map(|(id,)| id).collect();
 
     let result = BoardWithListIds { board, list_ids };
@@ -59,11 +61,7 @@ pub async fn delete_board(db: SqlitePool, board_id: u64) -> Result<u64, KanbanEr
     Ok(result.rows_affected())
 }
 
-pub async fn update_board(
-    db: SqlitePool,
-    board_id: u64,
-    name: String,
-) -> Result<u64, KanbanError> {
+pub async fn update_board(db: SqlitePool, board_id: u64, name: String) -> Result<u64, KanbanError> {
     let result = sqlx::query("UPDATE boards SET name = ? WHERE board_id = ?;")
         .bind(&name)
         .bind(board_id as i64)
@@ -102,10 +100,10 @@ pub async fn get_card(db: SqlitePool, card_id: u64) -> Result<Card, KanbanError>
     Ok(sqlx::query_as::<_, Card>(
         "SELECT card_id, list_id, title, description, sort_order FROM cards WHERE card_id = ?;",
     )
-        .bind(card_id as i64)
-        .fetch_optional(&db)
-        .await?
-        .ok_or(KanbanError::CardNotFound(card_id))?)
+    .bind(card_id as i64)
+    .fetch_optional(&db)
+    .await?
+    .ok_or(KanbanError::CardNotFound(card_id))?)
 }
 
 pub async fn get_cards_by_title_submatch(
@@ -115,9 +113,9 @@ pub async fn get_cards_by_title_submatch(
     Ok(sqlx::query_as::<_, Card>(
         "SELECT card_id, list_id, title, description, sort_order FROM cards WHERE title LIKE ?;",
     )
-        .bind(format!("%{}%", query))
-        .fetch_all(&db)
-        .await?)
+    .bind(format!("%{}%", query))
+    .fetch_all(&db)
+    .await?)
 }
 
 pub async fn delete_card(db: SqlitePool, card_id: u64) -> Result<u64, KanbanError> {
@@ -129,7 +127,12 @@ pub async fn delete_card(db: SqlitePool, card_id: u64) -> Result<u64, KanbanErro
     Ok(result.rows_affected())
 }
 
-pub async fn insert_card(db: SqlitePool, list_id: u64, title: &String, description: &Option<String>) -> Result<u64, KanbanError> {
+pub async fn insert_card(
+    db: SqlitePool,
+    list_id: u64,
+    title: &String,
+    description: &Option<String>,
+) -> Result<u64, KanbanError> {
     let result = sqlx::query("INSERT INTO cards (list_id, title, description) VALUES (?, ?, ?);")
         .bind(list_id as i64)
         .bind(title)
@@ -140,7 +143,12 @@ pub async fn insert_card(db: SqlitePool, list_id: u64, title: &String, descripti
     Ok(result.last_insert_rowid() as u64)
 }
 
-pub async fn update_card(db: SqlitePool, card_id: u64, title: String, description: Option<String>) -> Result<u64, KanbanError> {
+pub async fn update_card(
+    db: SqlitePool,
+    card_id: u64,
+    title: String,
+    description: Option<String>,
+) -> Result<u64, KanbanError> {
     let result = sqlx::query("UPDATE cards SET title = ?, description = ? WHERE card_id = ?;")
         .bind(title)
         .bind(description)
@@ -151,7 +159,11 @@ pub async fn update_card(db: SqlitePool, card_id: u64, title: String, descriptio
     Ok(result.rows_affected())
 }
 
-pub async fn update_card_list(db: SqlitePool, target_list_id: u64, card_id: u64) -> Result<u64, KanbanError> {
+pub async fn update_card_list(
+    db: SqlitePool,
+    target_list_id: u64,
+    card_id: u64,
+) -> Result<u64, KanbanError> {
     let result = sqlx::query("UPDATE cards SET list_id = ? WHERE card_id = ?;")
         .bind(target_list_id as i64)
         .bind(card_id as i64)
@@ -161,7 +173,11 @@ pub async fn update_card_list(db: SqlitePool, target_list_id: u64, card_id: u64)
     Ok(result.rows_affected())
 }
 
-pub async fn insert_list(db: SqlitePool, board_id: u64, list_name: &String) -> Result<u64, KanbanError> {
+pub async fn insert_list(
+    db: SqlitePool,
+    board_id: u64,
+    list_name: &String,
+) -> Result<u64, KanbanError> {
     let result = sqlx::query("INSERT INTO lists (board_id, name) VALUES (?, ?);")
         .bind(board_id as i64)
         .bind(list_name)
@@ -190,7 +206,11 @@ pub async fn update_list(db: SqlitePool, list_id: u64, name: String) -> Result<u
     Ok(result.rows_affected())
 }
 
-pub async fn get_user(db: SqlitePool, user_id: i64, source: String) -> Result<Option<User>, KanbanError> {
+pub async fn get_user(
+    db: SqlitePool,
+    user_id: i64,
+    source: String,
+) -> Result<Option<User>, KanbanError> {
     Ok(sqlx::query_as::<_, User>(
         "SELECT user_id, source, oauth_login, display_name, avatar_url FROM Users WHERE user_id = $1 and source = $2;")
         .bind(user_id)
@@ -219,7 +239,10 @@ pub async fn upsert_user(db: SqlitePool, user: User) -> Result<u64, KanbanError>
     Ok(result.rows_affected())
 }
 
-pub async fn create_board_access(db: SqlitePool, board_access: BoardAccess) -> Result<u64, KanbanError> {
+pub async fn create_board_access(
+    db: SqlitePool,
+    board_access: BoardAccess,
+) -> Result<u64, KanbanError> {
     let insert_query = r#"
     INSERT INTO board_access (board_id, granted_to_user_id, granted_to_user_source, permission, granted_at)
     VALUES ($1, $2, $3, $4, $5);
@@ -237,7 +260,12 @@ pub async fn create_board_access(db: SqlitePool, board_access: BoardAccess) -> R
     Ok(result.rows_affected())
 }
 
-pub async fn get_board_access_for_user(db: SqlitePool, board_id: i64, user_id: i64, source: String) -> Result<Option<BoardAccess>, KanbanError> {
+pub async fn get_board_access_for_user(
+    db: SqlitePool,
+    board_id: i64,
+    user_id: i64,
+    source: String,
+) -> Result<Option<BoardAccess>, KanbanError> {
     let select_query = r#"
     SELECT board_id, granted_to_user_id, granted_to_user_source, permission, granted_at
     FROM board_access
@@ -246,7 +274,7 @@ pub async fn get_board_access_for_user(db: SqlitePool, board_id: i64, user_id: i
     AND granted_to_user_source = $3;
     "#;
 
-    let result = sqlx::query_as::<_,BoardAccess>(select_query)
+    let result = sqlx::query_as::<_, BoardAccess>(select_query)
         .bind(board_id)
         .bind(user_id)
         .bind(source)
@@ -256,7 +284,10 @@ pub async fn get_board_access_for_user(db: SqlitePool, board_id: i64, user_id: i
     Ok(result)
 }
 
-pub async fn get_board_access(db: SqlitePool, board_id: i64) -> Result<Vec<BoardAccess>, KanbanError> {
+pub async fn get_board_access(
+    db: SqlitePool,
+    board_id: i64,
+) -> Result<Vec<BoardAccess>, KanbanError> {
     let select_query = r#"
     SELECT board_id, granted_to_user_id, granted_to_user_source, permission, granted_at
     FROM board_access
@@ -271,7 +302,12 @@ pub async fn get_board_access(db: SqlitePool, board_id: i64) -> Result<Vec<Board
     Ok(result)
 }
 
-pub async fn remove_board_access(db: SqlitePool, board_id: i64, user_id: i64, source: String) -> Result<u64, KanbanError> {
+pub async fn remove_board_access(
+    db: SqlitePool,
+    board_id: i64,
+    user_id: i64,
+    source: String,
+) -> Result<u64, KanbanError> {
     let delete_query = r#"
     DELETE FROM board_access 
     WHERE board_id = $1 
@@ -289,19 +325,75 @@ pub async fn remove_board_access(db: SqlitePool, board_id: i64, user_id: i64, so
     Ok(result.rows_affected())
 }
 
+pub async fn add_board_access_grant(
+    db: SqlitePool,
+    board_access_grant: BoardAccessGrant,
+) -> Result<u64, KanbanError> {
+    let insert_query = r#"
+    INSERT INTO board_access_grants (owner_database_id, remote_board_id, remote_board_name, created_at)
+    VALUES ($1, $2, $3, $4);
+    "#;
+
+    let result = sqlx::query(insert_query)
+        .bind(board_access_grant.owner_database_id)
+        .bind(board_access_grant.remote_board_id)
+        .bind(board_access_grant.remote_board_name)
+        .bind(board_access_grant.created_at)
+        .execute(&db)
+        .await?;
+
+    Ok(result.rows_affected())
+}
+
+pub async fn get_board_access_grants(db: SqlitePool) -> Result<Vec<BoardAccessGrant>, KanbanError> {
+    let select_query = r#"
+    SELECT owner_database_id, remote_board_id, remote_board_name, created_at
+    FROM board_access_grants
+    ORDER BY owner_database_id, remote_board_id;
+    "#;
+
+    let result = sqlx::query_as::<_, BoardAccessGrant>(select_query)
+        .fetch_all(&db)
+        .await?;
+
+    Ok(result)
+}
+
+pub async fn delete_board_access_grant(
+    db: SqlitePool,
+    owner_database_id: String,
+    remote_board_id: i64,
+) -> Result<u64, KanbanError> {
+    let delete_query = r#"
+    DELETE FROM board_access_grants
+    WHERE owner_database_id = $1 
+    AND remote_board_id = $2;
+    "#;
+
+    let result = sqlx::query(delete_query)
+        .bind(owner_database_id)
+        .bind(remote_board_id)
+        .execute(&db)
+        .await?;
+
+    Ok(result.rows_affected())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::data;
     use crate::handlers::auth::AuthSources;
-    use crate::models::{Board, BoardAccess, Permission, User};
+    use crate::models::{Board, BoardAccess, BoardAccessGrant, Permission, User};
     use sqlx::SqlitePool;
-    use sqlx::types::chrono::Utc;
+    use sqlx::types::chrono::{DateTime, Utc};
 
     #[sqlx::test]
     async fn insert_board_returns_new_id(pool: SqlitePool) -> sqlx::Result<()> {
         let test_board_name = String::from("test is a test");
 
-        let result = data::insert_board(pool.clone(), &test_board_name).await.unwrap();
+        let result = data::insert_board(pool.clone(), &test_board_name)
+            .await
+            .unwrap();
 
         let inserted_item = sqlx::query_as::<_, Board>("SELECT * FROM boards WHERE board_id = ?;")
             .bind(result as i64)
@@ -345,7 +437,7 @@ mod tests {
 
     #[sqlx::test(fixtures("boards"))]
     async fn delete_board_deletes_board(pool: SqlitePool) -> sqlx::Result<()> {
-        let result = data::delete_board(pool,1).await.unwrap();
+        let result = data::delete_board(pool, 1).await.unwrap();
 
         assert_eq!(1, result);
 
@@ -354,7 +446,9 @@ mod tests {
 
     #[sqlx::test(fixtures("boards"))]
     async fn update_board_updates_board(pool: SqlitePool) -> sqlx::Result<()> {
-        let result = data::update_board(pool.clone(), 1, String::from("This is a test!!!")).await.unwrap();
+        let result = data::update_board(pool.clone(), 1, String::from("This is a test!!!"))
+            .await
+            .unwrap();
 
         let updated_board = data::get_board(pool, 1).await.unwrap();
 
@@ -393,8 +487,12 @@ mod tests {
     }
 
     #[sqlx::test(fixtures("boards"))]
-    async fn get_cards_by_title_submatch_returns_expected_cards(pool: SqlitePool) -> sqlx::Result<()> {
-        let results = data::get_cards_by_title_submatch(pool, String::from("card")).await.unwrap();
+    async fn get_cards_by_title_submatch_returns_expected_cards(
+        pool: SqlitePool,
+    ) -> sqlx::Result<()> {
+        let results = data::get_cards_by_title_submatch(pool, String::from("card"))
+            .await
+            .unwrap();
 
         assert_eq!(18, results.len());
 
@@ -415,7 +513,9 @@ mod tests {
         let title = String::from("This is just a test");
         let description: Option<String> = Some(String::from("whatever"));
 
-        let result = data::insert_card(pool, 1, &title, &description).await.unwrap();
+        let result = data::insert_card(pool, 1, &title, &description)
+            .await
+            .unwrap();
 
         assert_eq!(19, result);
 
@@ -427,12 +527,17 @@ mod tests {
         let new_title = String::from("New Title");
         let new_description = String::from("New Description");
 
-        let result = data::update_card(pool.clone(), 1, new_title, Some(new_description)).await.unwrap();
+        let result = data::update_card(pool.clone(), 1, new_title, Some(new_description))
+            .await
+            .unwrap();
         let updated_card = data::get_card(pool, 1).await.unwrap();
 
         assert_eq!(1, result);
         assert_eq!("New Title", updated_card.title);
-        assert_eq!("New Description", updated_card.description.unwrap().to_string());
+        assert_eq!(
+            "New Description",
+            updated_card.description.unwrap().to_string()
+        );
 
         Ok(())
     }
@@ -453,7 +558,9 @@ mod tests {
     async fn insert_list_does_that(pool: SqlitePool) -> sqlx::Result<()> {
         let new_list_name = String::from("This is a new list");
 
-        let result = data::insert_list(pool.clone(), 1, &new_list_name).await.unwrap();
+        let result = data::insert_list(pool.clone(), 1, &new_list_name)
+            .await
+            .unwrap();
 
         let board = data::get_board_with_lists(pool, 1).await.unwrap();
         let new_list = board.list_ids.iter().find(|l| **l == result).unwrap();
@@ -476,7 +583,9 @@ mod tests {
     #[sqlx::test(fixtures("boards"))]
     async fn update_list_does_the_thing(pool: SqlitePool) -> sqlx::Result<()> {
         let new_list_name = String::from("This is a new list name.");
-        let result = data::update_list(pool.clone(), 1, new_list_name.clone()).await.unwrap();
+        let result = data::update_list(pool.clone(), 1, new_list_name.clone())
+            .await
+            .unwrap();
 
         let updated_list = data::get_list_header(pool, 1).await.unwrap();
 
@@ -493,11 +602,11 @@ mod tests {
             source: "test".to_string(),
             oauth_login: "whatever".to_string(),
             display_name: Some("some name".to_string()),
-            avatar_url: Some("this is a bogus value".to_string())
+            avatar_url: Some("this is a bogus value".to_string()),
         };
 
         let upsert_result = data::upsert_user(pool, test_user).await.unwrap();
-        
+
         assert_eq!(1, upsert_result);
 
         Ok(())
@@ -510,14 +619,17 @@ mod tests {
             source: AuthSources::DEV.to_string(),
             oauth_login: "updated oauth login".to_string(),
             display_name: Some("updated display name".to_string()),
-            avatar_url: Some("updated avatar url".to_string())
-        }; 
+            avatar_url: Some("updated avatar url".to_string()),
+        };
 
         let upsert_result = data::upsert_user(pool.clone(), test_user).await.unwrap();
 
         assert_eq!(1, upsert_result);
 
-        let upserted_user = data::get_user(pool.clone(), -10000, AuthSources::DEV.to_string()).await.unwrap().unwrap();
+        let upserted_user = data::get_user(pool.clone(), -10000, AuthSources::DEV.to_string())
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!("updated oauth login", upserted_user.oauth_login);
         assert_eq!("updated display name", upserted_user.display_name.unwrap());
@@ -528,20 +640,30 @@ mod tests {
 
     #[sqlx::test(fixtures("boards"))]
     async fn get_user_will_get_an_existing_user(pool: SqlitePool) -> sqlx::Result<()> {
-        let test_user = data::get_user(pool, -10000, AuthSources::DEV.to_string()).await.unwrap().unwrap();
+        let test_user = data::get_user(pool, -10000, AuthSources::DEV.to_string())
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!(-10000, test_user.user_id);
         assert_eq!(AuthSources::DEV.to_string(), test_user.source);
         assert_eq!("dev_login", test_user.oauth_login);
         assert_eq!("test user", test_user.display_name.unwrap());
-        assert_eq!("http://example.com/whatever.gif", test_user.avatar_url.unwrap());
+        assert_eq!(
+            "http://example.com/whatever.gif",
+            test_user.avatar_url.unwrap()
+        );
 
         Ok(())
     }
 
     #[sqlx::test(fixtures("boards"))]
-    async fn get_user_will_return_an_empty_result_if_missing_user(pool: SqlitePool) -> sqlx::Result<()> {
-        let nonexistant_user = data::get_user(pool, -9000000, "whatever".to_string()).await.unwrap();
+    async fn get_user_will_return_an_empty_result_if_missing_user(
+        pool: SqlitePool,
+    ) -> sqlx::Result<()> {
+        let nonexistant_user = data::get_user(pool, -9000000, "whatever".to_string())
+            .await
+            .unwrap();
 
         assert!(nonexistant_user.is_none());
 
@@ -549,16 +671,20 @@ mod tests {
     }
 
     #[sqlx::test(fixtures("boards"))]
-    async fn create_board_access_writes_a_new_board_access_record(pool: SqlitePool) -> sqlx::Result<()> {
+    async fn create_board_access_writes_a_new_board_access_record(
+        pool: SqlitePool,
+    ) -> sqlx::Result<()> {
         let board_access = BoardAccess {
             board_id: 1,
             granted_to_user_id: -10000,
             granted_to_user_source: "dev".to_string(),
             permission: Permission::Edit,
-            granted_at: Utc::now()
+            granted_at: Utc::now(),
         };
 
-        let result = data::create_board_access(pool.clone(), board_access).await.unwrap();
+        let result = data::create_board_access(pool.clone(), board_access)
+            .await
+            .unwrap();
 
         let inserted_result = sqlx::query_as::<_, BoardAccess>(
                 "SELECT * FROM board_access WHERE board_id = 1 AND granted_to_user_id = -10000 AND granted_to_user_source = 'dev';"
@@ -578,7 +704,9 @@ mod tests {
 
     #[sqlx::test(fixtures("boards"))]
     async fn get_board_access_for_user_returns_board_access(pool: SqlitePool) -> sqlx::Result<()> {
-        let result = data::get_board_access_for_user(pool, 1, -20000, "dev".to_string()).await.unwrap();
+        let result = data::get_board_access_for_user(pool, 1, -20000, "dev".to_string())
+            .await
+            .unwrap();
 
         assert!(result.is_some());
 
@@ -598,11 +726,79 @@ mod tests {
 
     #[sqlx::test(fixtures("boards"))]
     async fn remove_board_access_deletes_the_board_access(pool: SqlitePool) -> sqlx::Result<()> {
-        let result = data::remove_board_access(pool.clone(), 1, -20000, "dev".to_string()).await.unwrap();
-        let should_be_none = data::get_board_access_for_user(pool, 1, -20000, "dev".to_string()).await.unwrap();
+        let result = data::remove_board_access(pool.clone(), 1, -20000, "dev".to_string())
+            .await
+            .unwrap();
+        let should_be_none = data::get_board_access_for_user(pool, 1, -20000, "dev".to_string())
+            .await
+            .unwrap();
 
         assert_eq!(1, result);
         assert!(should_be_none.is_none());
+
+        Ok(())
+    }
+
+    #[sqlx::test()]
+    async fn add_board_access_grant_will_add_the_grant(pool: SqlitePool) -> sqlx::Result<()> {
+        let created_at = Utc::now();
+
+        let board_access_grant = BoardAccessGrant {
+            owner_database_id: "whatever".to_string(),
+            remote_board_id: 2,
+            remote_board_name: "test board".to_string(),
+            created_at,
+        };
+
+        let result = data::add_board_access_grant(pool.clone(), board_access_grant)
+            .await
+            .unwrap();
+
+        assert_eq!(1, result);
+
+        let inserted_record =
+            sqlx::query_as::<_, BoardAccessGrant>("SELECT * FROM board_access_grants;")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        assert_eq!("whatever", inserted_record.owner_database_id);
+        assert_eq!(2, inserted_record.remote_board_id);
+        assert_eq!("test board", inserted_record.remote_board_name);
+        assert_eq!(created_at, inserted_record.created_at);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn get_board_access_grants_will_return_all_board_access_grants(
+        pool: SqlitePool,
+    ) -> sqlx::Result<()> {
+        let board_grants = data::get_board_access_grants(pool).await.unwrap();
+
+        let first_board = board_grants.get(0).unwrap();
+
+        assert_eq!(2, board_grants.len());
+
+        let expected_created_at: DateTime<Utc> = "2026-09-26T15:32:07+00:00".parse().unwrap();
+
+        assert_eq!("whatever", first_board.owner_database_id);
+        assert_eq!(1, first_board.remote_board_id);
+        assert_eq!("board 1", first_board.remote_board_name);
+        assert_eq!(expected_created_at, first_board.created_at);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn delete_board_access_grant_will_delete_a_specific_grant(
+        pool: SqlitePool,
+    ) -> sqlx::Result<()> {
+        let result = data::delete_board_access_grant(pool, "whatever".to_string(), 1)
+            .await
+            .unwrap();
+
+        assert_eq!(1, result);
 
         Ok(())
     }

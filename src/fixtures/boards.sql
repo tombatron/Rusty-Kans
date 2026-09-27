@@ -46,3 +46,6 @@ INSERT INTO users (user_id, source, oauth_login, display_name, avatar_url) VALUE
 
 INSERT INTO board_access (board_id, granted_to_user_id, granted_to_user_source, permission, granted_at) VALUES (1, -20000, 'dev', 'edit', '2026-09-26T14:32:07+00:00');
 INSERT INTO board_access (board_id, granted_to_user_id, granted_to_user_source, permission, granted_at) VALUES (1, -30000, 'dev', 'edit', '2026-09-26T15:32:07+00:00');
+
+INSERT INTO board_access_grants (owner_database_id, remote_board_id, remote_board_name, created_at) VALUES ('whatever', 1, 'board 1', '2026-09-26T15:32:07+00:00');
+INSERT INTO board_access_grants (owner_database_id, remote_board_id, remote_board_name, created_at) VALUES ('whatever 2', 2, 'board 2', '2026-09-26T15:32:07+00:00');

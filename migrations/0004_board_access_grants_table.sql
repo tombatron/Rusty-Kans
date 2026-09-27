@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS board_grants (
+CREATE TABLE IF NOT EXISTS board_access_grants (
     owner_database_id TEXT NOT NULL,
     remote_board_id INTEGER NOT NULL,
     remote_board_name TEXT NOT NULL,
