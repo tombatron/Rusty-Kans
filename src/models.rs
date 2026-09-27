@@ -112,6 +112,14 @@ pub struct BoardAccess {
     pub granted_at: DateTime<Utc>,
 }
 
+#[derive(Debug, FromRow)]
+pub struct BoardAccessGrant {
+    pub owner_database_id: String,
+    pub remote_board_id: i64,
+    pub remote_board_name: String,
+    pub created_at: DateTime<Utc>,
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
