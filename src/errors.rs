@@ -17,6 +17,7 @@ pub enum KanbanError {
     RequestError(String),
     ValidationError(String),
     GeneralError(String),
+    DatabaseNotFound(String),
 }
 
 impl Display for KanbanError {
@@ -55,6 +56,9 @@ impl Display for KanbanError {
             }
             KanbanError::GeneralError(general_error) => {
                 write!(f, "General error: {}", general_error)
+            }
+            KanbanError::DatabaseNotFound(database_error) => {
+                write!(f, "Database not found: {}", database_error)
             }
         }
     }
@@ -136,6 +140,9 @@ impl IntoResponse for KanbanError {
             KanbanError::GeneralError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
             }
+            KanbanError::DatabaseNotFound(_) => {
+                (StatusCode::NOT_FOUND, self.to_string()).into_response()
+            }
         }
     }
 }
@@ -174,6 +181,7 @@ mod tests {
     #[test_case(KanbanError::TemplateError("Template is totally messed up man.".to_string()), "There was a templating error: Template is totally messed up man.".to_string())]
     #[test_case(KanbanError::RequestError("We don't even speak that language.".to_string()), "There was a request error: We don't even speak that language.".to_string())]
     #[test_case(KanbanError::GeneralError("Whatever".to_string()), "General error: Whatever".to_string())]
+    #[test_case(KanbanError::DatabaseNotFound("Yo that's weird.".to_string()), "Database not found: Yo that's weird.".to_string())]
     fn kanban_display_impl_verification(error: KanbanError, expected: String) {
         assert_eq!(error.to_string(), expected);
     }
@@ -205,6 +213,7 @@ mod tests {
     #[test_case(KanbanError::TemplateError("I'm not even supposed to be here today.".to_string()), StatusCode::INTERNAL_SERVER_ERROR)]
     #[test_case(KanbanError::RequestError("I'm not ready to receive you.".to_string()), StatusCode::BAD_REQUEST)]
     #[test_case(KanbanError::GeneralError("This is a general error".to_string()), StatusCode::INTERNAL_SERVER_ERROR)]
+    #[test_case(KanbanError::DatabaseNotFound("This isn't supposed to happen.".to_string()), StatusCode::NOT_FOUND)]
     fn kanban_into_response_impl_verification(error: KanbanError, status_code: StatusCode) {
         let result = error.into_response();
 
