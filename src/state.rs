@@ -56,7 +56,7 @@ async fn get_or_create_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>,
         return Ok(pool.clone());
     }
 
-    let db_pool = get_database(database_id.clone()).await?;
+    let db_pool = get_database(database_id.clone(), true).await?;
     db_pools.insert(database_id, db_pool.clone());
 
     Ok(db_pool)
@@ -130,12 +130,17 @@ where
     }
 }
 
-async fn get_database(database_id: String) -> Result<SqlitePool, KanbanError> {
+async fn get_database(database_id: String, create_if_missing: bool) -> Result<SqlitePool, KanbanError> {
     let database_path = get_database_path(&database_id);
+
+    if !create_if_missing && !database_path.exists() {
+        return Err(KanbanError::DatabaseNotFound(format!("Couldn't find a database file for {database_id}.")));
+    }
+
     let connection_string = format!("sqlite:{}", database_path.to_str().unwrap());
     let options = SqliteConnectOptions::from_str(connection_string.as_str())?
         .foreign_keys(true)
-        .create_if_missing(true);
+        .create_if_missing(create_if_missing);
 
     let db_pool = SqlitePool::connect_with(options).await?;
 
@@ -264,13 +269,20 @@ where
 
 #[cfg(test)]
 pub mod tests  {
-    use crate::state::get_database_id;
+    use crate::{errors::KanbanError, state::{get_database, get_database_id}};
 
     #[test]
     fn get_database_id_returns_hashed_value() {
         let result_database_id = get_database_id(123, "whatever".to_string());
 
         assert_eq!("a032aacdf2aaa5fb2dd0903d2123ae0c06a7a095a86a8834125cc706254bfa40", result_database_id);
+    }
+
+    #[tokio::test]
+    async fn get_database_returns_error_if_not_found_when_create_if_not_exists_is_false() {
+        let database_result = get_database("this_doesnt_exist".to_string(), false).await;
+
+        assert!(matches!(database_result, Err(KanbanError::DatabaseNotFound(_))));
     }
 }
 
