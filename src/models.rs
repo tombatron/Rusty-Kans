@@ -96,7 +96,7 @@ impl From<GitHubUser> for User {
     }
 }
 
-#[derive(Debug, PartialEq, sqlx::Type)]
+#[derive(Debug, PartialEq, sqlx::Type, Serialize, Deserialize, PartialOrd)]
 #[sqlx(rename_all="lowercase")]
 pub enum Permission {
     View,

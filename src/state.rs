@@ -51,7 +51,6 @@ pub async fn get_or_create_pool(db_pools: &Arc<DashMap<String, SqlitePool>>, use
 }
 
 async fn get_or_create_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>, database_id: String) -> Result<SqlitePool, KanbanError> {
-    dbg!();
     if let Some(pool) = db_pools.get(&database_id) {
         return Ok(pool.clone());
     }
@@ -60,6 +59,21 @@ async fn get_or_create_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>,
     db_pools.insert(database_id, db_pool.clone());
 
     Ok(db_pool)
+}
+
+pub async fn get_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>, database_id: String) -> Option<SqlitePool> {
+    if let Some(pool) = db_pools.get(&database_id) {
+        return Some(pool.clone());
+    }
+
+    let db_pool = get_database(database_id.clone(), false).await.ok();
+
+    if let Some(pool) = db_pool {
+        db_pools.insert(database_id, pool.clone());
+        return Some(pool);
+    }
+
+    None
 }
 
 pub fn get_database_id(user_id: i64, source: String) -> String {

@@ -25,7 +25,7 @@ where
     S: SessionStore + Clone,
 {
     let auth = auth::get_router_configuration();
-    let api = api::get_router_configuration();
+    let api = api::get_router_configuration(application_state.clone());
     let utility = utility::get_router_configuration();
     let web = web::get_router_configuration();
     let ws = ws::get_router_configuration();
