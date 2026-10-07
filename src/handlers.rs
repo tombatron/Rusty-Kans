@@ -117,12 +117,6 @@ use crate::state::{ApplicationState, SocketEventsSender, get_database_id, get_da
             
             TestDatabaseGuard { path: database_path }
         }
-
-        pub fn new_with_database_id(database_id: &String) -> Self {
-            let database_path = get_database_path(&database_id);
-
-            TestDatabaseGuard { path: database_path }
-        }
     }
     
     impl Drop for TestDatabaseGuard {
