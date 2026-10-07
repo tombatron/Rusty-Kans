@@ -98,43 +98,20 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/api/board/1")
+                    .uri("/api/whatever-test-db/board/1")
                     .body(Body::empty())
                     .unwrap(),
             )
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    }
+        
 
-    #[tokio::test]
-    async fn api_accepts_authenticated_requests() {
-        let state = create_application_state().await;
-        let app = create_router(state);
-
-        let database_id = "dev_whatever".to_string();
-
-        let _use_me = TestDatabaseGuard::new_with_database_id(&database_id);
-
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/api/board/1")
-                    .header("Authorization", "Bearer super-secret")
-                    .header("delegated-user-id", i64::MIN)
-                    .header("delegated-database-id", database_id)
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(StatusCode::FORBIDDEN, response.status());
     }
 
     #[sqlx::test(fixtures(path = "./fixtures", scripts("boards")))]
-    async fn new_api_accepts_authenticated_requests(db_pool: SqlitePool) -> sqlx::Result<()> {
+    async fn api_accepts_authenticated_requests(db_pool: SqlitePool) -> sqlx::Result<()> {
         let user_id: i64 = -20000;
 
         let _use_me = TestDatabaseGuard::new(user_id);
@@ -167,7 +144,6 @@ mod tests {
         store.save(&record).await.unwrap();
 
         let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
-        // let secret = get_or_create_secret(&session).await.unwrap();
 
         let _ = session.save().await;
 
