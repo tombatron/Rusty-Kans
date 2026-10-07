@@ -1,19 +1,19 @@
 use crate::handlers::*;
 use crate::state::ApplicationState;
 use axum::Router;
-use axum::http::{header, HeaderValue};
+use axum::http::{HeaderValue, header};
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
+use tower_sessions::cookie::SameSite;
 use tower_sessions::cookie::time::Duration;
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer, SessionStore};
-use tower_sessions::cookie::SameSite;
 use tower_sessions_redis_store::RedisStore;
 
 pub fn create_router(application_state: ApplicationState) -> Router<()> {
     match application_state.clone().redis_pool {
         Some(pool) => create_router_with_session(application_state, RedisStore::new(pool)),
 
-        None => create_router_with_session(application_state, MemoryStore::default())
+        None => create_router_with_session(application_state, MemoryStore::default()),
     }
 }
 
@@ -40,8 +40,8 @@ where
         .merge(auth)
         .merge(web)
         .merge(ws)
-        .layer(session_layer)
         .merge(api)
+        .layer(session_layer)
         .merge(utility);
 
     // In debug builds, prevent the browser from caching anything so template/CSS
@@ -60,12 +60,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::router::create_router;
+    use std::sync::Arc;
+    use crate::handlers::auth::{AUTHENTICATED_USER_KEY, AuthSources};
+    use crate::handlers::tests::TestDatabaseGuard;
+    use crate::router::{create_router, create_router_with_session};
     use crate::state::create_application_state;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
+    use axum_test::TestServer;
+    use sqlx::SqlitePool;
     use tower::ServiceExt;
-    use crate::handlers::tests::TestDatabaseGuard;
+    use tower_sessions::{MemoryStore, Session, SessionStore};
 
     #[tokio::test]
     async fn health_check_returns_200() {
@@ -107,11 +112,11 @@ mod tests {
     async fn api_accepts_authenticated_requests() {
         let state = create_application_state().await;
         let app = create_router(state);
-        
+
         let database_id = "dev_whatever".to_string();
-        
+
         let _use_me = TestDatabaseGuard::new_with_database_id(&database_id);
-        
+
         let response = app
             .oneshot(
                 Request::builder()
@@ -126,5 +131,50 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[sqlx::test(fixtures(path = "./fixtures", scripts("boards")))]
+    async fn new_api_accepts_authenticated_requests(db_pool: SqlitePool) -> sqlx::Result<()> {
+        let user_id: i64 = -20000;
+
+        let _use_me = TestDatabaseGuard::new(user_id);
+
+        let store = MemoryStore::default();
+        let state = create_application_state().await;
+
+        // Insert the db_pool into the map of cached db pools.
+        state.db_pools.insert("whatever-test-db".to_string(), db_pool.clone());
+
+        let mut server_builder = TestServer::builder();
+        server_builder = server_builder.save_cookies();
+
+        let server = server_builder.build(create_router_with_session(state.clone(), store.clone()));
+
+        // Establish a session.
+        let response = server.get("/auth/login").await;
+
+        // Pull the session ID out of the cookie.
+        let cookie = response.cookie("id");
+        let session_id = cookie.value().parse().unwrap();
+
+        // Load the record and insert user data directly into the store, becase
+        // if you are authed, we don't even check to see if you passed a csrf token.
+        let mut record = store.load(&session_id).await.unwrap().unwrap();
+        record.data.insert(
+            AUTHENTICATED_USER_KEY.to_string(),
+            serde_json::json!({"id": user_id, "name": "whatever", "source": AuthSources::DEV }),
+        );
+        store.save(&record).await.unwrap();
+
+        let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
+        // let secret = get_or_create_secret(&session).await.unwrap();
+
+        let _ = session.save().await;
+
+        let response = server.get("/api/whatever-test-db/board/1").await;
+
+        response.assert_status_success();
+
+        Ok(())
     }
 }

@@ -8,10 +8,10 @@ use serde_json::{Value, json};
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
-        .route("/api/board/{board_id}", get(get_board))
+        .route("/api/{owner_database_id}/board/{board_id}", get(get_board))
 }
 
-async fn get_board(ApiDb(db): ApiDb, Path(board_id): Path<u64>) -> Result<Json<Value>, KanbanError> {
+async fn get_board(ApiDb(db): ApiDb, Path((_, board_id)): Path<(String, u64)>) -> Result<Json<Value>, KanbanError> {
     let result = data::get_board_with_lists(db, board_id).await?;
 
     Ok(Json(json!({
@@ -32,7 +32,7 @@ mod tests {
     async fn get_board_returns_a_board(db: SqlitePool) -> sqlx::Result<()> {
         let db = ApiDb(db);
 
-        let response = get_board(db, Path(1)).await.unwrap();
+        let response = get_board(db, Path(("".to_string(), 1))).await.unwrap();
 
         assert_eq!(1, response["id"]);
         assert_eq!("Whatever", response["name"]);

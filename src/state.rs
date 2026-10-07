@@ -1,9 +1,10 @@
 use crate::handlers::auth::AUTHENTICATED_USER_KEY;
 use crate::handlers::ws::SocketEvents;
 use crate::models::security::LoggedInUser;
+use axum::Extension;
 use axum::extract::{FromRef, FromRequestParts};
 use axum::http::request::Parts;
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use dashmap::DashMap;
 use dotenvy::dotenv;
 use oauth2::basic::{BasicClient, BasicErrorResponse, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse, BasicTokenResponse};
@@ -128,19 +129,11 @@ where
     type Rejection = (StatusCode, String);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let unauthed_response = || (StatusCode::UNAUTHORIZED, "There doesn't seem to be a delegated user...".to_string());
+        let Extension(delegated_sqlpool) = Extension::<SqlitePool>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| (StatusCode::BAD_REQUEST, "No way partner, I didn't see a delegated database...".to_string()))?;
 
-        let headers = HeaderMap::from_request_parts(parts, state).await.map_err(|_| unauthed_response())?;
-        let state = ApplicationState::from_ref(state);
-
-        let database_id = headers
-            .get("delegated-database-id")
-            .and_then(|v| v.to_str().ok())
-            .ok_or(unauthed_response())?;
-
-        let user_db_pool = get_or_create_pool_with_id(&state.db_pools, database_id.to_string()).await?;
-
-        Ok(ApiDb(user_db_pool))
+        Ok(ApiDb(delegated_sqlpool))
     }
 }
 

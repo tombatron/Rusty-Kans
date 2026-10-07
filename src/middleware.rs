@@ -71,7 +71,7 @@ pub async fn require_delegated_access(
     State(state): State<ApplicationState>,
     Path((owner_database_id, board_id)): Path<(String, i64)>,
     session: Session,
-    request: Request,
+    mut request: Request,
     next: Next,
 ) -> Result<Response, (StatusCode, String)> {
     // This should be the user account of the user requesting access to the endpoint.
@@ -96,7 +96,7 @@ pub async fn require_delegated_access(
         ))?;
 
     // We've got a database, let's check access...
-    let access = data::get_board_access_for_user(database_pool, board_id, user.id, user.source)
+    let access = data::get_board_access_for_user(database_pool.clone(), board_id, user.id, user.source)
         .await
         .map_err(|_| {
             (
@@ -111,6 +111,8 @@ pub async fn require_delegated_access(
     {
         return Err((StatusCode::FORBIDDEN, "You don't have the powa!".to_string()));
     }
+
+    request.extensions_mut().insert(database_pool.clone());
 
     // We we're here, let's proceed.
     Ok(next.run(request).await)
