@@ -153,4 +153,55 @@ mod tests {
 
         Ok(())
     }
+// TODO: Logged in but no board access, forbidden.
+        #[sqlx::test(fixtures(path = "./fixtures", scripts("boards")))]
+    async fn api_rejects_authenticated_requests_with_no_board_access(db_pool: SqlitePool) -> sqlx::Result<()> {
+        let user_id: i64 = -7000;
+
+        let _use_me = TestDatabaseGuard::new(user_id);
+
+        let store = MemoryStore::default();
+        let state = create_application_state().await;
+
+        // Insert the db_pool into the map of cached db pools.
+        state.db_pools.insert("whatever-test-db".to_string(), db_pool.clone());
+
+        let mut server_builder = TestServer::builder();
+        server_builder = server_builder.save_cookies();
+
+        let server = server_builder.build(create_router_with_session(state.clone(), store.clone()));
+
+        // Establish a session.
+        let response = server.get("/auth/login").await;
+
+        // Pull the session ID out of the cookie.
+        let cookie = response.cookie("id");
+        let session_id = cookie.value().parse().unwrap();
+
+        // Load the record and insert user data directly into the store, becase
+        // if you are authed, we don't even check to see if you passed a csrf token.
+        let mut record = store.load(&session_id).await.unwrap().unwrap();
+        record.data.insert(
+            AUTHENTICATED_USER_KEY.to_string(),
+            serde_json::json!({"id": user_id, "name": "whatever", "source": AuthSources::DEV }),
+        );
+        store.save(&record).await.unwrap();
+
+        let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
+
+        let _ = session.save().await;
+
+        let response = server.get("/api/whatever-test-db/board/1").await;
+
+        response.assert_status_forbidden();
+
+        Ok(())
+    }
+    
+
+    // TODO: Board ID doesn't resolve to a known DB, not found.
+
+    // TODO: Logged in, has view access tries edit, forbidden.
+
 }
+

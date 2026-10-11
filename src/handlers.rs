@@ -17,7 +17,7 @@ pub struct CreateListRequest {
     name: String,
 }
 
-async fn move_card_common(db: SqlitePool, list_id: u64, card_id: u64) -> Result<(), KanbanError> {
+async fn move_card_common(db: SqlitePool, list_id: i64, card_id: i64) -> Result<(), KanbanError> {
     data::update_card_list(db, list_id, card_id).await?;
 
     Ok(())
@@ -31,11 +31,7 @@ pub struct CreateCardRequest {
     description: Option<String>,
 }
 
-async fn create_card_common(
-    db: SqlitePool,
-    list_id: u64,
-    card: CreateCardRequest,
-) -> Result<Card, KanbanError> {
+async fn create_card_common(db: SqlitePool, list_id: i64, card: CreateCardRequest) -> Result<Card, KanbanError> {
     let card_id = data::insert_card(db, list_id, &card.title, &card.description).await?;
 
     Ok(Card {
@@ -47,24 +43,17 @@ async fn create_card_common(
     })
 }
 
-async fn delete_card_common(db: SqlitePool, card_id: u64) -> Result<(), KanbanError> {
+async fn delete_card_common(db: SqlitePool, card_id: i64) -> Result<(), KanbanError> {
     data::delete_card(db, card_id).await?;
 
     Ok(())
 }
 
-async fn patch_card_common(
-    db: SqlitePool,
-    id: u64,
-    title: String,
-    description: Option<String>,
-) -> Result<(), KanbanError> {
+async fn patch_card_common(db: SqlitePool, id: i64, title: String, description: Option<String>) -> Result<(), KanbanError> {
     let result = data::update_card(db, id, title, description).await?;
 
     if result != 1 {
-        return Err(KanbanError::DatabaseError(
-            "Update failed. Refresh and try again.".to_string(),
-        ));
+        return Err(KanbanError::DatabaseError("Update failed. Refresh and try again.".to_string()));
     }
 
     Ok(())
@@ -72,27 +61,23 @@ async fn patch_card_common(
 
 #[cfg(test)]
 pub mod tests {
-    use std::path::PathBuf;
     use super::*;
     use crate::handlers::auth::AuthSources;
-use crate::state::{ApplicationState, SocketEventsSender, get_database_id, get_database_path};
+    use crate::state::{ApplicationState, SocketEventsSender, get_database_id, get_database_path};
     use dashmap::DashMap;
     use oauth2::basic::BasicClient;
     use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
     use sqlx::SqlitePool;
+    use std::path::PathBuf;
     use std::sync::Arc;
 
     pub fn get_fake_application_state() -> ApplicationState {
-        let tx_pool = Arc::new(DashMap::<String, SocketEventsSender>::new()); 
+        let tx_pool = Arc::new(DashMap::<String, SocketEventsSender>::new());
 
         let oauth_client = BasicClient::new(ClientId::new("github_client_id".to_string()))
             .set_client_secret(ClientSecret::new("github_client_secret".to_string()))
-            .set_auth_uri(
-                AuthUrl::new("https://example.com/login/oauth/authorize".to_string()).unwrap(),
-            )
-            .set_token_uri(
-                TokenUrl::new("https://example.com/login/oauth/access_token".to_string()).unwrap(),
-            )
+            .set_auth_uri(AuthUrl::new("https://example.com/login/oauth/authorize".to_string()).unwrap())
+            .set_token_uri(TokenUrl::new("https://example.com/login/oauth/access_token".to_string()).unwrap())
             .set_redirect_uri(RedirectUrl::new("http://example.com".to_string()).unwrap());
 
         let db_pools = Arc::new(DashMap::<String, SqlitePool>::new());
@@ -104,21 +89,21 @@ use crate::state::{ApplicationState, SocketEventsSender, get_database_id, get_da
             redis_pool: None,
         }
     }
-    
+
     pub struct TestDatabaseGuard {
-        path: PathBuf
+        path: PathBuf,
     }
-    
+
     impl TestDatabaseGuard {
         pub fn new(user_id: i64) -> Self {
             let database_id = get_database_id(user_id, AuthSources::DEV.to_string());
-            
+
             let database_path = get_database_path(&database_id);
-            
+
             TestDatabaseGuard { path: database_path }
         }
     }
-    
+
     impl Drop for TestDatabaseGuard {
         fn drop(&mut self) {
             let _ = std::fs::remove_file(&self.path);
@@ -184,10 +169,7 @@ use crate::state::{ApplicationState, SocketEventsSender, get_database_id, get_da
         assert_eq!(1, updated_card.id);
         assert_eq!(1, updated_card.list_id);
         assert_eq!("This is an updated title.", updated_card.title);
-        assert_eq!(
-            "This is an updated description.",
-            updated_card.description.unwrap()
-        );
+        assert_eq!("This is an updated description.", updated_card.description.unwrap());
 
         Ok(())
     }

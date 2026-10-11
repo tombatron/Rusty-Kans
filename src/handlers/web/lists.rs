@@ -42,7 +42,7 @@ struct NewListErrorTemplate {
 #[derive(Debug, Serialize, Template)]
 #[template(path = "turbo_list_item.html")]
 struct ListItemTemplate {
-    list_id: u64,
+    list_id: i64,
     name: String,
     csrf_token: String,
 }
@@ -50,7 +50,7 @@ struct ListItemTemplate {
 async fn post_list_form(
     CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
-    Path(board_id): Path<u64>,
+    Path(board_id): Path<i64>,
     Form(list_info): Form<CreateListRequest>,
 ) -> Result<Response, KanbanError> {
     let validation_errors = list_info.validate();
@@ -92,7 +92,7 @@ struct ListHeader {
 async fn get_list_header(
     CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
-    Path(list_id): Path<u64>,
+    Path(list_id): Path<i64>,
 ) -> Result<Html<String>, KanbanError> {
     let list = data::get_list_header(db, list_id).await?;
 
@@ -112,7 +112,7 @@ struct ListHeaderEdit {
 async fn get_list_edit(
     CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
-    Path(list_id): Path<u64>,
+    Path(list_id): Path<i64>,
 ) -> Result<Html<String>, KanbanError> {
     let list = data::get_list_header(db, list_id).await?;
 
@@ -130,7 +130,7 @@ struct ListRename {
 async fn post_list_rename(
     CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
-    Path(list_id): Path<u64>,
+    Path(list_id): Path<i64>,
     Form(list_header): Form<ListRename>,
 ) -> Result<Response, KanbanError> {
     let validation_errors = list_header.validate();
@@ -207,7 +207,7 @@ struct ListTemplate  {
     csrf_token: String,
 }
 
-async fn get_list(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): UserDb, Path(list_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+async fn get_list(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): UserDb, Path(list_id): Path<i64>) -> Result<Html<String>, KanbanError> {
     let list = data::get_list_with_cards(db.clone(), list_id).await?;
 
     let template = ListTemplate {

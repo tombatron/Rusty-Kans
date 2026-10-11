@@ -10,15 +10,15 @@ use crate::{handlers::auth::AuthSources, models::security::GitHubUser};
 #[derive(Debug, FromRow)]
 pub struct Board {
     #[sqlx(rename = "board_id")]
-    pub id: u64,
+    pub id: i64,
     pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Card {
     #[sqlx(rename = "card_id")]
-    pub id: u64,
-    pub list_id: u64,
+    pub id: i64,
+    pub list_id: i64,
     pub title: String,
     pub description: Option<String>,
     pub sort_order: Option<i64>,
@@ -33,8 +33,8 @@ impl Display for Card {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct List {
     #[sqlx(rename = "list_id")]
-    pub id: u64,
-    pub board_id: u64,
+    pub id: i64,
+    pub board_id: i64,
     pub name: String,
     #[sqlx(skip)]
     pub cards: Vec<Card>,
@@ -55,13 +55,13 @@ impl Display for List {
 #[derive(Debug, Clone, Template)]
 #[template(path = "turbo_move_card.html")]
 pub struct CardMoveEvent {
-    pub card_id: u64,
-    pub to_list_id: u64,
+    pub card_id: i64,
+    pub to_list_id: i64,
 }
 
 pub struct BoardWithListIds {
     pub board: Board,
-    pub list_ids: Vec<u64>,
+    pub list_ids: Vec<i64>,
 }
 
 pub struct ListWithCards {

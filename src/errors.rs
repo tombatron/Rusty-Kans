@@ -7,9 +7,9 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Debug, PartialEq)]
 pub enum KanbanError {
-    BoardNotFound(u64),
-    ListNotFound(u64),
-    CardNotFound(u64),
+    BoardNotFound(i64),
+    ListNotFound(i64),
+    CardNotFound(i64),
     SerializationError(String),
     IoError(String),
     DatabaseError(String),

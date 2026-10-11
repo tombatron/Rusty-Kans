@@ -91,7 +91,7 @@ async fn post_board_form(
 #[template(path = "board.html")]
 struct BoardTemplate {
     board: Board,
-    list_ids: Vec<u64>,
+    list_ids: Vec<i64>,
     new_list: NewContainerFormTemplate<List>,
     csrf_token: String,
 }
@@ -99,7 +99,7 @@ struct BoardTemplate {
 pub async fn get_board(
     CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
-    Path(board_id): Path<u64>,
+    Path(board_id): Path<i64>,
 ) -> Result<Html<String>, KanbanError> {
     let board = data::get_board_with_lists(db, board_id).await?;
 
@@ -133,7 +133,7 @@ struct BoardHeaderEdit {
 async fn get_board_edit(
     CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
-    Path(board_id): Path<u64>,
+    Path(board_id): Path<i64>,
 ) -> Result<Html<String>, KanbanError> {
     let board = data::get_board(db, board_id).await?;
 
@@ -154,7 +154,7 @@ struct BoardHeader {
 
 async fn get_board_header(
     UserDb(db): UserDb,
-    Path(board_id): Path<u64>,
+    Path(board_id): Path<i64>,
 ) -> Result<Html<String>, KanbanError> {
     let board = data::get_board(db, board_id).await?;
 
@@ -166,7 +166,7 @@ async fn get_board_header(
 #[derive(Debug, Deserialize, Validate)]
 struct BoardRename {
     #[garde(skip)]
-    id: u64,
+    id: i64,
     #[garde(length(min = 1, max = 100))]
     name: String,
 }
@@ -174,7 +174,7 @@ struct BoardRename {
 async fn post_board_rename(
     CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
-    Path(board_id): Path<u64>,
+    Path(board_id): Path<i64>,
     Form(board): Form<BoardRename>,
 ) -> Result<Response, KanbanError> {
     if board_id != board.id {
@@ -216,7 +216,7 @@ async fn post_board_rename(
 
 async fn post_board_delete(
     UserDb(db): UserDb,
-    Path(board_id): Path<u64>,
+    Path(board_id): Path<i64>,
 ) -> Result<Redirect, KanbanError> {
     let result = data::delete_board(db, board_id).await?;
 

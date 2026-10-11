@@ -69,7 +69,7 @@ pub async fn require_csrf_token(
 
 pub async fn require_delegated_access(
     State(state): State<ApplicationState>,
-    Path((owner_database_id, board_id)): Path<(String, i64)>,
+    Path((owner_database_id, board_id, _, _)): Path<(String, i64, i64, i64)>,
     session: Session,
     mut request: Request,
     next: Next,

@@ -27,8 +27,8 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 #[derive(Debug, Clone, Template)]
 #[template(path = "turbo_move_card.html")]
 struct MoveCardTemplate {
-    card_id: u64,
-    to_list_id: u64,
+    card_id: i64,
+    to_list_id: i64,
 }
 
 impl Into<CardMoveEvent> for MoveCardTemplate {
@@ -43,7 +43,7 @@ impl Into<CardMoveEvent> for MoveCardTemplate {
 async fn post_move_card_action(
     UserBroadcast(tx): UserBroadcast,
     UserDb(db): UserDb,
-    Path((list_id, card_id)): Path<(u64, u64)>,
+    Path((list_id, card_id)): Path<(i64, i64)>,
 ) -> Result<TurboStream, KanbanError> {
     move_card_common(db.clone(), list_id, card_id).await?;
 
@@ -62,8 +62,8 @@ async fn post_move_card_action(
 #[derive(Debug, Template)]
 #[template(path = "turbo_new_card.html")]
 struct NewCardTemplate {
-    id: u64,
-    list_id: u64,
+    id: i64,
+    list_id: i64,
     title: String,
     description: Option<String>,
     csrf_token: String,
@@ -84,7 +84,7 @@ impl NewCardTemplate {
 #[derive(Debug, Template)]
 #[template(source = "{% import \"macros.html\" as m %}{{ m::add_card(list_id, card_title, validation_errors, csrf_token) }}", ext="html")]
 struct NewCardValidationError {
-    list_id: u64,
+    list_id: i64,
     card_title: Option<String>,
     validation_errors: Option<FormErrors>,
     csrf_token: String,
@@ -93,7 +93,7 @@ struct NewCardValidationError {
 async fn post_card_form(
     CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
-    Path(list_id): Path<u64>,
+    Path(list_id): Path<i64>,
     Form(card): Form<CreateCardRequest>,
 ) -> Result<Response, KanbanError> {
     let validation_errors = card.validate();
@@ -118,7 +118,7 @@ async fn post_card_form(
 
 async fn delete_card_form(
     UserDb(db): UserDb,
-    Path((_list_id, card_id)): Path<(u64, u64)>,
+    Path((_list_id, card_id)): Path<(i64, i64)>,
 ) -> Result<TurboStream, KanbanError> {
     delete_card_common(db, card_id).await?;
 
@@ -132,7 +132,7 @@ async fn delete_card_form(
 #[template(path = "turbo_card_edit.html")]
 struct EditCardRequest {
     #[garde(skip)]
-    id: u64,
+    id: i64,
     #[garde(length(min=1, max=100))]
     title: String,
     #[garde(length(min=0, max=1000))]
@@ -158,7 +158,7 @@ impl EditCardRequest {
 async fn get_card_edit(
     CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
-    Path(card_id): Path<u64>,
+    Path(card_id): Path<i64>,
 ) -> Result<Html<String>, KanbanError> {
     let card = data::get_card(db, card_id).await?;
 
@@ -187,8 +187,8 @@ async fn patch_card_form(UserDb(db): UserDb, Path(card_id): Path<i64>, Form(card
 #[derive(Debug, Template)]
 #[template(path = "turbo_card.html")]
 struct CardTemplate {
-    id: u64,
-    list_id: u64,
+    id: i64,
+    list_id: i64,
     title: String,
     description: Option<String>,
     csrf_token: String,
@@ -206,7 +206,7 @@ impl CardTemplate {
     }
 }
 
-async fn get_card_by_id(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): UserDb, Path(card_id): Path<u64>) -> Result<Html<String>, KanbanError> {
+async fn get_card_by_id(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): UserDb, Path(card_id): Path<i64>) -> Result<Html<String>, KanbanError> {
     let card = data::get_card(db, card_id).await?;
 
     let template = CardTemplate::from(card, csrf_token);
