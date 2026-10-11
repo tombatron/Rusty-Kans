@@ -118,9 +118,19 @@ pub async fn insert_card_api(db: SqlitePool, board_id: i64, list_id: i64, title:
     AND list_id = $2;
     "#;
 
-    let result = sqlx::query(insert_query).bind(board_id).bind(list_id).bind(title).bind(description).execute(&db).await?;
+    let result = sqlx::query(insert_query)
+        .bind(board_id)
+        .bind(list_id)
+        .bind(title)
+        .bind(description)
+        .execute(&db)
+        .await?;
 
-    Ok(result.last_insert_rowid() as i64)
+    if result.rows_affected() == 0 {
+        return Err(KanbanError::ListNotFound(list_id));
+    }
+
+    Ok(result.last_insert_rowid())
 }
 
 pub async fn update_card(db: SqlitePool, card_id: i64, title: String, description: Option<String>) -> Result<u64, KanbanError> {
@@ -146,7 +156,7 @@ pub async fn update_card_list(db: SqlitePool, target_list_id: i64, card_id: i64)
 
 pub async fn update_card_list_api(db: SqlitePool, board_id: i64, target_list_id: i64, card_id: i64) -> Result<u64, KanbanError> {
     let update_query = r#"
-    UPDATE cards target
+    UPDATE cards AS target
 
     SET list_id = $2
 

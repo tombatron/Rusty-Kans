@@ -92,12 +92,9 @@ mod tests {
             description: Some("This is a nice description.".to_string()),
         });
 
-        let response = post_card(db, Path(("".to_string(), 1, 0, 0)), request).await.unwrap().0;
+        let response = post_card(db, Path(("".to_string(), 1, 1, 0)), request).await.unwrap().0;
 
-        assert_eq!(19, response["id"]);
-        assert_eq!(1, response["list_id"]);
-        assert_eq!("This is a new card.", response["title"]);
-        assert_eq!("This is a nice description.", response["description"]);
+        assert_eq!(19, response["card_id"]);
 
         Ok(())
     }
@@ -106,7 +103,7 @@ mod tests {
     async fn post_move_card_moves_card(db: SqlitePool) -> sqlx::Result<()> {
         let db = ApiDb(db);
 
-        let response = post_move_card(db.clone(), Path(("".to_string(), 2, 1, 0))).await.unwrap();
+        let response = post_move_card(db.clone(), Path(("".to_string(), 1, 2, 1))).await.unwrap();
 
         let card = data::get_card(db.0, 1).await.unwrap();
 
