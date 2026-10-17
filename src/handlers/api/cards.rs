@@ -1,11 +1,10 @@
 use crate::data;
 use crate::errors::KanbanError;
-use crate::handlers::{CreateCardRequest, delete_card_common, patch_card_common};
+use crate::handlers::CreateCardRequest;
 use crate::models::Card;
 use crate::state::{ApiDb, ApplicationState};
 use axum::extract::{Path, Query};
 use axum::http::StatusCode;
-use axum::response::Redirect;
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
 use serde::Deserialize;
@@ -13,15 +12,15 @@ use serde_json::{Value, json};
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
-        .route("/api/{owner_database_id}/lists/{id}/cards", post(post_card))
-        .route("/api/{owner_database_id}/lists/{list_id}/cards/{card_id}/move", post(post_move_card))
-        .route("/api/{owner_database_id}/lists/{list_id}/cards/{card_id}", delete(delete_card))
-        .route("/api/{owner_database_id}/cards/search", get(get_card_search))
-        .route("/api/{owner_database_id}/cards/{card_id}", get(get_card_by_id))
-        .route("/api/{owner_database_id}/cards/{card_id}", patch(patch_card))
+        .route("/api/{owner_database_id}/{board_id}/lists/{id}/cards", post(post_card))
+        .route("/api/{owner_database_id}/{board_id}/lists/{list_id}/cards/{card_id}/move", post(post_move_card))
+        .route("/api/{owner_database_id}/{board_id}/lists/{list_id}/cards/{card_id}", delete(delete_card))
+        .route("/api/{owner_database_id}/{board_id}/cards/search", get(get_card_search))
+        .route("/api/{owner_database_id}/{board_id}/cards/{card_id}", get(get_card_by_id))
+        .route("/api/{owner_database_id}/{board_id}/cards/{card_id}", patch(patch_card))
 }
 
-pub async fn post_card(ApiDb(db): ApiDb, Path((_, board_id, list_id, _)): Path<(String, i64, i64, i64)>, Json(card): Json<CreateCardRequest>) -> Result<Json<Value>, KanbanError> {
+pub async fn post_card(ApiDb(db): ApiDb, Path((_, board_id, list_id)): Path<(String, i64, i64)>, Json(card): Json<CreateCardRequest>) -> Result<Json<Value>, KanbanError> {
     let card_id = data::insert_card_api(db, board_id, list_id, &card.title, &card.description).await?;
 
     if card_id == 0 {
@@ -32,7 +31,6 @@ pub async fn post_card(ApiDb(db): ApiDb, Path((_, board_id, list_id, _)): Path<(
 }
 
 pub async fn post_move_card(ApiDb(db): ApiDb, Path((_, board_id, list_id, card_id)): Path<(String, i64, i64, i64)>) -> Result<StatusCode, KanbanError> {
-    //move_card_common(db, list_id, card_id).await?;
     let result = data::update_card_list_api(db, board_id, list_id, card_id).await?;
 
     if result == 0 {
@@ -42,8 +40,8 @@ pub async fn post_move_card(ApiDb(db): ApiDb, Path((_, board_id, list_id, card_i
     Ok(StatusCode::OK)
 }
 
-pub async fn get_card_by_id(ApiDb(db): ApiDb, Path((_, card_id, _, _)): Path<(String, i64, i64, i64)>) -> Result<Json<Value>, KanbanError> {
-    let result = data::get_card(db, card_id).await?;
+pub async fn get_card_by_id(ApiDb(db): ApiDb, Path((_, board_id, card_id)): Path<(String, i64, i64)>) -> Result<Json<Value>, KanbanError> {
+    let result = data::get_card_api(db, board_id, card_id).await?;
 
     Ok(Json(json!(result)))
 }
@@ -53,24 +51,32 @@ pub struct SearchQuery {
     keyword: String,
 }
 
-pub async fn get_card_search(ApiDb(db): ApiDb, Query(search_query): Query<SearchQuery>, Path((_, _, _, _)): Path<(String, i64, i64, i64)>) -> Result<Json<Value>, KanbanError> {
-    let search_result = data::get_cards_by_title_submatch(db, search_query.keyword).await?;
+pub async fn get_card_search(ApiDb(db): ApiDb, Query(search_query): Query<SearchQuery>, Path((_, board_id)): Path<(String, i64)>) -> Result<Json<Value>, KanbanError> {
+    let search_result = data::get_cards_by_title_submatch_api(db, board_id, search_query.keyword).await?;
 
     let cards = search_result.iter().map(|c| json!(c)).collect();
 
     Ok(Json(cards))
 }
 
-pub async fn delete_card(ApiDb(db): ApiDb, Path((_, _list_id, card_id, _)): Path<(String, i64, i64, i64)>) -> Result<StatusCode, KanbanError> {
-    delete_card_common(db, card_id).await?;
+pub async fn delete_card(ApiDb(db): ApiDb, Path((_, board_id, card_id)): Path<(String, i64, i64)>) -> Result<StatusCode, KanbanError> {
+    data::delete_card_api(db, board_id, card_id).await?;
 
     Ok(StatusCode::OK)
 }
 
-pub async fn patch_card(ApiDb(db): ApiDb, Path((_, card_id, _, _)): Path<(String, i64, i64, i64)>, Json(card): Json<Card>) -> Result<Redirect, KanbanError> {
-    patch_card_common(db, card.id, card.title, card.description).await?;
-    // TODO: You shouldn't have redirects in an api should you?
-    Ok(Redirect::to(format!("/api/cards/{card_id}").as_str()))
+pub async fn patch_card(ApiDb(db): ApiDb, Path((_, board_id, card_id)): Path<(String, i64, i64)>, Json(card): Json<Card>) -> Result<StatusCode, KanbanError> {
+    if card_id != card.id {
+        return Err(KanbanError::RequestError("Card ID on the path doesn't match the provided card id in the JSON.".to_string()));
+    }
+
+    let result = data::update_card_api(db, board_id, card_id, card.title, card.description).await?;
+
+    if result != 1 {
+        return Err(KanbanError::CardNotFound(card_id));
+    }
+
+    Ok(StatusCode::OK)
 }
 
 #[cfg(test)]
@@ -92,7 +98,7 @@ mod tests {
             description: Some("This is a nice description.".to_string()),
         });
 
-        let response = post_card(db, Path(("".to_string(), 1, 1, 0)), request).await.unwrap().0;
+        let response = post_card(db, Path(("".to_string(), 1, 1)), request).await.unwrap().0;
 
         assert_eq!(19, response["card_id"]);
 
@@ -117,7 +123,7 @@ mod tests {
     async fn get_card_by_id_gets_card_by_id(db: SqlitePool) -> sqlx::Result<()> {
         let db = ApiDb(db);
 
-        let response = get_card_by_id(db, Path(("".to_string(), 1, 0, 0))).await.unwrap().0;
+        let response = get_card_by_id(db, Path(("".to_string(), 1, 0))).await.unwrap().0;
 
         assert_eq!(1, response["id"]);
         assert_eq!("Card 1", response["title"]);
@@ -132,7 +138,7 @@ mod tests {
 
         let request = Query(SearchQuery { keyword: "Card 1".to_string() });
 
-        let response = get_card_search(db, request, Path(("".to_string(), 0, 0, 0))).await.unwrap().0;
+        let response = get_card_search(db, request, Path(("".to_string(), 0))).await.unwrap().0;
 
         assert_eq!(9, response.as_array().unwrap().len());
 
@@ -143,7 +149,7 @@ mod tests {
     async fn delete_card_does_it(db: SqlitePool) -> sqlx::Result<()> {
         let db = ApiDb(db);
 
-        let response = delete_card(db.clone(), Path(("".to_string(), 1, 1, 0))).await.unwrap();
+        let response = delete_card(db.clone(), Path(("".to_string(), 1, 1))).await.unwrap();
 
         let card = data::get_card(db.0, 1).await;
 
@@ -165,11 +171,10 @@ mod tests {
             sort_order: None,
         });
 
-        let response = patch_card(db.clone(), Path(("".to_string(), 1, 0, 0)), request).await.unwrap();
+        let response = patch_card(db.clone(), Path(("".to_string(), 1, 0)), request).await.unwrap();
 
         let updated_card = data::get_card(db.0, 1).await.unwrap();
 
-        assert_eq!("/api/cards/1", response.location());
         assert_eq!(1, updated_card.id);
         assert_eq!(1, updated_card.list_id);
         assert_eq!("UPDATED", updated_card.title);

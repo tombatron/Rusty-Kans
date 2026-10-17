@@ -84,6 +84,31 @@ pub async fn get_card(db: SqlitePool, card_id: i64) -> Result<Card, KanbanError>
         .ok_or(KanbanError::CardNotFound(card_id))?)
 }
 
+pub async fn get_card_api(db: SqlitePool, board_id: i64, card_id: i64) -> Result<Card, KanbanError> {
+    let query = r#"
+    SELECT
+
+    card_id, list_id, title, description, sort_order
+
+    FROM cards C
+
+        INNER lists L
+        ON L.list_id = C.list_id
+
+    WHERE C.card_id = $1
+    AND L.board_id = $2;
+    "#;
+
+    let card = sqlx::query_as::<_, Card>(query)
+        .bind(card_id)
+        .bind(board_id)
+        .fetch_one(&db)
+        .await
+        .map_err(|_| KanbanError::CardNotFound(card_id))?;
+
+    Ok(card)
+}
+
 pub async fn get_cards_by_title_submatch(db: SqlitePool, query: String) -> Result<Vec<Card>, KanbanError> {
     Ok(sqlx::query_as::<_, Card>("SELECT card_id, list_id, title, description, sort_order FROM cards WHERE title LIKE ?;")
         .bind(format!("%{}%", query))
@@ -91,8 +116,59 @@ pub async fn get_cards_by_title_submatch(db: SqlitePool, query: String) -> Resul
         .await?)
 }
 
+pub async fn get_cards_by_title_submatch_api(db: SqlitePool, board_id: i64, search_text: String) -> Result<Vec<Card>, KanbanError> {
+    let query = r#"
+    SELECT
+
+    card_id, list_id, title, description, sort_order
+
+    FROM cards C
+
+        INNER lists L
+        ON L.list_id = C.list_id
+
+    WHERE L.board_id = $1
+    AND C.title LIKE $2;
+    "#;
+
+    Ok(sqlx::query_as::<_, Card>(query)
+        .bind(board_id)
+        .bind(format!("%{}%", search_text))
+        .fetch_all(&db)
+        .await?)
+}
+
 pub async fn delete_card(db: SqlitePool, card_id: i64) -> Result<u64, KanbanError> {
     let result = sqlx::query("DELETE FROM cards WHERE card_id = ?").bind(card_id as i64).execute(&db).await?;
+
+    Ok(result.rows_affected())
+}
+
+pub async fn delete_card_api(db: SqlitePool, board_id: i64, card_id: i64) -> Result<u64, KanbanError> {
+    let query = r#"
+    DELETE FROM cards 
+
+    WHERE card_id = $1
+
+    AND EXISTS (
+        SELECT 
+
+        1 
+
+        FROM cards C 
+
+            INNER JOIN lists L 
+            ON L.list_id = C.list_id 
+            
+        WHERE L.board_id = $2
+    );
+    "#;
+
+    let result = sqlx::query(query)
+        .bind(card_id)
+        .bind(board_id)
+        .execute(&db)
+        .await?;
 
     Ok(result.rows_affected())
 }
@@ -138,6 +214,41 @@ pub async fn update_card(db: SqlitePool, card_id: i64, title: String, descriptio
         .bind(title)
         .bind(description)
         .bind(card_id)
+        .execute(&db)
+        .await?;
+
+    Ok(result.rows_affected())
+}
+
+pub async fn update_card_api(db: SqlitePool, board_id: i64, card_id: i64, title: String, description: Option<String>) -> Result<u64, KanbanError> {
+    let query = r#"
+    UPDATE cards 
+
+    SET title = $1, 
+        description = $2 
+
+    WHERE card_id = $3
+
+    AND EXISTS (
+        SELECT 
+
+        1 
+
+        FROM cards C 
+
+            INNER JOIN lists L 
+            ON L.list_id = C.list_id 
+            
+        WHERE C.card_id = $3
+        AND L.board_id = $4
+    );
+    "#;
+
+    let result = sqlx::query(query)
+        .bind(title)
+        .bind(description)
+        .bind(card_id)
+        .bind(board_id)
         .execute(&db)
         .await?;
 
