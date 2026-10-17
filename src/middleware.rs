@@ -67,9 +67,15 @@ pub async fn require_csrf_token(
     }
 }
 
+#[derive(serde::Deserialize)]
+pub struct DelegatedAccessParameters {
+    owner_database_id: String,
+    board_id: i64,
+}
+
 pub async fn require_delegated_access(
     State(state): State<ApplicationState>,
-    Path((owner_database_id, board_id, _, _)): Path<(String, i64, i64, i64)>,
+    Path(request_path): Path<DelegatedAccessParameters>,
     session: Session,
     mut request: Request,
     next: Next,
@@ -88,7 +94,7 @@ pub async fn require_delegated_access(
         .ok_or((StatusCode::FORBIDDEN, "Auth required brah.".to_string()))?;
 
     // Let's go get a database.
-    let database_pool = get_pool_with_id(&state.db_pools, owner_database_id.clone())
+    let database_pool = get_pool_with_id(&state.db_pools, request_path.owner_database_id)
         .await
         .ok_or((
             StatusCode::NOT_FOUND,
@@ -96,7 +102,7 @@ pub async fn require_delegated_access(
         ))?;
 
     // We've got a database, let's check access...
-    let access = data::get_board_access_for_user(database_pool.clone(), board_id, user.id, user.source)
+    let access = data::get_board_access_for_user(database_pool.clone(), request_path.board_id, user.id, user.source)
         .await
         .map_err(|_| {
             (
