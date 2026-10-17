@@ -65,11 +65,66 @@ pub async fn get_list_header(db: SqlitePool, list_id: i64) -> Result<List, Kanba
     )
 }
 
+pub async fn get_list_header_api(db: SqlitePool, board_id: i64, list_id: i64) -> Result<List, KanbanError> {
+    let query = r#"
+    SELECT 
+    
+        list_id, 
+        board_id, 
+        name 
+        
+    FROM lists 
+    
+    WHERE board_id = $1 
+    AND list_id = $2;
+    "#;
+
+    Ok(
+        sqlx::query_as::<_, List>(query)
+            .bind(board_id)
+            .bind(list_id)
+            .fetch_one(&db)
+            .await?
+    )
+}
+
 pub async fn get_list_with_cards(db: SqlitePool, list_id: i64) -> Result<ListWithCards, KanbanError> {
     let list = get_list_header(db.clone(), list_id).await?;
 
     let cards = sqlx::query_as::<_, Card>("SELECT card_id, list_id, title, description, sort_order FROM cards WHERE list_id = ? ORDER BY sort_order ASC")
         .bind(list_id as i64)
+        .fetch_all(&db)
+        .await?;
+
+    Ok(ListWithCards { list, cards })
+}
+
+pub async fn get_list_with_cards_api(db: SqlitePool, board_id: i64, list_id: i64) -> Result<ListWithCards, KanbanError> {
+    let query = r#"
+    SELECT 
+    
+        C.card_id, 
+        C.list_id, 
+        C.title, 
+        C.description, 
+        C.sort_order 
+        
+    FROM cards C
+
+        INNER JOIN lists L
+        ON L.list_id = C.list_id
+    
+    WHERE L.board_id = $1 
+    AND L.list_id = $2
+    
+    ORDER BY sort_order ASC;
+    "#;
+
+    let list = get_list_header_api(db.clone(), board_id, list_id).await?;
+
+    let cards = sqlx::query_as::<_, Card>(query)
+        .bind(board_id)
+        .bind(list_id)
         .fetch_all(&db)
         .await?;
 
@@ -88,11 +143,15 @@ pub async fn get_card_api(db: SqlitePool, board_id: i64, card_id: i64) -> Result
     let query = r#"
     SELECT
 
-    card_id, list_id, title, description, sort_order
+        C.card_id, 
+        C.list_id, 
+        C.title, 
+        C.description, 
+        C.sort_order
 
     FROM cards C
 
-        INNER lists L
+        INNER JOIN lists L
         ON L.list_id = C.list_id
 
     WHERE C.card_id = $1
@@ -103,8 +162,7 @@ pub async fn get_card_api(db: SqlitePool, board_id: i64, card_id: i64) -> Result
         .bind(card_id)
         .bind(board_id)
         .fetch_one(&db)
-        .await
-        .map_err(|_| KanbanError::CardNotFound(card_id))?;
+        .await?;
 
     Ok(card)
 }
@@ -120,15 +178,19 @@ pub async fn get_cards_by_title_submatch_api(db: SqlitePool, board_id: i64, sear
     let query = r#"
     SELECT
 
-    card_id, list_id, title, description, sort_order
+        C.card_id, 
+        C.list_id, 
+        C.title, 
+        C.description, 
+        C.sort_order
 
     FROM cards C
 
-        INNER lists L
+        INNER JOIN lists L
         ON L.list_id = C.list_id
 
-    WHERE L.board_id = $1
-    AND C.title LIKE $2;
+    WHERE L.board_id = ?
+    AND C.title LIKE ?;
     "#;
 
     Ok(sqlx::query_as::<_, Card>(query)

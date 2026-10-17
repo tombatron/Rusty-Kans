@@ -11,7 +11,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/api/{owner_database_id}/board/{board_id}", get(get_board))
 }
 
-async fn get_board(ApiDb(db): ApiDb, Path((_, board_id, _, _)): Path<(String, i64, i64, i64)>) -> Result<Json<Value>, KanbanError> {
+async fn get_board(ApiDb(db): ApiDb, Path((_, board_id)): Path<(String, i64)>) -> Result<Json<Value>, KanbanError> {
     let result = data::get_board_with_lists(db, board_id).await?;
 
     Ok(Json(json!({
@@ -32,7 +32,7 @@ mod tests {
     async fn get_board_returns_a_board(db: SqlitePool) -> sqlx::Result<()> {
         let db = ApiDb(db);
 
-        let response = get_board(db, Path(("".to_string(), 1, 0, 0))).await.unwrap();
+        let response = get_board(db, Path(("".to_string(), 1))).await.unwrap();
 
         assert_eq!(1, response["id"]);
         assert_eq!("Whatever", response["name"]);

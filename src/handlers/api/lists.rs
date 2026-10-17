@@ -9,12 +9,12 @@ use serde_json::{Value, json};
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
-        .route("/api/{owner_database_id}/lists/{id}", get(get_list_by_id))
-        .route("/api/{owner_database_id}/board/{board_id}/lists", post(post_list))
+        .route("/api/{owner_database_id}/{board_id}/lists/{list_id}", get(get_list_by_id))
+        .route("/api/{owner_database_id}/{board_id}/board/lists", post(post_list))
 }
 
-async fn get_list_by_id(ApiDb(db): ApiDb, Path((_, id, _, _)): Path<(String, i64, i64, i64)>) -> Result<Json<Value>, KanbanError> {
-    let result = data::get_list_with_cards(db, id).await?;
+async fn get_list_by_id(ApiDb(db): ApiDb, Path((_, board_id,list_id)): Path<(String, i64, i64)>) -> Result<Json<Value>, KanbanError> {
+    let result = data::get_list_with_cards_api(db, board_id, list_id).await?;
 
     let cards_json: Vec<Value> = result.cards
         .iter()
@@ -22,14 +22,14 @@ async fn get_list_by_id(ApiDb(db): ApiDb, Path((_, id, _, _)): Path<(String, i64
         .collect();
 
     Ok(Json(json!({
-        "list_id": id,
+        "list_id": list_id,
         "board_id": result.list.board_id,
         "name": result.list.name,
         "cards": cards_json
     })))
 }
 
-async fn post_list(ApiDb(db): ApiDb, Path((_, board_id, _, _)): Path<(String, i64, i64, i64)>, Json(list): Json<CreateListRequest>,
+async fn post_list(ApiDb(db): ApiDb, Path((_, board_id)): Path<(String, i64)>, Json(list): Json<CreateListRequest>,
 ) -> Result<Json<Value>, KanbanError> {
     let list_id = data::insert_list(db, board_id, &list.name).await?;
 
@@ -54,7 +54,7 @@ mod tests {
     async fn get_list_by_id_returns_list(db: SqlitePool) -> sqlx::Result<()> {
         let db = ApiDb(db);
 
-        let response = get_list_by_id(db, Path(("".to_string(), 1, 0, 0))).await.unwrap().0;
+        let response = get_list_by_id(db, Path(("".to_string(), 1, 1))).await.unwrap().0;
 
         assert_eq!(1, response["list_id"]);
         assert_eq!(1, response["board_id"]);
@@ -72,7 +72,7 @@ mod tests {
             name: "This is a totally new list.".to_string()
         };
 
-        let response = post_list(db, Path(("".to_string(), 1, 0, 0)), Json(request)).await.unwrap();
+        let response = post_list(db, Path(("".to_string(), 1 )), Json(request)).await.unwrap();
 
         assert_eq!(7, response["list_id"]);
         assert_eq!("This is a totally new list.", response["name"]);
