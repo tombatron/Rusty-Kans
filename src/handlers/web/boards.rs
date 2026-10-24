@@ -29,7 +29,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/boards/{board_id}/header", get(get_board_header))
         .route("/boards/{board_id}/rename", post(post_board_rename))
         .route("/boards/{board_id}/delete", post(post_board_delete))
-        .route("/boards/{board_id}/share", post(post_board_share))
+        .route("/boards/{board_id}/share", get(get_board_share).post(post_board_share))
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -280,18 +280,36 @@ async fn post_board_share(
     Ok(TurboStream(template.render()?).into_response())
 }
 
+#[derive(Debug, Template)]
+#[template(path = "share_board_form.html")]
+struct ShareBoardForm {
+    board_id: i64,
+    csrf_token: String,
+
+}
+
+async fn get_board_share(CsrfTokenValue(csrf_token): CsrfTokenValue, Path(board_id): Path<i64>) -> Result<Html<String>, KanbanError> {
+    let template = ShareBoardForm {
+        board_id,
+        csrf_token,
+    };
+
+    let response = template.render()?;
+
+    Ok(Html(response))
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-
-use crate::handlers::tests::get_fake_application_state;
-use crate::handlers::web::boards::*;
+    use crate::handlers::tests::get_fake_application_state;
+    use crate::handlers::web::boards::*;
     use crate::handlers::web::tests::*;
     use axum::Form;
     use axum::extract::Path;
     use sqlx::SqlitePool;
     use test_case::test_case;
-use tower_sessions::MemoryStore;
+    use tower_sessions::MemoryStore;
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_board_form_creates_a_new_board(db: SqlitePool) -> sqlx::Result<()> {

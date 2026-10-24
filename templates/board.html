@@ -22,7 +22,7 @@
 
     {{ macros::board_header(board.id, board.name) }}
 
-    <button onclick="document.getElementById('share-dialog').showModal()">Share</button>
+    <button onclick="document.getElementById('share-dialog').showModal();">Share</button>
 </header>
 
 <turbo-frame id="lists" data-turbo-action="advance" data-csrf="{{ csrf_token | safe }}">
@@ -33,19 +33,6 @@
 </turbo-frame>
 
 <dialog id="share-dialog" class="share-dialog">
-    <turbo-frame id="share-form">
-        <div class="dialog-actions">
-            <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
-            <form action="/boards/{{ board.id }}/share" method="post">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token | safe }}" />
-                <select name="permission">
-                    <option value="view">View</option>
-                    <option value="edit">Edit</option>
-                </select>
-                <input type="number" name="expire_hours" value="12" />
-                <button type="submit">Share</button>
-            </form>
-        </div>
-    </turbo-frame>
+    <turbo-frame id="share-form" src="/boards/{{ board.id}}/share"></turbo-frame>
 </dialog>
 {% endblock %}
