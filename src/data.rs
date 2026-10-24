@@ -1,6 +1,7 @@
 use crate::errors::KanbanError;
-use crate::models::{Board, BoardAccess, BoardAccessGrant, BoardWithListIds, Card, List, ListWithCards, User};
+use crate::models::{Board, BoardAccess, BoardAccessGrant, BoardWithListIds, Card, List, ListWithCards, Permission, User};
 use sqlx::SqlitePool;
+use sqlx::types::chrono::{DateTime, Utc};
 
 pub async fn insert_board(db: SqlitePool, board_name: &String) -> Result<u64, KanbanError> {
     let result = sqlx::query("INSERT INTO boards (name) VALUES (?);").bind(board_name).execute(&db).await?;
@@ -501,6 +502,24 @@ pub async fn delete_board_access_grant(db: SqlitePool, owner_database_id: String
     Ok(result.rows_affected())
 }
 
+pub async fn add_share_link(db: SqlitePool, board_id: i64, permission: Permission, expires_at: DateTime<Utc>, share_code: String) -> Result<i64, KanbanError> {
+    let insert_query = r#"
+    INSERT INTO share_links (board_id, permission, expires_at, share_code)
+    VALUES ($1, $2, $3, $4);
+    "#;
+
+    let result = sqlx::query(insert_query)
+        .bind(board_id)
+        .bind(permission)
+        .bind(expires_at)
+        .bind(share_code)
+        .execute(&db)
+        .await?;
+
+    Ok(result.last_insert_rowid())
+}
+
+
 #[cfg(test)]
 mod tests {
     use crate::data;
@@ -861,6 +880,17 @@ mod tests {
     #[sqlx::test(fixtures("boards"))]
     async fn delete_board_access_grant_will_delete_a_specific_grant(pool: SqlitePool) -> sqlx::Result<()> {
         let result = data::delete_board_access_grant(pool, "whatever".to_string(), 1).await.unwrap();
+
+        assert_eq!(1, result);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("boards"))]
+    async fn add_share_link_does_that(pool: SqlitePool) -> sqlx::Result<()> {
+        let expires_at = "2026-09-26T11:11:11+00:00".parse().unwrap();
+
+        let result = data::add_share_link(pool, 1, Permission::Edit, expires_at, "test_share_code".to_string()).await.unwrap();
 
         assert_eq!(1, result);
 

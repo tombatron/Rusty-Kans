@@ -60,10 +60,13 @@ CREATE TABLE IF NOT EXISTS share_links (
     share_id INTEGER NOT NULL,
     board_id INTEGER NOT NULL,
     permission TEXT NOT NULL,
+    share_code TEXT NOT NULL,
     expires_at TEXT NOT NULL,
 
     PRIMARY KEY (share_id),
     FOREIGN KEY (board_id) REFERENCES boards(board_id) ON DELETE CASCADE ON UPDATE NO ACTION,
 
-    CHECK (permission IN ('view', 'edit')),
+    CHECK (permission IN ('view', 'edit'))
 );
+
+CREATE INDEX idx_share_code ON share_links (share_code);

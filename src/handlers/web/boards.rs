@@ -1,7 +1,9 @@
+use std::time::Duration;
+
 use crate::data;
 use crate::errors::KanbanError;
 use crate::handlers::web::NewContainerFormTemplate;
-use crate::models::{Board, List};
+use crate::models::{Board, List, Permission};
 use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
@@ -11,9 +13,11 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use axum::response::{Html, IntoResponse, Redirect};
 use axum::routing::{get, post};
-use axum::{Form, Router};
+use axum::{Form, Json, Router};
 use garde::Validate;
 use serde::Deserialize;
+use serde_json::{Value, json};
+use sqlx::types::chrono::Utc;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -23,6 +27,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/boards/{board_id}/header", get(get_board_header))
         .route("/boards/{board_id}/rename", post(post_board_rename))
         .route("/boards/{board_id}/delete", post(post_board_delete))
+        .route("/boards/{board_id}/share", post(post_board_share))
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -225,6 +230,29 @@ async fn post_board_delete(
     }
 
     Ok(Redirect::to("/"))
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct SharePermission {
+    permission: Permission,
+}
+
+async fn post_board_share(
+    UserDb(db): UserDb, 
+    Path(board_id): Path<i64>, 
+    Form(share): Form<SharePermission>) -> Result<Json<Value>, KanbanError> {
+        let mut share_code_array = [0u8; 32];
+        rand::fill(&mut share_code_array);
+
+        let share_code = hex::encode(share_code_array);
+
+        let expires_at = Utc::now() + Duration::from_hours(12);
+
+        let _ = data::add_share_link(db, board_id, share.permission, expires_at, share_code.clone()).await?;
+
+    Ok(Json(json!({
+        "share_code": share_code,
+    })))
 }
 
 #[cfg(test)]
@@ -495,5 +523,21 @@ mod tests {
     #[tokio::test]
     async fn present_csrf_token_on_post_is_accepted_and_redirected(path: &str, redirect_url: &str, form: Vec<(String, String)>){
         base_csrf_acceptance_redirect_assertion(path, redirect_url, form).await;
+    }
+
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn post_board_share_returns_share_code(db: SqlitePool) -> sqlx::Result<()> {
+        let db = UserDb(db);
+
+        let request = SharePermission {
+            permission: Permission::Edit,
+        };
+
+        let response_one = post_board_share(db.clone(), Path(1), Form(request.clone())).await.unwrap();
+        let response_two = post_board_share(db, Path(1), Form(request)).await.unwrap();
+
+        assert_ne!(response_one["share_code"], response_two["share_code"]);
+
+        Ok(())
     }
 }
