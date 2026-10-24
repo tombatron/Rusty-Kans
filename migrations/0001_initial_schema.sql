@@ -69,4 +69,4 @@ CREATE TABLE IF NOT EXISTS share_links (
     CHECK (permission IN ('view', 'edit'))
 );
 
-CREATE INDEX idx_share_code ON share_links (share_code);
+CREATE UNIQUE INDEX idx_share_code ON share_links (share_code);
