@@ -2,22 +2,24 @@ use std::time::Duration;
 
 use crate::data;
 use crate::errors::KanbanError;
+use crate::handlers::auth::AUTHENTICATED_USER_KEY;
 use crate::handlers::web::NewContainerFormTemplate;
+use crate::models::security::LoggedInUser;
 use crate::models::{Board, List, Permission};
-use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
+use crate::state::{ApplicationState, CsrfTokenValue, UserDb, get_database_id};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
 use askama::Template;
-use axum::extract::Path;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::Response;
 use axum::response::{Html, IntoResponse, Redirect};
 use axum::routing::{get, post};
-use axum::{Form, Json, Router};
+use axum::{Form, Router};
 use garde::Validate;
 use serde::Deserialize;
-use serde_json::{Value, json};
 use sqlx::types::chrono::Utc;
+use tower_sessions::Session;
 
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
@@ -237,32 +239,59 @@ struct SharePermission {
     permission: Permission,
 }
 
+#[derive(Debug, Template)]
+#[template(path = "share_board.html")]
+struct ShareBoard {
+    base_url: String,
+    owner_database_id: String,
+    share_code: String,
+    permission: Permission,
+}
+
 async fn post_board_share(
+    State(state): State<ApplicationState>,
+    session: Session,
     UserDb(db): UserDb, 
     Path(board_id): Path<i64>, 
-    Form(share): Form<SharePermission>) -> Result<Json<Value>, KanbanError> {
-        let mut share_code_array = [0u8; 32];
-        rand::fill(&mut share_code_array);
+    Form(share): Form<SharePermission>) -> Result<Response, KanbanError> {
+        
+    let mut share_code_array = [0u8; 32];
 
-        let share_code = hex::encode(share_code_array);
+    rand::fill(&mut share_code_array);
 
-        let expires_at = Utc::now() + Duration::from_hours(12);
+    let share_code = hex::encode(share_code_array);
 
-        let _ = data::add_share_link(db, board_id, share.permission, expires_at, share_code.clone()).await?;
+    let expires_at = Utc::now() + Duration::from_hours(12);
 
-    Ok(Json(json!({
-        "share_code": share_code,
-    })))
+    let _ = data::add_share_link(db, board_id, share.permission.clone(), expires_at, share_code.clone()).await?;
+
+    // Unwrap here should be safe since this endpoint requires the user to be logged in anyway.
+    let current_user = session.get::<LoggedInUser>(AUTHENTICATED_USER_KEY).await?.unwrap();
+
+    let owner_database_id = get_database_id(current_user.id, current_user.source);
+
+    let template = ShareBoard {
+        base_url: state.base_url,
+        share_code, 
+        permission: share.permission,
+        owner_database_id,
+    };
+
+    Ok(TurboStream(template.render()?).into_response())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::handlers::web::boards::*;
+    use std::sync::Arc;
+
+use crate::handlers::tests::get_fake_application_state;
+use crate::handlers::web::boards::*;
     use crate::handlers::web::tests::*;
     use axum::Form;
     use axum::extract::Path;
     use sqlx::SqlitePool;
     use test_case::test_case;
+use tower_sessions::MemoryStore;
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_board_form_creates_a_new_board(db: SqlitePool) -> sqlx::Result<()> {
@@ -527,16 +556,33 @@ mod tests {
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn post_board_share_returns_share_code(db: SqlitePool) -> sqlx::Result<()> {
+        // Setup a fake user in a fake session. 
+        let session = Session::new(None, Arc::new(MemoryStore::default()), None);
+
+        let logged_in_user = LoggedInUser {
+            id: -1000,
+            name: "Your face".to_string(),
+            source: "whatever".to_string(),
+        };
+
+        session.insert(AUTHENTICATED_USER_KEY, logged_in_user).await.unwrap();
+
+
         let db = UserDb(db);
 
         let request = SharePermission {
             permission: Permission::Edit,
         };
 
-        let response_one = post_board_share(db.clone(), Path(1), Form(request.clone())).await.unwrap();
-        let response_two = post_board_share(db, Path(1), Form(request)).await.unwrap();
+        let fake_application_state = get_fake_application_state();
 
-        assert_ne!(response_one["share_code"], response_two["share_code"]);
+        let response_one = post_board_share(State(fake_application_state.clone()), session.clone(), db.clone(), Path(1), Form(request.clone())).await.unwrap();
+        let response_two = post_board_share(State(fake_application_state), session, db, Path(1), Form(request)).await.unwrap();
+
+        let body_one = get_response_body(response_one).await;
+        let body_two = get_response_body(response_two).await;
+
+        assert_ne!(body_one, body_two);
 
         Ok(())
     }

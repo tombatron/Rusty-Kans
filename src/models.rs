@@ -104,6 +104,17 @@ pub enum Permission {
     Edit,
 }
 
+impl Display for Permission {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let display_permission = match self {
+            Permission::View => "View",
+            Permission::Edit => "Edit",
+        };
+
+        write!(f, "{}", display_permission)
+    }
+}
+
 #[derive(Debug, FromRow)]
 pub struct BoardAccess {
     pub board_id: i64,
