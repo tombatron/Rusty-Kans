@@ -1,3 +1,5 @@
+use std::env;
+
 use crate::csrf::{get_or_create_secret, verify};
 use crate::data;
 use crate::errors::KanbanError;
@@ -13,6 +15,7 @@ use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Redirect, Response};
 use tower_sessions::Session;
+use subtle::ConstantTimeEq;
 
 pub async fn require_web_auth(session: Session, request: Request, next: Next) -> Response {
     let user: Option<LoggedInUser> = session
@@ -122,4 +125,28 @@ pub async fn require_delegated_access(
 
     // We we're here, let's proceed.
     Ok(next.run(request).await)
+}
+
+pub async fn require_backend_access(request: Request, next: Next) -> Result<Response, (StatusCode, String)> {
+
+        // Get the pre-shared key from the local environment. 
+        let pre_shared_backend_key = env::var("APP_BACKEND_SECURE_KEY")
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Remote backend is incorrectly configured.".to_string()))?;
+
+        // Get the pre-shared key from the request. 
+        let request_key = request.headers().get("X-backend-key")
+            .ok_or((StatusCode::FORBIDDEN, "Missing authentication header.".to_string()))?;
+        
+        // We have keys, but now we need their bytes.
+        let expected_bytes = pre_shared_backend_key.as_bytes();
+        let received_bytes = request_key.as_bytes();
+
+        let comparison_result = expected_bytes.ct_eq(&received_bytes);
+        let is_match: bool = comparison_result.into();
+
+        if !is_match {
+            return Err((StatusCode::UNAUTHORIZED, "Sorry brah, try again.".to_string()));
+        }
+        
+        Ok(next.run(request).await)
 }
