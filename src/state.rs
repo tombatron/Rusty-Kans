@@ -187,7 +187,7 @@ pub async fn create_application_state() -> ApplicationState {
     let github_client_id = env::var("GITHUB_CLIENT_ID").unwrap();
     let github_client_secret = env::var("GITHUB_CLIENT_SECRET").unwrap();
     let github_redirect_url = RedirectUrl::new(env::var("GITHUB_REDIRECT_URL").unwrap());
-    let base_url = env::var("APP_BASE_URL").unwrap();
+    let base_url = env::var("APP_BASE_URL").unwrap().trim_matches('/').to_string();
 
     let oauth_client = BasicClient::new(ClientId::new(github_client_id))
         .set_client_secret(ClientSecret::new(github_client_secret))

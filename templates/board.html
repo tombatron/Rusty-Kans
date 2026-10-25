@@ -22,7 +22,10 @@
 
     {{ macros::board_header(board.id, board.name) }}
 
-    <button onclick="document.getElementById('share-dialog').showModal();">Share</button>
+    <button type="button" class="board-share-btn" onclick="document.getElementById('share-dialog').showModal();">
+        <i data-lucide="share-2"></i>
+        Share
+    </button>
 </header>
 
 <turbo-frame id="lists" data-turbo-action="advance" data-csrf="{{ csrf_token | safe }}">

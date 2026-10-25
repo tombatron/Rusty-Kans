@@ -1,14 +1,25 @@
 <turbo-frame id="share-form">
-    <div class="dialog-actions">
-        <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
-        <form action="/boards/{{ board_id }}/share" method="post">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token | safe }}" />
+    <form class="share-form" action="/boards/{{ board_id }}/share" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token | safe }}" />
+
+        <p class="share-dialog-title">Share this board</p>
+
+        <label class="share-field">
+            Permission
             <select name="permission">
                 <option value="view">View</option>
                 <option value="edit">Edit</option>
             </select>
-            <input type="number" name="expire_hours" value="12" />
+        </label>
+
+        <label class="share-field">
+            Expires in (hours)
+            <input type="number" name="expire_hours" value="12" min="1" />
+        </label>
+
+        <div class="dialog-actions">
+            <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
             <button type="submit">Share</button>
-        </form>
-    </div>
+        </div>
+    </form>
 </turbo-frame>

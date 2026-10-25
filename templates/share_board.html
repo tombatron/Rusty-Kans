@@ -1,6 +1,12 @@
 <turbo-stream target="share-form" action="update">
     <template>
-        <a href="{{ base_url }}/redeem/{{ owner_database_id }}/{{ share_code }}">Share Link - Permission [{{ permission }}]</a>
-        <button type="button" onclick="this.closest('dialog').close();document.getElementById('share-form').reload();">Close</button>
+        <div class="share-result">
+            <p class="share-dialog-title">Share link created</p>
+            <p class="share-result-meta">{{ permission }} access</p>
+            <a data-turbo="false" class="share-result-link" href="{{ base_url }}/redeem/{{ owner_database_id }}/{{ share_code }}">{{ base_url }}/redeem/{{ owner_database_id }}/{{ share_code }}</a>
+            <div class="dialog-actions">
+                <button type="button" onclick="this.closest('dialog').close();document.getElementById('share-form').reload();">Close</button>
+            </div>
+        </div>
     </template>
 </turbo-stream>

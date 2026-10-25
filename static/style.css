@@ -576,7 +576,8 @@ button.card-delete-btn {
 button.card-delete-btn:hover { background: rgba(220,50,50,0.12); color: #e05555; }
 button.card-delete-btn svg { width: 13px; height: 13px; }
 
-.delete-dialog {
+.delete-dialog,
+.share-dialog {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -590,7 +591,8 @@ button.card-delete-btn svg { width: 13px; height: 13px; }
     margin: auto;
 }
 
-.delete-dialog::backdrop {
+.delete-dialog::backdrop,
+.share-dialog::backdrop {
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(2px);
 }
@@ -636,6 +638,94 @@ button.card-delete-btn svg { width: 13px; height: 13px; }
 }
 
 .btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Share dialog ─────────────────────────────────── */
+.board-share-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 0.4rem 0.75rem;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.board-share-btn:hover { color: var(--text); border-color: var(--text-muted); }
+.board-share-btn svg { width: 13px; height: 13px; }
+
+.share-dialog-title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 0.25rem;
+}
+
+.share-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.share-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.share-form select,
+.share-form input[type="number"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 0.4rem 0.6rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.share-form select:focus,
+.share-form input[type="number"]:focus { border-color: var(--accent); }
+.share-form select { appearance: none; cursor: pointer; }
+
+.share-result {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.share-result-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.share-result-link {
+    display: block;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--accent);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    padding: 0.5rem 0.6rem;
+    word-break: break-all;
+    text-decoration: none;
+}
+
+.share-result-link:hover { border-color: var(--text-muted); }
 
 /* ── Auth page ────────────────────────────────────── */
 .auth-container {

@@ -237,6 +237,7 @@ async fn post_board_delete(
 #[derive(Debug, Clone, Deserialize)]
 struct SharePermission {
     permission: Permission,
+    expire_hours: u64
 }
 
 #[derive(Debug, Template)]
@@ -261,7 +262,7 @@ async fn post_board_share(
 
     let share_code = hex::encode(share_code_array);
 
-    let expires_at = Utc::now() + Duration::from_hours(12);
+    let expires_at = Utc::now() + Duration::from_hours(share.expire_hours);
 
     let _ = data::add_share_link(db, board_id, share.permission.clone(), expires_at, share_code.clone()).await?;
 
@@ -590,6 +591,7 @@ mod tests {
 
         let request = SharePermission {
             permission: Permission::Edit,
+            expire_hours: 10,
         };
 
         let fake_application_state = get_fake_application_state();
