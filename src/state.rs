@@ -2,7 +2,7 @@ use crate::handlers::auth::AUTHENTICATED_USER_KEY;
 use crate::handlers::ws::SocketEvents;
 use crate::models::security::LoggedInUser;
 use axum::Extension;
-use axum::extract::{FromRef, FromRequestParts};
+use axum::extract::{FromRef, FromRequestParts, Path};
 use axum::http::request::Parts;
 use axum::http::StatusCode;
 use dashmap::DashMap;
@@ -130,11 +130,43 @@ where
     type Rejection = (StatusCode, String);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        // When you forget what's happening here... We've already resolved the database in the middleware and stored it in an
+        // extension, we're just retrieving it here. 
         let Extension(delegated_sqlpool) = Extension::<SqlitePool>::from_request_parts(parts, state)
             .await
             .map_err(|_| (StatusCode::BAD_REQUEST, "No way partner, I didn't see a delegated database...".to_string()))?;
 
         Ok(ApiDb(delegated_sqlpool))
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct BackendPathParams {
+    owner_database_id: String,
+}
+
+#[derive(Clone)]
+pub struct BackendDb(pub SqlitePool);
+
+impl<S> FromRequestParts<S> for BackendDb
+where 
+    ApplicationState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, String);
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let Path(params) = Path::<BackendPathParams>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| (StatusCode::BAD_REQUEST, "Request was bad yo.".to_string()))?;
+
+        let state = ApplicationState::from_ref(state);
+
+        let pool = get_pool_with_id(&state.db_pools, params.owner_database_id)
+            .await
+            .ok_or((StatusCode::BAD_REQUEST, "Not sure where you got that ID, but I don't know what to do with it.".to_string()))?;
+
+        Ok(BackendDb(pool))
     }
 }
 
