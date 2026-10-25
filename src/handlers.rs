@@ -10,6 +10,7 @@ pub mod auth;
 pub mod utility;
 pub mod web;
 pub mod ws;
+pub mod share;
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateListRequest {
