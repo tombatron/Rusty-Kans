@@ -30,6 +30,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/boards/{board_id}/rename", post(post_board_rename))
         .route("/boards/{board_id}/delete", post(post_board_delete))
         .route("/boards/{board_id}/share", get(get_board_share).post(post_board_share))
+        .route("/redeem/{owner_database_id}/{share_code}", get(get_redeem_code))
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -298,6 +299,16 @@ async fn get_board_share(CsrfTokenValue(csrf_token): CsrfTokenValue, Path(board_
     let response = template.render()?;
 
     Ok(Html(response))
+}
+
+async fn get_redeem_code(UserDb(db): UserDb, Path((owner_database_id, share_code)): Path<(String, String)>) -> Result<Html<String>, KanbanError> {
+    // Redeem the code here. This will shoot out to the other backend endpoint and redeem the share code. 
+
+    // They need to write board_access_record
+    // We need to write board_access_grants
+
+    // Probably end with a redirect to board access grants screen.
+    Ok(Html("whatever".to_string()))
 }
 
 #[cfg(test)]
