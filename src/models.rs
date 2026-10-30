@@ -132,6 +132,15 @@ pub struct BoardAccessGrant {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, FromRow)]
+pub struct ShareLink {
+    pub share_id: i64,
+    pub board_id: i64,
+    pub permission: Permission,
+    pub share_code: String,
+    pub expires_at: DateTime<Utc>,
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;

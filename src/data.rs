@@ -1,5 +1,5 @@
 use crate::errors::KanbanError;
-use crate::models::{Board, BoardAccess, BoardAccessGrant, BoardWithListIds, Card, List, ListWithCards, Permission, User};
+use crate::models::{Board, BoardAccess, BoardAccessGrant, BoardWithListIds, Card, List, ListWithCards, Permission, ShareLink, User};
 use sqlx::SqlitePool;
 use sqlx::types::chrono::{DateTime, Utc};
 
@@ -517,6 +517,46 @@ pub async fn add_share_link(db: SqlitePool, board_id: i64, permission: Permissio
         .await?;
 
     Ok(result.last_insert_rowid())
+}
+
+pub async fn delete_share_link(db: SqlitePool, share_code: String) {
+    let delete_query = r#"
+    DELETE FROM share_links WHERE share_code = 
+    "#;
+
+    let _ = sqlx::query(delete_query).bind(share_code).execute(&db).await;
+}
+
+/// The function is destructive. Calling for a share link that exists, will cause that link record to
+/// be deleted.
+pub async fn redeem_share_link(db: SqlitePool, share_code: String) -> Result<ShareLink, KanbanError> {
+    let select_query = r#"
+    SELECT
+
+        share_id,
+        board_id,
+        permission,
+        share_code,
+        expires_at
+
+    FROM share_links
+
+    WHERE share_code = $1
+    AND unixepoch(expires_at) > unixepoch($2);
+    "#;
+
+    let result = sqlx::query_as::<_, ShareLink>(select_query)
+        .bind(share_code.clone())
+        .bind(Utc::now().to_rfc3339())
+        .fetch_one(&db.clone())
+        .await;
+
+    // It's possible that the share_links record doesn't exist, but that's not the only 
+    // reason you might encounter an error. You might encounter an error if the share_links record
+    // exists but is expired. 
+    delete_share_link(db, share_code).await;
+
+    Ok(result?)
 }
 
 
