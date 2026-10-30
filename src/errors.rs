@@ -107,6 +107,12 @@ impl From<tower_sessions_redis_store::fred::error::Error> for KanbanError {
     }
 }
 
+impl From<reqwest::Error> for KanbanError {
+    fn from(value: reqwest::Error) -> Self {
+        KanbanError::GeneralError(value.to_string())
+    }
+}
+
 impl IntoResponse for KanbanError {
     fn into_response(self) -> Response {
         match self {

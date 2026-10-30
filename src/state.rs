@@ -44,6 +44,7 @@ pub struct ApplicationState {
     pub oauth_client: GitHubOAuthClient,
     pub redis_pool: Option<Pool>,
     pub base_url: String,
+    pub secure_key: String,
 }
 
 pub async fn get_or_create_pool(db_pools: &Arc<DashMap<String, SqlitePool>>, user_id: i64, source: String) -> Result<SqlitePool, KanbanError> {
@@ -220,6 +221,7 @@ pub async fn create_application_state() -> ApplicationState {
     let github_client_secret = env::var("GITHUB_CLIENT_SECRET").unwrap();
     let github_redirect_url = RedirectUrl::new(env::var("GITHUB_REDIRECT_URL").unwrap());
     let base_url = env::var("APP_BASE_URL").unwrap().trim_matches('/').to_string();
+    let secure_key = env::var("APP_BACKEND_SECURE_KEY").unwrap();
 
     let oauth_client = BasicClient::new(ClientId::new(github_client_id))
         .set_client_secret(ClientSecret::new(github_client_secret))
@@ -248,6 +250,7 @@ pub async fn create_application_state() -> ApplicationState {
         oauth_client,
         redis_pool,
         base_url,
+        secure_key,
     }
 }
 

@@ -5,7 +5,7 @@ use crate::errors::KanbanError;
 use crate::handlers::auth::AUTHENTICATED_USER_KEY;
 use crate::handlers::web::NewContainerFormTemplate;
 use crate::models::security::LoggedInUser;
-use crate::models::{Board, List, Permission};
+use crate::models::{Board, BoardAccessGrant, List, Permission};
 use crate::state::{ApplicationState, CsrfTokenValue, UserDb, get_database_id};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
@@ -18,6 +18,7 @@ use axum::routing::{get, post};
 use axum::{Form, Router};
 use garde::Validate;
 use serde::Deserialize;
+use serde_json::Value;
 use sqlx::types::chrono::Utc;
 use tower_sessions::Session;
 
@@ -301,14 +302,38 @@ async fn get_board_share(CsrfTokenValue(csrf_token): CsrfTokenValue, Path(board_
     Ok(Html(response))
 }
 
-async fn get_redeem_code(UserDb(db): UserDb, Path((owner_database_id, share_code)): Path<(String, String)>) -> Result<Html<String>, KanbanError> {
+async fn get_redeem_code(State(state): State<ApplicationState>, UserDb(db): UserDb, session: Session, Path((owner_database_id, share_code)): Path<(String, String)>) -> Result<Redirect, KanbanError> {
+    let current_user = session.get::<LoggedInUser>(AUTHENTICATED_USER_KEY).await?.unwrap();
+
     // Redeem the code here. This will shoot out to the other backend endpoint and redeem the share code. 
+    let client = reqwest::Client::new();
 
-    // They need to write board_access_record
+    let res: Value  = client.post(format!("/backend/{owner_database_id}/redeem"))
+        .header("X-backend-key", state.secure_key)
+        .form(&[
+            ("share_code", share_code),
+            ("display_name", current_user.name),
+            ("user_id", current_user.id.to_string()),
+            ("source", current_user.source),
+            ("avatar_url", "".to_string()), // Just have this here for now, it's required but not used yet.
+        ])
+        .send()
+        .await?
+        .json()
+        .await?;
+
     // We need to write board_access_grants
+    let access_grant = BoardAccessGrant {
+        owner_database_id: res.get("owner_database_id").unwrap().to_string(),
+        remote_board_id: res.get("remote_board_id").unwrap().as_i64().unwrap(),
+        remote_board_name: res.get("remote_board_name").unwrap().to_string(),
+        created_at: Utc::now()
+    };
 
-    // Probably end with a redirect to board access grants screen.
-    Ok(Html("whatever".to_string()))
+    let _ = data::add_board_access_grant(db, access_grant).await?;
+
+    // For now we'll redirect to the root, but later we'll go directly to the shared board.
+    Ok(Redirect::to("/"))
 }
 
 #[cfg(test)]

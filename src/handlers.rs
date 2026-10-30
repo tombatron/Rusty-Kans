@@ -89,6 +89,7 @@ pub mod tests {
             oauth_client,
             redis_pool: None,
             base_url: "http://example.com/".to_string(),
+            secure_key: "super secure yo".to_string(),
         }
     }
 
