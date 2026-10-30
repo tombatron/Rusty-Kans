@@ -29,6 +29,7 @@ where
     let utility = utility::get_router_configuration();
     let web = web::get_router_configuration();
     let ws = ws::get_router_configuration();
+    let share = share::get_router_configuration();
 
     let session_layer = SessionManagerLayer::new(session_store)
         .with_same_site(SameSite::Lax)
@@ -42,7 +43,8 @@ where
         .merge(ws)
         .merge(api)
         .layer(session_layer)
-        .merge(utility);
+        .merge(utility)
+        .merge(share);
 
     // In debug builds, prevent the browser from caching anything so template/CSS
     // changes are always visible on the next reload without manual cache-busting.
