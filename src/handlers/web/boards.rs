@@ -302,13 +302,31 @@ async fn get_board_share(CsrfTokenValue(csrf_token): CsrfTokenValue, Path(board_
     Ok(Html(response))
 }
 
+#[derive(Deserialize)]
+struct RedemptionResponse {
+    owner_database_id: String,
+    remote_board_id: i64,
+    remote_board_name: String,
+}
+
+impl From<RedemptionResponse> for BoardAccessGrant {
+    fn from(value: RedemptionResponse) -> Self {
+        BoardAccessGrant {
+            owner_database_id: value.owner_database_id,
+            remote_board_id: value.remote_board_id,
+            remote_board_name: value.remote_board_name,
+            created_at: Utc::now(),
+        }
+    }
+}
+
 async fn get_redeem_code(State(state): State<ApplicationState>, UserDb(db): UserDb, session: Session, Path((owner_database_id, share_code)): Path<(String, String)>) -> Result<Redirect, KanbanError> {
     let current_user = session.get::<LoggedInUser>(AUTHENTICATED_USER_KEY).await?.unwrap();
 
     // Redeem the code here. This will shoot out to the other backend endpoint and redeem the share code. 
     let client = reqwest::Client::new();
 
-    let res: Value  = client.post(format!("/backend/{owner_database_id}/redeem"))
+    let res  = client.post(format!("{}/backend/{owner_database_id}/redeem", state.base_url))
         .header("X-backend-key", state.secure_key)
         .form(&[
             ("share_code", share_code),
@@ -318,19 +336,15 @@ async fn get_redeem_code(State(state): State<ApplicationState>, UserDb(db): User
             ("avatar_url", "".to_string()), // Just have this here for now, it's required but not used yet.
         ])
         .send()
-        .await?
-        .json()
         .await?;
 
-    // We need to write board_access_grants
-    let access_grant = BoardAccessGrant {
-        owner_database_id: res.get("owner_database_id").unwrap().to_string(),
-        remote_board_id: res.get("remote_board_id").unwrap().as_i64().unwrap(),
-        remote_board_name: res.get("remote_board_name").unwrap().to_string(),
-        created_at: Utc::now()
-    };
+    if res.status() != StatusCode::OK {
+        return Err(KanbanError::GeneralError("There was an issue redeeming the share code.".to_string()));
+    }
 
-    let _ = data::add_board_access_grant(db, access_grant).await?;
+    let redemption_result = res.json::<RedemptionResponse>().await?;
+
+    let _ = data::add_board_access_grant(db, BoardAccessGrant::from(redemption_result)).await?;
 
     // For now we'll redirect to the root, but later we'll go directly to the shared board.
     Ok(Redirect::to("/"))

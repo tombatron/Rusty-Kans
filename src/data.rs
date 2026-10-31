@@ -521,7 +521,7 @@ pub async fn add_share_link(db: SqlitePool, board_id: i64, permission: Permissio
 
 pub async fn delete_share_link(db: SqlitePool, share_code: String) {
     let delete_query = r#"
-    DELETE FROM share_links WHERE share_code = 
+    DELETE FROM share_links WHERE share_code = $1;
     "#;
 
     let _ = sqlx::query(delete_query).bind(share_code).execute(&db).await;
