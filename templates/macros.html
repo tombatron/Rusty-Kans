@@ -175,3 +175,62 @@ selected
 </turbo-frame>
 {% endif %}
 {% endmacro %}
+
+{% macro shared_access_card(display_name, board_id, user_id, source, permission, csrf_token) %}
+<li class="access-row">
+    <span class="access-name">{{ display_name }}</span>
+    <span class="access-permission {% if permission == Permission::View %}access-permission-view{% else %}access-permission-edit{% endif %}">
+        {% if permission == Permission::View %}View{% else %}Edit{% endif %}
+    </span>
+    <button type="button" class="access-revoke-btn"
+            onclick="document.getElementById('shared-access-{{ user_id }}-{{ source }}').showModal()">
+        <i data-lucide="trash-2"></i>
+    </button>
+
+    <dialog id="shared-access-{{ user_id }}-{{ source }}" class="delete-dialog">
+        <p>Remove access for <strong>{{ display_name }}</strong>?</p>
+        <div class="dialog-actions">
+            <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+            <form action="/boards/{{ board_id }}/revoke" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <input type="hidden" name="board_id" value="{{ board_id }}" />
+                <input type="hidden" name="user_id" value="{{ user_id }}" />
+                <input type="hidden" name="source" value="{{ source }}" />
+                <button type="submit" class="btn-danger">Revoke</button>
+            </form>
+        </div>
+    </dialog>
+</li>
+{% endmacro%}
+
+{% macro access_list_body(board_access_users, csrf_token) %}
+<summary class="access-trigger">
+    <i data-lucide="users"></i>
+    {% if board_access_users.is_empty() %}Not shared{% else %}Shared with {{ board_access_users.len() }}{% endif %}
+</summary>
+<div class="access-panel">
+    {% if board_access_users.is_empty() %}
+    <p class="access-empty">Not shared with anyone yet.</p>
+    {% else %}
+    <ul class="access-rows">
+        {% for board_access_user in board_access_users %}
+            {{ shared_access_card(board_access_user.display_name, board_access_user.board_id, board_access_user.user_id, board_access_user.source, board_access_user.permission, csrf_token)}}
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% macro shared_access_list(board_access_users, is_update, csrf_token) %}
+{% if is_update %}
+<turbo-stream target="board-access-list" action="update">
+    <template>
+        {{ access_list_body(board_access_users, csrf_token) }}
+    </template>
+</turbo-stream>
+{% else %}
+<details id="board-access-list" class="access-list">
+    {{ access_list_body(board_access_users, csrf_token) }}
+</details>
+{% endif%}
+{% endmacro %}

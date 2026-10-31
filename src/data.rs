@@ -1,5 +1,5 @@
 use crate::errors::KanbanError;
-use crate::models::{Board, BoardAccess, BoardAccessGrant, BoardWithListIds, Card, List, ListWithCards, Permission, ShareLink, User};
+use crate::models::{Board, BoardAccess, BoardAccessDisplay, BoardAccessGrant, BoardWithListIds, Card, List, ListWithCards, Permission, ShareLink, User};
 use sqlx::SqlitePool;
 use sqlx::types::chrono::{DateTime, Utc};
 
@@ -444,6 +444,33 @@ pub async fn get_board_access(db: SqlitePool, board_id: i64) -> Result<Vec<Board
     "#;
 
     let result = sqlx::query_as::<_, BoardAccess>(select_query).bind(board_id).fetch_all(&db).await?;
+
+    Ok(result)
+}
+
+pub async fn get_board_access_for_display(db: SqlitePool, board_id: i64) -> Result<Vec<BoardAccessDisplay>, KanbanError> {
+    let select_query = r#"
+    SELECT 
+
+        board_id, 
+        u.display_name AS display_name,
+        granted_to_user_id AS user_id,
+        granted_to_user_source AS source,
+        permission
+
+    FROM board_access ba
+
+        INNER JOIN users u 
+        ON u.user_id = ba.granted_to_user_id
+        AND u.source = ba.granted_to_user_source
+
+    WHERE board_id = $1;
+    "#;
+
+    let result = sqlx::query_as::<_, BoardAccessDisplay>(select_query)
+        .bind(board_id)
+        .fetch_all(&db)
+        .await?;
 
     Ok(result)
 }

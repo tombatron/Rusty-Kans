@@ -5,7 +5,7 @@ use crate::errors::KanbanError;
 use crate::handlers::auth::AUTHENTICATED_USER_KEY;
 use crate::handlers::web::NewContainerFormTemplate;
 use crate::models::security::LoggedInUser;
-use crate::models::{Board, BoardAccessGrant, List, Permission};
+use crate::models::{Board, BoardAccessDisplay, BoardAccessGrant, List, Permission};
 use crate::state::{ApplicationState, CsrfTokenValue, UserDb, get_database_id};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
@@ -30,7 +30,9 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/boards/{board_id}/rename", post(post_board_rename))
         .route("/boards/{board_id}/delete", post(post_board_delete))
         .route("/boards/{board_id}/share", get(get_board_share).post(post_board_share))
+        .route("/boards/{board_id}/revoke", post(post_revoke_board_access))
         .route("/redeem/{owner_database_id}/{share_code}", get(get_redeem_code).post(post_redeem_code))
+        
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -101,6 +103,7 @@ struct BoardTemplate {
     board: Board,
     list_ids: Vec<i64>,
     new_list: NewContainerFormTemplate<List>,
+    board_access: Vec<BoardAccessDisplay>,
     csrf_token: String,
 }
 
@@ -109,7 +112,7 @@ pub async fn get_board(
     UserDb(db): UserDb,
     Path(board_id): Path<i64>,
 ) -> Result<Html<String>, KanbanError> {
-    let board = data::get_board_with_lists(db, board_id).await?;
+    let board = data::get_board_with_lists(db.clone(), board_id).await?;
 
     let new_list = NewContainerFormTemplate {
         sub_id: "list".to_string(),
@@ -120,11 +123,14 @@ pub async fn get_board(
         request: None,
     };
 
+    let board_access = data::get_board_access_for_display(db, board_id).await?;
+
     let response_template = BoardTemplate {
         board: board.board,
         list_ids: board.list_ids,
         new_list,
         csrf_token,
+        board_access,
     };
 
     Ok(Html(response_template.render()?))
@@ -338,7 +344,6 @@ impl From<RedemptionResponse> for BoardAccessGrant {
     }
 }
 
-#[axum::debug_handler]
 async fn post_redeem_code(
     State(state): State<ApplicationState>, 
     UserDb(db): UserDb, 
@@ -372,6 +377,34 @@ async fn post_redeem_code(
 
     // For now we'll redirect to the root, but later we'll go directly to the shared board.
     Ok(Redirect::to("/"))
+}
+
+#[derive(Deserialize)]
+struct RevokeBoardAccessForm {
+    board_id: i64,
+    user_id: i64,
+    source: String,
+}
+
+#[derive(Debug, Template)]
+#[template(
+    source = "{% import \"macros.html\" as macros %}{{ macros::shared_access_list(board_access, true, csrf_token) }}",
+    ext = "html"
+)]
+struct UpdateBoardAccess {
+    board_access: Vec<BoardAccessDisplay>,
+    csrf_token: String,
+}
+
+async fn post_revoke_board_access(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): UserDb, Form(revoke_form): Form<RevokeBoardAccessForm>) -> Result<TurboStream, KanbanError> {
+    data::remove_board_access(db.clone(), revoke_form.board_id, revoke_form.user_id, revoke_form.source).await?;
+    
+    let board_access = data::get_board_access_for_display(db, revoke_form.board_id).await?;
+
+    let template = UpdateBoardAccess { board_access, csrf_token };
+    // Need to render a stream template here. 
+
+    Ok(TurboStream(template.render()?))
 }
 
 #[cfg(test)]

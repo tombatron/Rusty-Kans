@@ -26,6 +26,8 @@
         <i data-lucide="share-2"></i>
         Share
     </button>
+
+    {{ macros::shared_access_list(board_access, false, csrf_token) }}
 </header>
 
 <turbo-frame id="lists" data-turbo-action="advance" data-csrf="{{ csrf_token | safe }}">

@@ -727,6 +727,111 @@ button.card-delete-btn svg { width: 13px; height: 13px; }
 
 .share-result-link:hover { border-color: var(--text-muted); }
 
+/* ── Shared access list ───────────────────────────── */
+.access-list { position: relative; }
+
+.access-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: fit-content;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 0.4rem 0.75rem;
+    cursor: pointer;
+    list-style: none;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.access-trigger::-webkit-details-marker { display: none; }
+.access-trigger:hover,
+.access-list[open] .access-trigger { color: var(--text); border-color: var(--text-muted); }
+.access-trigger svg { width: 13px; height: 13px; }
+
+.access-panel {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    z-index: 10;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem;
+    min-width: 220px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.access-empty {
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 0.4rem 0.3rem;
+    white-space: nowrap;
+}
+
+.access-rows {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.access-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.3rem;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.access-row:hover { background: var(--card-hover); }
+
+.access-name {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.access-permission {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.access-permission-view { background: var(--card); color: var(--text-muted); }
+.access-permission-edit { background: var(--accent-dim); color: var(--accent); }
+
+.access-revoke-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+}
+
+.access-revoke-btn:hover { background: rgba(220, 50, 50, 0.12); color: #e05555; }
+.access-revoke-btn svg { width: 13px; height: 13px; }
+
 /* ── Auth page ────────────────────────────────────── */
 .auth-container {
     display: flex;

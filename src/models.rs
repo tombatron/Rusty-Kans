@@ -141,6 +141,15 @@ pub struct ShareLink {
     pub expires_at: DateTime<Utc>,
 }
 
+#[derive(Debug, FromRow)]
+pub struct BoardAccessDisplay {
+    pub board_id: i64,
+    pub display_name: String,
+    pub user_id: i64,
+    pub source: String,
+    pub permission: Permission,
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
