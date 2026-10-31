@@ -18,7 +18,6 @@ use axum::routing::{get, post};
 use axum::{Form, Router};
 use garde::Validate;
 use serde::Deserialize;
-use serde_json::Value;
 use sqlx::types::chrono::Utc;
 use tower_sessions::Session;
 
@@ -31,7 +30,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
         .route("/boards/{board_id}/rename", post(post_board_rename))
         .route("/boards/{board_id}/delete", post(post_board_delete))
         .route("/boards/{board_id}/share", get(get_board_share).post(post_board_share))
-        .route("/redeem/{owner_database_id}/{share_code}", get(get_redeem_code))
+        .route("/redeem/{owner_database_id}/{share_code}", get(get_redeem_code).post(post_redeem_code))
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -302,6 +301,25 @@ async fn get_board_share(CsrfTokenValue(csrf_token): CsrfTokenValue, Path(board_
     Ok(Html(response))
 }
 
+
+
+#[derive(Debug, Template)]
+#[template(path = "redeem.html")]
+struct RedeemTemplate {
+    csrf_token: String,
+    owner_database_id: String,
+    share_code: String,
+}
+
+async fn get_redeem_code(
+    CsrfTokenValue(csrf_token): CsrfTokenValue, 
+    Path((owner_database_id, share_code)): Path<(String, String)>
+) -> Result<Html<String>, KanbanError> {
+    let template = RedeemTemplate { csrf_token, owner_database_id, share_code };
+
+    Ok(Html(template.render()?))
+}
+
 #[derive(Deserialize)]
 struct RedemptionResponse {
     owner_database_id: String,
@@ -320,13 +338,19 @@ impl From<RedemptionResponse> for BoardAccessGrant {
     }
 }
 
-async fn get_redeem_code(State(state): State<ApplicationState>, UserDb(db): UserDb, session: Session, Path((owner_database_id, share_code)): Path<(String, String)>) -> Result<Redirect, KanbanError> {
+#[axum::debug_handler]
+async fn post_redeem_code(
+    State(state): State<ApplicationState>, 
+    UserDb(db): UserDb, 
+    session: Session, 
+    Path((owner_database_id, share_code)): Path<(String, String)>
+) -> Result<Redirect, KanbanError> {
     let current_user = session.get::<LoggedInUser>(AUTHENTICATED_USER_KEY).await?.unwrap();
 
     // Redeem the code here. This will shoot out to the other backend endpoint and redeem the share code. 
     let client = reqwest::Client::new();
 
-    let res  = client.post(format!("{}/backend/{owner_database_id}/redeem", state.base_url))
+    let res  = client.post(format!("{}/backend/{}/redeem", state.base_url, owner_database_id))
         .header("X-backend-key", state.secure_key)
         .form(&[
             ("share_code", share_code),
