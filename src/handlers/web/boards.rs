@@ -6,7 +6,7 @@ use crate::handlers::auth::AUTHENTICATED_USER_KEY;
 use crate::handlers::web::NewContainerFormTemplate;
 use crate::models::security::LoggedInUser;
 use crate::models::{Board, BoardAccessDisplay, BoardAccessGrant, List, Permission};
-use crate::state::{ApplicationState, CsrfTokenValue, UserDb, get_database_id};
+use crate::state::{ApplicationState, CsrfTokenValue, DatabaseId, UserDb, get_database_id};
 use crate::turbo::TurboStream;
 use crate::validation::FormErrors;
 use askama::Template;
@@ -396,13 +396,28 @@ struct UpdateBoardAccess {
     csrf_token: String,
 }
 
-async fn post_revoke_board_access(CsrfTokenValue(csrf_token): CsrfTokenValue, UserDb(db): UserDb, Form(revoke_form): Form<RevokeBoardAccessForm>) -> Result<TurboStream, KanbanError> {
-    data::remove_board_access(db.clone(), revoke_form.board_id, revoke_form.user_id, revoke_form.source).await?;
+async fn post_revoke_board_access(
+    DatabaseId(current_db_id): DatabaseId, 
+    State(state): State<ApplicationState>, 
+    CsrfTokenValue(csrf_token): CsrfTokenValue, 
+    UserDb(db): UserDb, 
+    Form(revoke_form): Form<RevokeBoardAccessForm>
+) -> Result<TurboStream, KanbanError> {
+    data::remove_board_access(db.clone(), revoke_form.board_id, revoke_form.user_id, revoke_form.source.clone()).await?;
     
     let board_access = data::get_board_access_for_display(db, revoke_form.board_id).await?;
 
     let template = UpdateBoardAccess { board_access, csrf_token };
-    // Need to render a stream template here. 
+    
+    // Send a request to the grantee that their access has been revoked.
+    let grantee_database_id = get_database_id(revoke_form.user_id, revoke_form.source);
+
+    let client = reqwest::Client::new();
+
+    let _ = client.post(format!("{}/backend/{}/revoke/{}/{}", state.base_url, grantee_database_id, current_db_id, revoke_form.board_id))
+        .header("X-backend-key", state.secure_key)
+        .send()
+        .await?;
 
     Ok(TurboStream(template.render()?))
 }

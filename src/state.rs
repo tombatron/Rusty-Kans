@@ -171,6 +171,32 @@ where
     }
 }
 
+#[derive(Clone)]
+pub struct DatabaseId(pub String);
+
+impl<S> FromRequestParts<S> for DatabaseId where ApplicationState: FromRef<S>, S: Send + Sync {
+    type Rejection = (StatusCode, &'static str);
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let not_logged_in = (StatusCode::UNAUTHORIZED, "Expected a logged in user...");
+
+        let current_user = Session::from_request_parts(parts, state)
+            .await
+            .map_err(|_| not_logged_in)?
+            .get::<LoggedInUser>(AUTHENTICATED_USER_KEY)
+            .await
+            .map_err(|_| not_logged_in)?
+            .ok_or(not_logged_in)?;
+
+        let database_id = get_database_id(current_user.id, current_user.source);
+
+        Ok(DatabaseId(database_id))
+    }
+}
+
+
+// TODO: Create an extractor to get the current database id. 
+
 async fn get_database(database_id: String, create_if_missing: bool) -> Result<SqlitePool, KanbanError> {
     let database_path = get_database_path(&database_id);
 

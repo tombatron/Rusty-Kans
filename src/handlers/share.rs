@@ -1,5 +1,6 @@
 use axum::{Form, Json, Router, extract::{Path, State}, routing::post};
 use garde::Validate;
+use reqwest::StatusCode;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::types::chrono::Utc;
@@ -9,6 +10,7 @@ use crate::{data, errors::KanbanError, middleware::require_backend_access, model
 pub fn get_router_configuration() -> Router<ApplicationState> {
     Router::new()
         .route("/backend/{owner_database_id}/redeem", post(post_redeem_share_code))
+        .route("/backend/{owner_database_id}/revoke/{shared_database_id}/{remote_board_id}", post(post_revoke_grantee_access))
         .route_layer(axum::middleware::from_fn(require_backend_access))
 }
 
@@ -38,7 +40,6 @@ impl From<RedeemShareRequest> for User {
     }
 }
 
-// Need to get owner db access.
 async fn post_redeem_share_code(
     State(_): State<ApplicationState>, 
     BackendDb(db): BackendDb, 
@@ -71,4 +72,14 @@ async fn post_redeem_share_code(
         "remote_board_id": redeemed_share_link.board_id,
         "remote_board_name": board.name,
     })))
+}
+
+async fn post_revoke_grantee_access(
+    State(_): State<ApplicationState>, 
+    BackendDb(db): BackendDb, 
+    Path((_, shared_database_id, remote_board_id)): Path<(String, String, i64)>
+) -> Result<StatusCode, KanbanError> {
+    let _ = data::delete_board_access_grant(db, shared_database_id, remote_board_id).await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
