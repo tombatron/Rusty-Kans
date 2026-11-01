@@ -94,6 +94,17 @@ selected
 </div>
 {% endmacro %}
 
+{% macro shared_board_item(owner_database_id, remote_board_id, remote_board_name, created_at) %}
+<div class="board-card" id="shared-board-{{ owner_database_id }}-{{ remote_board_id }}">
+
+    <div id="shared-board-title-{{ owner_database_id }}-{{ remote_board_id }}" class="board-card-header">
+        <a href="" class="board-name" data-turbo-frame="_top">{{ remote_board_name }}</a>
+        <span>Shared at: {{ created_at }}</span>
+    </div>
+
+</div>
+{% endmacro %}
+
 {% macro board_header(id, name) %}
 <turbo-frame id="board-title-{{ id }}" action="update" class="board-card-header">
     <a href="/boards/{{ id }}" class="board-name" data-turbo-frame="_top">{{ name }}</a>

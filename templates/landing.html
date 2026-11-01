@@ -9,6 +9,12 @@
     {% endfor %}
     {{ macros::add_new_container_form(new_board, csrf_token) }}
 </div>
+
+<div id="shared-boards" class="boards-grid">
+    {% for sb in shared_boards %}
+    {{ macros::shared_board_item(sb.owner_database_id, sb.remote_board_id, sb.remote_board_name, sb.created_at) }}
+    {% endfor %}
+</div>
 {% endblock %}
 
 {% block bottom_scripts %}

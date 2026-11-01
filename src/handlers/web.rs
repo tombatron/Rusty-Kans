@@ -5,7 +5,7 @@ pub mod lists;
 use crate::data;
 use crate::errors::KanbanError;
 use crate::middleware::{require_csrf_token, require_web_auth};
-use crate::models::Board;
+use crate::models::{Board, BoardAccessGrant};
 use crate::state::{ApplicationState, CsrfTokenValue, UserDb};
 use crate::validation::FormErrors;
 use askama::Template;
@@ -27,6 +27,7 @@ pub fn get_router_configuration() -> Router<ApplicationState> {
 #[template(path = "landing.html")]
 struct LandingTemplate {
     boards: Vec<Board>,
+    shared_boards: Vec<BoardAccessGrant>,
     new_board: NewContainerFormTemplate<Board>,
     csrf_token: String,
 }
@@ -35,7 +36,9 @@ async fn get_landing(
     CsrfTokenValue(csrf_token): CsrfTokenValue,
     UserDb(db): UserDb,
 ) -> Result<Html<String>, KanbanError> {
-    let boards = data::get_all_boards(db).await?;
+    let boards = data::get_all_boards(db.clone()).await?;
+
+    let shared_boards = data::get_board_access_grants(db).await?;
 
     let new_board = NewContainerFormTemplate {
         sub_id: "board".to_string(),
@@ -50,6 +53,7 @@ async fn get_landing(
         boards,
         new_board,
         csrf_token,
+        shared_boards,
     };
 
     Ok(Html(template.render()?))
