@@ -17,11 +17,11 @@ use crate::{
     state::{ApplicationState, BackendDb},
 };
 
-pub fn get_router_configuration() -> Router<ApplicationState> {
+pub fn get_router_configuration(state: ApplicationState) -> Router<ApplicationState> {
     Router::new()
         .route("/backend/{owner_database_id}/redeem", post(post_redeem_share_code))
         .route("/backend/{owner_database_id}/revoke/{shared_database_id}/{remote_board_id}", post(post_revoke_grantee_access))
-        .route_layer(axum::middleware::from_fn(require_backend_access))
+        .route_layer(axum::middleware::from_fn_with_state(state, require_backend_access))
 }
 
 #[derive(Debug, Clone, Validate, Deserialize)]

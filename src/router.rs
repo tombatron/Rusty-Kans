@@ -26,7 +26,7 @@ where
     let utility = utility::get_router_configuration();
     let web = web::get_router_configuration();
     let ws = ws::get_router_configuration();
-    let share = share::get_router_configuration();
+    let share = share::get_router_configuration(application_state.clone());
 
     let session_layer = SessionManagerLayer::new(session_store)
         .with_same_site(SameSite::Lax)
@@ -175,8 +175,6 @@ mod tests {
     // TODO: header missing, 403 forbidden
 
     // TODO: wrong key, 401 unauthorized
-
-    // TODO: env var for shared key is unset, 500 internal server error
 
     // TODO: Board ID doesn't resolve to a known DB, not found.
 

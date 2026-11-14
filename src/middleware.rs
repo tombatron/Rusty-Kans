@@ -1,5 +1,3 @@
-use std::env;
-
 use crate::csrf::{get_or_create_secret, verify};
 use crate::data;
 use crate::errors::KanbanError;
@@ -127,18 +125,13 @@ pub async fn require_delegated_access(
     Ok(next.run(request).await)
 }
 
-pub async fn require_backend_access(request: Request, next: Next) -> Result<Response, (StatusCode, String)> {
-
-        // Get the pre-shared key from the local environment. 
-        let pre_shared_backend_key = env::var("APP_BACKEND_SECURE_KEY")
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Remote backend is incorrectly configured.".to_string()))?;
-
+pub async fn require_backend_access(State(state): State<ApplicationState>, request: Request, next: Next) -> Result<Response, (StatusCode, String)> {
         // Get the pre-shared key from the request. 
         let request_key = request.headers().get("X-backend-key")
             .ok_or((StatusCode::FORBIDDEN, "Missing authentication header.".to_string()))?;
         
         // We have keys, but now we need their bytes.
-        let expected_bytes = pre_shared_backend_key.as_bytes();
+        let expected_bytes = state.secure_key.as_bytes();
         let received_bytes = request_key.as_bytes();
 
         let comparison_result = expected_bytes.ct_eq(&received_bytes);
