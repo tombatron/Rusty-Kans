@@ -116,6 +116,30 @@ mod tests {
     }
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn post_move_card_wont_move_card_from_unauthed_board_to_an_authorized_list(db: SqlitePool) -> sqlx::Result<()> {
+        let db = ApiDb(db);
+
+        // card_id: 16 should be on board 3.
+        let response = post_move_card(db.clone(), Path(("".to_string(), 1, 2, 16))).await.unwrap_err();
+
+        assert_eq!(response, KanbanError::CardNotFound(16));
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn post_move_card_wont_move_card_to_an_unauthed_list(db: SqlitePool) -> sqlx::Result<()>  {
+        let db = ApiDb(db);
+
+        // card_id: 16 should be on board 3.
+        let response = post_move_card(db.clone(), Path(("".to_string(), 1, 6, 1))).await.unwrap_err();
+
+        assert_eq!(response, KanbanError::CardNotFound(1));
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_card_by_id_gets_card_by_id(db: SqlitePool) -> sqlx::Result<()> {
         let db = ApiDb(db);
 
