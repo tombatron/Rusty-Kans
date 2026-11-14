@@ -304,9 +304,38 @@ A batch of fixes from feedback Claude gave on the existing code, spanning error 
 - Resolved a long-standing TODO by recognizing `create_list_common` was serving two genuinely different response shapes wearing one signature: the web-form path renders a CSRF-templated `turbo-stream` HTML fragment, the JSON API path needs neither the template nor a CSRF token. The shared helper's `"_".to_string()` CSRF-token placeholder for the API path was a symptom of forcing both through one function
 - Deleted `create_list_common`, its `ListItemTemplate`, and the now-pointless test from `handlers.rs`; `ListItemTemplate` moved into `handlers/web/lists.rs` where it's actually used; `handlers/api/lists.rs` now builds its JSON response directly with `serde_json::json!`, no template, no CSRF token in an API response at all
 
+## Phase 6 — Cross-user board sharing (GitHub issue #5)
+Scope: an owner can share a board via a link; a grantee redeems it and gains access; either side's revoke should clean up both sides; both the owner's and the grantee's views should show what's shared. The architecture wrinkle driving most of this phase: every user has their own SQLite database (`db_pools` keyed by `get_database_id`), so "sharing a board" is a cross-instance write, not a row-level permission on a shared table.
+
+- Multi-database sharing means an owner's revoke action has to reach into the *grantee's own database* — modeled as a second, preshared-key-secured HTTP hop from the owner's instance to the grantee's, mirroring the shape of the original redemption flow in reverse
+- Preshared-key backend auth (`require_backend_access` middleware): compares a header against an env-configured secret using `subtle::ConstantTimeEq` rather than `==`, to avoid timing side-channels on the comparison
+- Custom `BackendDb` extractor: pulls `owner_database_id` straight off the path and resolves the pool itself inside `from_request_parts` — contrasted with `UserDb`'s pattern of middleware computing the pool and stashing it via `request.extensions_mut()`
+- New `DatabaseId` extractor: session → `LoggedInUser` → `get_database_id(user.id, user.source)` in one extraction, giving a handler "my own database id" for one line of code — used so the owner's revoke handler knows which database to tell the grantee's backend the pointer came from
+- `garde::Validate`'s `#[garde(required)]` only has an impl for `Option<T>`, not bare `String` (confirmed by reading the vendored crate source) — `#[garde(length(min = N))]` is the right attribute for a required non-optional field
+- SQLite has no native datetime type: compare with `unixepoch(col) > unixepoch(?)`, binding `Utc::now().to_rfc3339()` from Rust rather than trusting SQLite's own `'now'`
+- `[alias] = expr` in SQLite is *not* column aliasing (a T-SQL habit) — it's a boolean equality expression; only `expr AS alias` actually aliases
+- Rust 2024 never-type fallback: an unconsumed generic result (`response.json::<T>()` never bound) defaults `T` to `!`, which doesn't implement `DeserializeOwned` — fixed by actually consuming a concrete typed response
+- GET must stay side-effect-free: the first redeem design put the actual redemption behind a bare GET (link-preview-bot risk) — split into a GET confirmation page and a separate POST that performs the mutation
+- Askama compiles template expressions to real Rust: `'view'` is an invalid (multi-char) Rust char literal — compare the enum variant directly instead (`permission == Permission::View`)
+- Turbo Streams only read their own `target`/`targets` attribute, never `id` (confirmed straight from Turbo's `stream_element.js`)
+- Native `<dialog>` + `.showModal()` renders in the browser's top layer, so per-row revoke-confirmation dialogs no longer need the hoist-to-end-of-`<body>` trick the old fake-modal pattern required
+- `<details>`/`<summary>` used as a zero-JavaScript disclosure widget for the "who has access" panel
+- `sqlx::query_scalar` for single-column scalar results (e.g. `COUNT(*)`) — the right tool when a result doesn't have named columns to decode into a struct via `query_as`/`FromRow`
+- SQLite datetime fixtures: `strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now', '+1 day')` / `'-1 day'` keeps a fixture's "still valid" / "already expired" rows correct relative to whenever the test actually runs, instead of drifting with a hardcoded absolute date
+
+### Bugs caught (all found and fixed by the student; Claude's role was review/explain, not implementation)
+- Missing `$1` placeholder in `delete_share_link`'s `DELETE` statement — ran without a syntax error because `let _ = ...await` silently swallowed it; meant share codes were never actually single-use. Found via direct `sqlite3` CLI reproduction, not by reading the code
+- Router path typo `/boards/{board_id/revoke` (missing `}`) — compiled clean under `cargo build`, only panicked at router-construction time, which cascaded into 43 failing tests
+- `<turbo-stream id="...">` instead of `target="..."` — silently did nothing in the browser; missed on the first fix pass, had to be re-flagged
+- Wrong variable in macro scope (`board_access.permission` instead of the loop variable `board_access_user.permission`) — a silent logic bug briefly masked by a simultaneous Askama char-literal compile error
+- `post_revoke_board_access` originally updated only the owner-side `board_access` row; `delete_board_access_grant` existed in `data.rs` but was called from nowhere. The ticket's "revoke removes both sides" requirement wasn't actually met until a dedicated cross-instance revoke call was added to reach the grantee's database too
+
+### Current gaps (open, not yet closed)
+- "Who has access" renders per-board (`get_board_access_for_display` filters `WHERE board_id = $1`) rather than the ticket's literal cross-board, grouped-by-grantee aggregated view — a known, acknowledged deviation, not yet revisited
+- "What I have access to" ships on the landing page (`shared_boards` section) showing the shared board's name and grant date, but it's read-only — there is no route yet for a grantee to actually *open* a board living in someone else's database, so the card is intentionally non-interactive for now
+- Test coverage audit (full codebase pass) found: `require_backend_access` middleware has no direct test; most of `boards.rs`'s share/redeem/revoke web handlers (`get_board_share`, `get_redeem_code`, `post_redeem_code`, `post_revoke_board_access`) are untested; `validation.rs` and the GitHub OAuth `get_callback` handler are untested. `share.rs`'s backend endpoints (`post_redeem_share_code`, `post_revoke_grantee_access`) have since gained test coverage this session (159 tests passing, up from 155), but the happy-path redeem test still only checks the JSON response shape, not the actual persisted side effects (board_access row written, share link consumed, user upserted)
+
 ## Current Position
-**Post-curriculum, feature work.** CSRF protection, drag-and-drop reordering, live same-list-reorder broadcast, and the follow-up cleanup pass are all done and committed. `cargo build` is green. Card `status` has been fully replaced by list membership + `sort_order`.
+**Phase 6, in progress.** Share-link creation, redemption (two-hop, preshared-key secured), and revoke (now correctly cleaning up both the owner's `board_access` row and the grantee's `board_access_grants` pointer) are implemented and under active test coverage. `cargo build`/`cargo test` are green at 159 passing.
 
-Working tree is clean — nothing pending. Open for new feature work.
-
-No specific next feature queued yet — last session was entirely a catch-up/review + fixing test-suite drift after independent feature work. Good moment to ask the student what they want to tackle next, or propose: broadcasting board-level events (new list/card added) the same way card moves and sorts already are, since that's the one remaining gap between "some things are live" and "the whole board is live."
+Next natural step if picking this back up: either build the grantee-facing "view a shared board" route (the one piece of the original three-bullet scope — share, redeem, display — that's still entirely unbuilt), or keep closing the test-coverage gaps listed above in `boards.rs`/`middleware.rs`/`validation.rs`.
