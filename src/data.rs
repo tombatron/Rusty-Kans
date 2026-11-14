@@ -163,7 +163,8 @@ pub async fn get_card_api(db: SqlitePool, board_id: i64, card_id: i64) -> Result
         .bind(card_id)
         .bind(board_id)
         .fetch_one(&db)
-        .await?;
+        .await
+        .map_err(|_| KanbanError::CardNotFound(card_id))?;
 
     Ok(card)
 }

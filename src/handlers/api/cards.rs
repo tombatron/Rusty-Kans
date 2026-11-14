@@ -153,6 +153,17 @@ mod tests {
     }
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn get_card_by_id_gets_card_not_found_if_card_is_on_a_different_board(db: SqlitePool) -> sqlx::Result<()> {
+        let db = ApiDb(db);
+
+        let response = get_card_by_id(db, Path(("".to_string(), 1, 15))).await.unwrap_err();
+
+        assert_eq!(KanbanError::CardNotFound(15), response);
+
+        Ok(())
+    }    
+
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn get_card_by_search_does_that(db: SqlitePool) -> sqlx::Result<()> {
         let db = ApiDb(db);
 
