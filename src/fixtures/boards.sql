@@ -49,3 +49,6 @@ INSERT INTO board_access (board_id, granted_to_user_id, granted_to_user_source, 
 
 INSERT INTO board_access_grants (owner_database_id, remote_board_id, remote_board_name, created_at) VALUES ('whatever', 1, 'board 1', '2026-09-26T15:32:07+00:00');
 INSERT INTO board_access_grants (owner_database_id, remote_board_id, remote_board_name, created_at) VALUES ('whatever 2', 2, 'board 2', '2026-09-26T15:32:07+00:00');
+
+INSERT INTO share_links (board_id, permission, share_code, expires_at) VALUES (1, 'view', 'valid-share-code', strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now', '+1 day'));
+INSERT INTO share_links (board_id, permission, share_code, expires_at) VALUES (1, 'view', 'expired-share-code', strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now', '-1 day'));

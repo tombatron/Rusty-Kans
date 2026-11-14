@@ -3,6 +3,7 @@
 {% import "macros.html" as macros %}
 
 {% block content %}
+<h2 class="section-heading">Your boards</h2>
 <div id="boards" class="boards-grid">
     {% for board in boards %}
     {{ macros::board_item(board.id, board.name, csrf_token) }}
@@ -10,11 +11,16 @@
     {{ macros::add_new_container_form(new_board, csrf_token) }}
 </div>
 
+<h2 class="section-heading">Shared with you</h2>
+{% if shared_boards.is_empty() %}
+<p class="section-empty">Nothing's been shared with you yet.</p>
+{% else %}
 <div id="shared-boards" class="boards-grid">
     {% for sb in shared_boards %}
     {{ macros::shared_board_item(sb.owner_database_id, sb.remote_board_id, sb.remote_board_name, sb.created_at) }}
     {% endfor %}
 </div>
+{% endif %}
 {% endblock %}
 
 {% block bottom_scripts %}

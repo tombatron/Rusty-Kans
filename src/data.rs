@@ -524,7 +524,11 @@ pub async fn delete_board_access_grant(db: SqlitePool, owner_database_id: String
     AND remote_board_id = $2;
     "#;
 
-    let result = sqlx::query(delete_query).bind(owner_database_id).bind(remote_board_id).execute(&db).await?;
+    let result = sqlx::query(delete_query)
+        .bind(owner_database_id)
+        .bind(remote_board_id)
+        .execute(&db)
+        .await?;
 
     Ok(result.rows_affected())
 }
@@ -959,7 +963,7 @@ mod tests {
 
         let result = data::add_share_link(pool, 1, Permission::Edit, expires_at, "test_share_code".to_string()).await.unwrap();
 
-        assert_eq!(1, result);
+        assert_eq!(3, result);
 
         Ok(())
     }
