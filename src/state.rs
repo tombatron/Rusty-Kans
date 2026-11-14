@@ -243,11 +243,11 @@ pub async fn create_application_state() -> ApplicationState {
     dotenv().ok();
 
     // If we panic because we can't get the necessary environmental variables then so be it.
-    let github_client_id = env::var("GITHUB_CLIENT_ID").unwrap();
-    let github_client_secret = env::var("GITHUB_CLIENT_SECRET").unwrap();
-    let github_redirect_url = RedirectUrl::new(env::var("GITHUB_REDIRECT_URL").unwrap());
-    let base_url = env::var("APP_BASE_URL").unwrap().trim_matches('/').to_string();
-    let secure_key = env::var("APP_BACKEND_SECURE_KEY").unwrap();
+    let github_client_id = env::var("GITHUB_CLIENT_ID").expect("The `GITHUB_CLIENT_ID` must be set in the environment.");
+    let github_client_secret = env::var("GITHUB_CLIENT_SECRET").expect("The `GITHUB_CLIENT_SECRET` must be set in the environment.");
+    let github_redirect_url = RedirectUrl::new(env::var("GITHUB_REDIRECT_URL").expect("The `GITHUB_REDIRECT_URL` must be set in the environment."));
+    let base_url = env::var("APP_BASE_URL").expect("The `APP_BASE_URL` must be set in the environment.").trim_matches('/').to_string();
+    let secure_key = validate_secure_key(env::var("APP_BACKEND_SECURE_KEY").ok()).unwrap();
 
     let oauth_client = BasicClient::new(ClientId::new(github_client_id))
         .set_client_secret(ClientSecret::new(github_client_secret))
@@ -337,10 +337,22 @@ where
     }
 }
 
+fn validate_secure_key(secure_key_value: Option<String>) -> Result<String, KanbanError> {
+    match secure_key_value {
+        Some(secure_key) => {
+            if secure_key.is_empty() {
+                Err(KanbanError::GeneralError("The `APP_BACKEND_SECURE_KEY` was present, but empty.".to_string()))
+            } else {
+                Ok(secure_key)
+            }
+        },
+        None => Err(KanbanError::GeneralError("The `APP_BACKEND_SECURE_KEY` environment variable was not set.".to_string())),
+    }
+}
 
 #[cfg(test)]
 pub mod tests  {
-    use crate::{errors::KanbanError, state::{get_database, get_database_id}};
+    use crate::{errors::KanbanError, state::{get_database, get_database_id, validate_secure_key}};
 
     #[test]
     fn get_database_id_returns_hashed_value() {
@@ -354,6 +366,33 @@ pub mod tests  {
         let database_result = get_database("this_doesnt_exist".to_string(), false).await;
 
         assert!(matches!(database_result, Err(KanbanError::DatabaseNotFound(_))));
+    }
+
+    #[test]
+    fn validate_secure_key_will_accept_a_non_empty_value() {
+        let result = validate_secure_key(Some("hello face".to_string())).unwrap();
+
+        assert_eq!("hello face", result);
+    }
+
+    #[test]
+    fn validate_secure_key_will_return_err_if_value_is_none() {
+        let result = validate_secure_key(None);
+
+        assert_eq!(
+            result.unwrap_err(), 
+            KanbanError::GeneralError("The `APP_BACKEND_SECURE_KEY` environment variable was not set.".to_string())
+        );
+    }
+
+    #[test]
+    fn validate_secure_key_will_return_err_if_value_is_empty() {
+        let result = validate_secure_key(Some("".to_string()));
+
+        assert_eq!(
+            result.unwrap_err(), 
+            KanbanError::GeneralError("The `APP_BACKEND_SECURE_KEY` was present, but empty.".to_string())
+        );
     }
 }
 

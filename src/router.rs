@@ -17,10 +17,7 @@ pub fn create_router(application_state: ApplicationState) -> Router<()> {
     }
 }
 
-pub fn create_router_with_session<S>(
-    application_state: ApplicationState,
-    session_store: S,
-) -> Router<()>
+pub fn create_router_with_session<S>(application_state: ApplicationState, session_store: S) -> Router<()>
 where
     S: SessionStore + Clone,
 {
@@ -49,10 +46,7 @@ where
     // In debug builds, prevent the browser from caching anything so template/CSS
     // changes are always visible on the next reload without manual cache-busting.
     let router = if cfg!(debug_assertions) {
-        router.layer(SetResponseHeaderLayer::overriding(
-            header::CACHE_CONTROL,
-            HeaderValue::from_static("no-store"),
-        ))
+        router.layer(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("no-store")))
     } else {
         router
     };
@@ -62,7 +56,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use crate::handlers::auth::{AUTHENTICATED_USER_KEY, AuthSources};
     use crate::handlers::tests::TestDatabaseGuard;
     use crate::router::{create_router, create_router_with_session};
@@ -71,6 +64,7 @@ mod tests {
     use axum::http::{Request, StatusCode};
     use axum_test::TestServer;
     use sqlx::SqlitePool;
+    use std::sync::Arc;
     use tower::ServiceExt;
     use tower_sessions::{MemoryStore, Session, SessionStore};
 
@@ -79,15 +73,7 @@ mod tests {
         let state = create_application_state().await;
         let app = create_router(state);
 
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/health")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
+        let response = app.oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap()).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
     }
@@ -97,17 +83,7 @@ mod tests {
         let state = create_application_state().await;
         let app = create_router(state);
 
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/api/whatever-test-db/board/1")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        
+        let response = app.oneshot(Request::builder().uri("/api/whatever-test-db/board/1").body(Body::empty()).unwrap()).await.unwrap();
 
         assert_eq!(StatusCode::FORBIDDEN, response.status());
     }
@@ -139,10 +115,7 @@ mod tests {
         // Load the record and insert user data directly into the store, becase
         // if you are authed, we don't even check to see if you passed a csrf token.
         let mut record = store.load(&session_id).await.unwrap().unwrap();
-        record.data.insert(
-            AUTHENTICATED_USER_KEY.to_string(),
-            serde_json::json!({"id": user_id, "name": "whatever", "source": AuthSources::DEV }),
-        );
+        record.data.insert(AUTHENTICATED_USER_KEY.to_string(), serde_json::json!({"id": user_id, "name": "whatever", "source": AuthSources::DEV }));
         store.save(&record).await.unwrap();
 
         let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
@@ -155,8 +128,8 @@ mod tests {
 
         Ok(())
     }
-// TODO: Logged in but no board access, forbidden.
-        #[sqlx::test(fixtures(path = "./fixtures", scripts("boards")))]
+
+    #[sqlx::test(fixtures(path = "./fixtures", scripts("boards")))]
     async fn api_rejects_authenticated_requests_with_no_board_access(db_pool: SqlitePool) -> sqlx::Result<()> {
         let user_id: i64 = -7000;
 
@@ -183,10 +156,7 @@ mod tests {
         // Load the record and insert user data directly into the store, becase
         // if you are authed, we don't even check to see if you passed a csrf token.
         let mut record = store.load(&session_id).await.unwrap().unwrap();
-        record.data.insert(
-            AUTHENTICATED_USER_KEY.to_string(),
-            serde_json::json!({"id": user_id, "name": "whatever", "source": AuthSources::DEV }),
-        );
+        record.data.insert(AUTHENTICATED_USER_KEY.to_string(), serde_json::json!({"id": user_id, "name": "whatever", "source": AuthSources::DEV }));
         store.save(&record).await.unwrap();
 
         let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
@@ -199,11 +169,20 @@ mod tests {
 
         Ok(())
     }
-    
+
+    // require_delegated_access
+
+    // TODO: header missing, 403 forbidden
+
+    // TODO: wrong key, 401 unauthorized
+
+    // TODO: env var for shared key is unset, 500 internal server error
 
     // TODO: Board ID doesn't resolve to a known DB, not found.
 
     // TODO: Logged in, has view access tries edit, forbidden.
 
-}
+    // require_backend_access
 
+
+}
