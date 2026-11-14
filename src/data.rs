@@ -210,7 +210,7 @@ pub async fn delete_card(db: SqlitePool, card_id: i64) -> Result<u64, KanbanErro
 
 pub async fn delete_card_api(db: SqlitePool, board_id: i64, card_id: i64) -> Result<u64, KanbanError> {
     let query = r#"
-    DELETE FROM cards 
+    DELETE FROM cards
 
     WHERE card_id = $1
 
@@ -225,6 +225,7 @@ pub async fn delete_card_api(db: SqlitePool, board_id: i64, card_id: i64) -> Res
             ON L.list_id = C.list_id 
             
         WHERE L.board_id = $2
+        AND C.card_id = $1
     );
     "#;
 

@@ -193,6 +193,20 @@ mod tests {
     }
 
     #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
+    async fn delete_card_doesnt_work_if_the_card_is_on_another_board(db: SqlitePool) -> sqlx::Result<()> {
+        let db = ApiDb(db);
+
+        let response = delete_card(db.clone(), Path(("".to_string(), 1, 16))).await.unwrap();
+
+        let card = data::get_card(db.0, 16).await;
+
+        assert_eq!(StatusCode::OK, response);
+        assert!(card.is_ok()); // This should not be an error because it didn't get deleted.
+
+        Ok(())
+    }    
+
+    #[sqlx::test(fixtures(path = "../../fixtures", scripts("boards")))]
     async fn patch_card_updates_card(db: SqlitePool) -> sqlx::Result<()> {
         let db = ApiDb(db);
 
