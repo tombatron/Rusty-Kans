@@ -889,7 +889,7 @@ mod tests {
     async fn get_board_access_returns_all_access_for_a_board(pool: SqlitePool) -> sqlx::Result<()> {
         let result = data::get_board_access(pool, 1).await.unwrap();
 
-        assert_eq!(2, result.len());
+        assert_eq!(3, result.len());
 
         Ok(())
     }

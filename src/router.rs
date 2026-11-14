@@ -63,7 +63,9 @@ mod tests {
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use axum_test::TestServer;
-    use sqlx::SqlitePool;
+    use reqwest::Method;
+use serde_json::json;
+use sqlx::SqlitePool;
     use std::sync::Arc;
     use tower::ServiceExt;
     use tower_sessions::{MemoryStore, Session, SessionStore};
@@ -83,7 +85,12 @@ mod tests {
         let state = create_application_state().await;
         let app = create_router(state);
 
-        let response = app.oneshot(Request::builder().uri("/api/whatever-test-db/board/1").body(Body::empty()).unwrap()).await.unwrap();
+        let response = app.oneshot(
+            Request::builder()
+                .uri("/api/whatever-test-db/board/1")
+                .body(Body::empty())
+                .unwrap()
+            ).await.unwrap();
 
         assert_eq!(StatusCode::FORBIDDEN, response.status());
     }
@@ -170,17 +177,100 @@ mod tests {
         Ok(())
     }
 
-    // require_delegated_access
+    #[sqlx::test(fixtures(path = "./fixtures", scripts("boards")))]
+    async fn api_rejects_authenticated_edit_requests_with_no_edit_access(db_pool: SqlitePool) -> sqlx::Result<()> {
+        let user_id: i64 = -40000; // This user should only have view access.
 
-    // TODO: header missing, 403 forbidden
+        let _use_me = TestDatabaseGuard::new(user_id);
 
-    // TODO: wrong key, 401 unauthorized
+        let store = MemoryStore::default();
+        let state = create_application_state().await;
 
-    // TODO: Board ID doesn't resolve to a known DB, not found.
+        // Insert the db_pool into the map of cached db pools.
+        state.db_pools.insert("whatever-test-db".to_string(), db_pool.clone());
 
-    // TODO: Logged in, has view access tries edit, forbidden.
+        let mut server_builder = TestServer::builder();
+        server_builder = server_builder.save_cookies();
 
-    // require_backend_access
+        let server = server_builder.build(create_router_with_session(state.clone(), store.clone()));
 
+        // Establish a session.
+        let response = server.get("/auth/login").await;
 
+        // Pull the session ID out of the cookie.
+        let cookie = response.cookie("id");
+        let session_id = cookie.value().parse().unwrap();
+
+        // Load the record and insert user data directly into the store, becase
+        // if you are authed, we don't even check to see if you passed a csrf token.
+        let mut record = store.load(&session_id).await.unwrap().unwrap();
+        record.data.insert(AUTHENTICATED_USER_KEY.to_string(), serde_json::json!({"id": user_id, "name": "whatever", "source": AuthSources::DEV }));
+        store.save(&record).await.unwrap();
+
+        let session = Session::new(Some(session_id), Arc::new(store.clone()), None);
+
+        let _ = session.save().await;
+
+        let response = server
+            .post("/api/whatever-test-db/1/lists/1/cards")
+            .json(&json!({
+                "title": "whatever",
+                "description": "this doesn't even matter"
+            }))
+            .await;
+
+        response.assert_status_forbidden();
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn require_delegated_rejects_missing_auth_header_as_forbidden() {
+        let state = create_application_state().await;
+        let app = create_router(state);
+
+        let request = Request::builder()
+            .method(Method::POST)
+            .uri("/backend/whatever_db/redeem")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn require_delegated_rejects_wrong_auth_header_as_unauthorized() {
+        let state = create_application_state().await;
+        let app = create_router(state);
+
+        let request = Request::builder()
+            .method(Method::POST)
+            .uri("/backend/whatever_db/redeem")
+            .header("X-backend-key", "not even close")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn request_delegated_rejects_unknown_db_as_bad_request() {
+        let state = create_application_state().await;
+        let app = create_router(state);
+
+        let request = Request::builder()
+            .method(Method::POST)
+            .uri("/backend/whatever_db/redeem")
+            .header("X-backend-key", "change_this_in_production")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
 }
