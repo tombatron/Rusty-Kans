@@ -40,7 +40,7 @@ pub struct ApplicationState {
 pub async fn get_or_create_pool(db_pools: &Arc<DashMap<String, SqlitePool>>, user_id: i64, source: &str) -> Result<SqlitePool, KanbanError> {
     let database_id = get_database_id(user_id, source);
 
-    Ok(get_or_create_pool_with_id(&db_pools, database_id).await?)
+    Ok(get_or_create_pool_with_id(db_pools, database_id).await?)
 }
 
 async fn get_or_create_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>, database_id: String) -> Result<SqlitePool, KanbanError> {
@@ -88,7 +88,7 @@ fn get_database_path_with_extension(database_id: &str, extension: &str) -> PathB
 }
 
 pub fn get_database_path(database_id: &str) -> PathBuf {
-    get_database_path_with_extension(&database_id, "db")
+    get_database_path_with_extension(database_id, "db")
 }
 
 #[derive(Clone)]
@@ -193,7 +193,7 @@ where
 }
 
 async fn get_database(database_id: &str, create_if_missing: bool) -> Result<SqlitePool, KanbanError> {
-    let database_path = get_database_path(&database_id);
+    let database_path = get_database_path(database_id);
 
     if !create_if_missing && !database_path.exists() {
         return Err(KanbanError::DatabaseNotFound(format!("Couldn't find a database file for {database_id}.")));
@@ -215,7 +215,7 @@ async fn get_database(database_id: &str, create_if_missing: bool) -> Result<Sqli
         if count == 0 {
             let seed_script = fs::read_to_string("./src/fixtures/boards.sql")?;
 
-            let _ = sqlx::query(AssertSqlSafe(seed_script)).execute(&db_pool).await?;
+            sqlx::query(AssertSqlSafe(seed_script)).execute(&db_pool).await?;
         }
     }
 
@@ -347,12 +347,11 @@ fn validate_secure_key(secure_key_value: Option<String>) -> Result<String, Kanba
 pub mod tests {
     use std::path::PathBuf;
 
-    use crate::{
-        errors::KanbanError,
-        state::{get_database, get_database_id, get_database_path, get_database_path_with_extension, validate_secure_key},
+use crate::{
+        errors::KanbanError, state::{get_database, get_database_id, get_database_path, get_database_path_with_extension, validate_secure_key},
     };
 
-    fn get_database_paths(database_id: &str) -> (PathBuf, PathBuf, PathBuf) {
+    pub fn get_database_paths(database_id: &str) -> (PathBuf, PathBuf, PathBuf) {
         let database = get_database_path(database_id);
         let wal = get_database_path_with_extension(database_id, "db-wal");
         let shm = get_database_path_with_extension(database_id, "db-shm");
@@ -365,19 +364,16 @@ pub mod tests {
     async fn create_sample_database() {
         let database_id = "dev-sample";
 
-        // let database_path = get_database_path(&database_id);
         let (db, wal, shm) = get_database_paths(database_id);
 
-        // Remove any existing database file. 
+        // Remove any existing database file.
         let _ = std::fs::remove_file(&db);
         let _ = std::fs::remove_file(&wal);
         let _ = std::fs::remove_file(&shm);
 
         // Let's initialize the pool which will create and seed the database because it starts
         // with `dev`.
-        let pool = get_database(database_id, true)
-            .await
-            .expect("failed to create sample database");
+        let pool = get_database(database_id, true).await.expect("failed to create sample database");
 
         // We're done here let's go ahead and close the pool before exiting.
         pool.close().await;

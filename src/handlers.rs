@@ -7,10 +7,10 @@ use sqlx::SqlitePool;
 
 pub mod api;
 pub mod auth;
+pub mod share;
 pub mod utility;
 pub mod web;
 pub mod ws;
-pub mod share;
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateListRequest {
@@ -64,7 +64,8 @@ async fn patch_card_common(db: SqlitePool, id: i64, title: String, description: 
 pub mod tests {
     use super::*;
     use crate::handlers::auth::AuthSources;
-    use crate::state::{ApplicationState, SocketEventsSender, get_database_id, get_database_path};
+    use crate::state::tests::get_database_paths;
+use crate::state::{ApplicationState, SocketEventsSender, get_database_id};
     use dashmap::DashMap;
     use oauth2::basic::BasicClient;
     use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
@@ -94,22 +95,26 @@ pub mod tests {
     }
 
     pub struct TestDatabaseGuard {
-        path: PathBuf,
+        db: PathBuf,
+        wal: PathBuf,
+        shm: PathBuf,
     }
 
     impl TestDatabaseGuard {
         pub fn new(user_id: i64) -> Self {
             let database_id = get_database_id(user_id, AuthSources::DEV);
 
-            let database_path = get_database_path(&database_id);
+            let (db, wal, shm) = get_database_paths(&database_id);
 
-            TestDatabaseGuard { path: database_path }
+            TestDatabaseGuard { db: db, wal: wal, shm: shm }
         }
     }
 
     impl Drop for TestDatabaseGuard {
         fn drop(&mut self) {
-            let _ = std::fs::remove_file(&self.path);
+            let _ = std::fs::remove_file(&self.db);
+            let _ = std::fs::remove_file(&self.wal);
+            let _ = std::fs::remove_file(&self.shm);
         }
     }
 
