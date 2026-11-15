@@ -56,7 +56,7 @@ pub mod tests {
     #[tokio::test]
     async fn websocket_will_broadcast_card_move_events() {
         // Step 1: Setup a basic test server.
-        let (_, user_id, state, server) = base_test_server("/ws", true).await;
+        let (_, user_id, state, server, _use_me) = base_test_server("/ws", true).await;
 
         // Step 2: Open a websocket and start listening. 
         let mut test_websocket = server.get_websocket("/ws").await.into_websocket().await;

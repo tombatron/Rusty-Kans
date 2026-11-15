@@ -116,7 +116,7 @@ pub mod tests {
         response.assert_header("location", "/auth");
     }
 
-    pub async fn base_test_server(path: &str, http_transport: bool) -> (String, i64, ApplicationState, TestServer) {
+    pub async fn base_test_server(path: &str, http_transport: bool) -> (String, i64, ApplicationState, TestServer, TestDatabaseGuard) {
         // This might be stupid, but we'll synthesize a user id based on the route that
         // is being tested.
         let mut hasher = DefaultHasher::new();
@@ -126,7 +126,7 @@ pub mod tests {
 
         // Create an instance of the test database guard so that when the test goes out of scope
         // the test database will be deleted.
-        let _use_me = TestDatabaseGuard::new(user_id);
+        let use_me = TestDatabaseGuard::new(user_id);
 
         let store = MemoryStore::default();
         let state = create_application_state().await;
@@ -166,11 +166,11 @@ pub mod tests {
 
         let token = mask(&secret);
 
-        (token, user_id, state.clone(), server)
+        (token, user_id, state.clone(), server, use_me)
     }
 
     async fn base_csrf_form_assertion(path: &str, csrf_token_present: bool, form: Option<Vec<(String, String)>>) -> TestResponse {
-        let (token, _, _, server) = base_test_server(path, false).await;
+        let (token, _, _, server, _use_me) = base_test_server(path, false).await;
 
         if let Some(form) = form {
             let mut csrf_form: Vec<(String, String)> = vec![];
@@ -188,7 +188,7 @@ pub mod tests {
     }      
 
     pub async fn base_csrf_header_json_body_assertion<T:Serialize>(path: &str, request_body: Option<T>) -> TestResponse {
-        let (token, _, _, server) = base_test_server(path, false).await;
+        let (token, _, _, server, _use_me) = base_test_server(path, false).await;
 
         if let Some(form) = request_body {
             server.post(path).json(&form).add_header("X-CSRF-Token", token).await
