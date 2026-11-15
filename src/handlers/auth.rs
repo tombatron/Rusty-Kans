@@ -144,7 +144,7 @@ async fn get_callback(
         .await
         .map_err(|e| KanbanError::RequestError(e.to_string()))?;
 
-    let db_pool = get_or_create_pool(&state.db_pools, github_user.id, AuthSources::GITHUB.to_string()).await?;
+    let db_pool = get_or_create_pool(&state.db_pools, github_user.id, AuthSources::GITHUB).await?;
 
     let _ = data::upsert_user(db_pool, github_user.clone().into()).await?;
 
@@ -214,7 +214,7 @@ async fn post_auth_dev(
         .insert(AUTHENTICATED_USER_KEY, LoggedInUser::from(auth_dev.clone()))
         .await?;
 
-    let db = get_or_create_pool(&state.db_pools, auth_dev.id, AuthSources::DEV.to_string()).await?;
+    let db = get_or_create_pool(&state.db_pools, auth_dev.id, AuthSources::DEV).await?;
 
     let _ = data::upsert_user(db, auth_dev.into()).await?;
 
@@ -298,7 +298,7 @@ pub mod tests {
 
         let state = get_fake_application_state();
 
-        state.db_pools.insert(get_database_id(-1000, AuthSources::DEV.to_string()), db_pool.clone());
+        state.db_pools.insert(get_database_id(-1000, AuthSources::DEV), db_pool.clone());
 
         let session_store = MemoryStore::default();
         let session = Session::new(Some(Id(67)), Arc::new(session_store.clone()), None);

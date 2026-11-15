@@ -1,0 +1,2 @@
+[alias]
+sample-db = "test create_sample_database -- --ignored"

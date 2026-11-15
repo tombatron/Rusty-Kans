@@ -1,39 +1,29 @@
+use crate::csrf;
+use crate::csrf::get_or_create_secret;
+use crate::errors::KanbanError;
 use crate::handlers::auth::AUTHENTICATED_USER_KEY;
 use crate::handlers::ws::SocketEvents;
 use crate::models::security::LoggedInUser;
 use axum::Extension;
 use axum::extract::{FromRef, FromRequestParts, Path};
-use axum::http::request::Parts;
 use axum::http::StatusCode;
+use axum::http::request::Parts;
 use dashmap::DashMap;
 use dotenvy::dotenv;
 use oauth2::basic::{BasicClient, BasicErrorResponse, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse, BasicTokenResponse};
 use oauth2::{AuthUrl, ClientId, ClientSecret, EndpointNotSet, EndpointSet, RedirectUrl, StandardRevocableToken, TokenUrl};
+use sha2::{Digest, Sha256};
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::{AssertSqlSafe, SqlitePool};
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{env, fs};
-use std::path::PathBuf;
-use sha2::{Digest, Sha256};
 use tower_sessions::Session;
 use tower_sessions_redis_store::fred::prelude::{ClientLike, Config, Pool};
-use crate::csrf;
-use crate::csrf::get_or_create_secret;
-use crate::errors::KanbanError;
 
-pub type GitHubOAuthClient = oauth2::Client<
-    BasicErrorResponse,
-    BasicTokenResponse,
-    BasicTokenIntrospectionResponse,
-    StandardRevocableToken,
-    BasicRevocationErrorResponse,
-    EndpointSet,
-    EndpointNotSet,
-    EndpointNotSet,
-    EndpointNotSet,
-    EndpointSet,
->;
+pub type GitHubOAuthClient =
+    oauth2::Client<BasicErrorResponse, BasicTokenResponse, BasicTokenIntrospectionResponse, StandardRevocableToken, BasicRevocationErrorResponse, EndpointSet, EndpointNotSet, EndpointNotSet, EndpointNotSet, EndpointSet>;
 
 pub type SocketEventsSender = tokio::sync::broadcast::Sender<SocketEvents>;
 
@@ -47,7 +37,7 @@ pub struct ApplicationState {
     pub secure_key: String,
 }
 
-pub async fn get_or_create_pool(db_pools: &Arc<DashMap<String, SqlitePool>>, user_id: i64, source: String) -> Result<SqlitePool, KanbanError> {
+pub async fn get_or_create_pool(db_pools: &Arc<DashMap<String, SqlitePool>>, user_id: i64, source: &str) -> Result<SqlitePool, KanbanError> {
     let database_id = get_database_id(user_id, source);
 
     Ok(get_or_create_pool_with_id(&db_pools, database_id).await?)
@@ -58,7 +48,7 @@ async fn get_or_create_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>,
         return Ok(pool.clone());
     }
 
-    let db_pool = get_database(database_id.clone(), true).await?;
+    let db_pool = get_database(&database_id, true).await?;
     db_pools.insert(database_id, db_pool.clone());
 
     Ok(db_pool)
@@ -69,7 +59,7 @@ pub async fn get_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>, datab
         return Some(pool.clone());
     }
 
-    let db_pool = get_database(database_id.clone(), false).await.ok();
+    let db_pool = get_database(&database_id, false).await.ok();
 
     if let Some(pool) = db_pool {
         db_pools.insert(database_id, pool.clone());
@@ -79,17 +69,27 @@ pub async fn get_pool_with_id(db_pools: &Arc<DashMap<String, SqlitePool>>, datab
     None
 }
 
-pub fn get_database_id(user_id: i64, source: String) -> String {
+pub fn get_database_id(user_id: i64, source: &str) -> String {
     let unhashed_result = format!("{source}:{user_id}");
 
     if source.starts_with("dev") {
-        return format!("dev-{:x}", Sha256::digest(unhashed_result))
+        return format!("dev-{:x}", Sha256::digest(unhashed_result));
     }
 
     format!("{:x}", Sha256::digest(unhashed_result))
 }
 
-pub fn get_database_path(database_id: &String) -> PathBuf { PathBuf::from(format!("./databases/{}.kanban.db", database_id)) }
+fn get_database_path_with_extension(database_id: &str, extension: &str) -> PathBuf {
+    let mut database_path = PathBuf::from(format!("./databases/{}.kanban", database_id));
+
+    database_path.add_extension(extension);
+
+    database_path
+}
+
+pub fn get_database_path(database_id: &str) -> PathBuf {
+    get_database_path_with_extension(&database_id, "db")
+}
 
 #[derive(Clone)]
 pub struct UserDb(pub SqlitePool);
@@ -104,17 +104,13 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let unauthed_response = || (StatusCode::UNAUTHORIZED, "There doesn't seem to be anyone logged in...".to_string());
 
-        let session = Session::from_request_parts(parts, state).await
-            .map_err(|_| unauthed_response())?;
+        let session = Session::from_request_parts(parts, state).await.map_err(|_| unauthed_response())?;
 
         let state = ApplicationState::from_ref(state);
 
-        let current_user = session.get::<LoggedInUser>(AUTHENTICATED_USER_KEY)
-            .await
-            .map_err(|_| unauthed_response())?
-            .ok_or(unauthed_response())?;
+        let current_user = session.get::<LoggedInUser>(AUTHENTICATED_USER_KEY).await.map_err(|_| unauthed_response())?.ok_or(unauthed_response())?;
 
-        let db_pool = get_or_create_pool(&state.db_pools, current_user.id, current_user.source).await;
+        let db_pool = get_or_create_pool(&state.db_pools, current_user.id, &current_user.source).await;
 
         Ok(UserDb(db_pool?))
     }
@@ -132,7 +128,7 @@ where
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         // When you forget what's happening here... We've already resolved the database in the middleware and stored it in an
-        // extension, we're just retrieving it here. 
+        // extension, we're just retrieving it here.
         let Extension(delegated_sqlpool) = Extension::<SqlitePool>::from_request_parts(parts, state)
             .await
             .map_err(|_| (StatusCode::BAD_REQUEST, "No way partner, I didn't see a delegated database...".to_string()))?;
@@ -150,16 +146,14 @@ struct BackendPathParams {
 pub struct BackendDb(pub SqlitePool);
 
 impl<S> FromRequestParts<S> for BackendDb
-where 
+where
     ApplicationState: FromRef<S>,
     S: Send + Sync,
 {
     type Rejection = (StatusCode, String);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let Path(params) = Path::<BackendPathParams>::from_request_parts(parts, state)
-            .await
-            .map_err(|_| (StatusCode::BAD_REQUEST, "Request was bad yo.".to_string()))?;
+        let Path(params) = Path::<BackendPathParams>::from_request_parts(parts, state).await.map_err(|_| (StatusCode::BAD_REQUEST, "Request was bad yo.".to_string()))?;
 
         let state = ApplicationState::from_ref(state);
 
@@ -174,7 +168,11 @@ where
 #[derive(Clone)]
 pub struct DatabaseId(pub String);
 
-impl<S> FromRequestParts<S> for DatabaseId where ApplicationState: FromRef<S>, S: Send + Sync {
+impl<S> FromRequestParts<S> for DatabaseId
+where
+    ApplicationState: FromRef<S>,
+    S: Send + Sync,
+{
     type Rejection = (StatusCode, &'static str);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
@@ -188,16 +186,13 @@ impl<S> FromRequestParts<S> for DatabaseId where ApplicationState: FromRef<S>, S
             .map_err(|_| not_logged_in)?
             .ok_or(not_logged_in)?;
 
-        let database_id = get_database_id(current_user.id, current_user.source);
+        let database_id = get_database_id(current_user.id, &current_user.source);
 
         Ok(DatabaseId(database_id))
     }
 }
 
-
-// TODO: Create an extractor to get the current database id. 
-
-async fn get_database(database_id: String, create_if_missing: bool) -> Result<SqlitePool, KanbanError> {
+async fn get_database(database_id: &str, create_if_missing: bool) -> Result<SqlitePool, KanbanError> {
     let database_path = get_database_path(&database_id);
 
     if !create_if_missing && !database_path.exists() {
@@ -205,9 +200,7 @@ async fn get_database(database_id: String, create_if_missing: bool) -> Result<Sq
     }
 
     let connection_string = format!("sqlite:{}", database_path.to_str().unwrap());
-    let options = SqliteConnectOptions::from_str(connection_string.as_str())?
-        .foreign_keys(true)
-        .create_if_missing(create_if_missing);
+    let options = SqliteConnectOptions::from_str(connection_string.as_str())?.foreign_keys(true).create_if_missing(create_if_missing);
 
     let db_pool = SqlitePool::connect_with(options).await?;
 
@@ -222,7 +215,7 @@ async fn get_database(database_id: String, create_if_missing: bool) -> Result<Sq
         if count == 0 {
             let seed_script = fs::read_to_string("./src/fixtures/boards.sql")?;
 
-            let _ = sqlx::query(AssertSqlSafe(seed_script)).execute(&db_pool).await;
+            let _ = sqlx::query(AssertSqlSafe(seed_script)).execute(&db_pool).await?;
         }
     }
 
@@ -252,9 +245,7 @@ pub async fn create_application_state() -> ApplicationState {
     let oauth_client = BasicClient::new(ClientId::new(github_client_id))
         .set_client_secret(ClientSecret::new(github_client_secret))
         .set_auth_uri(AuthUrl::new("https://github.com/login/oauth/authorize".to_string()).unwrap())
-        .set_token_uri(
-            TokenUrl::new("https://github.com/login/oauth/access_token".to_string()).unwrap(),
-        )
+        .set_token_uri(TokenUrl::new("https://github.com/login/oauth/access_token".to_string()).unwrap())
         .set_redirect_uri(github_redirect_url.unwrap());
 
     let db_pools = Arc::new(DashMap::new());
@@ -264,10 +255,8 @@ pub async fn create_application_state() -> ApplicationState {
     let redis_connection_string = env::var("REDIS_CONNECTION_STRING");
 
     let redis_pool: Option<Pool> = match redis_connection_string {
-        Ok(conn_string) => {
-            create_redis_pool(conn_string).await.ok()
-        },
-        Err(_) => None
+        Ok(conn_string) => create_redis_pool(conn_string).await.ok(),
+        Err(_) => None,
     };
 
     ApplicationState {
@@ -283,22 +272,26 @@ pub async fn create_application_state() -> ApplicationState {
 #[derive(Clone)]
 pub struct CsrfTokenValue(pub String);
 
-impl<S> FromRequestParts<S> for CsrfTokenValue where S: Send + Sync {
+impl<S> FromRequestParts<S> for CsrfTokenValue
+where
+    S: Send + Sync,
+{
     type Rejection = (StatusCode, String);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let session = Session::from_request_parts(parts, state).await
+        let session = Session::from_request_parts(parts, state)
+            .await
             .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "No session available for this request.".to_string()))?;
 
         let csrf_secret = get_or_create_secret(&session).await?;
-        
+
         let masked_secret = csrf::mask(&csrf_secret);
 
         Ok(CsrfTokenValue(masked_secret))
     }
 }
 
-fn get_or_create_ws_sender(tx_pool: &Arc<DashMap<String, SocketEventsSender>>, user_id: i64, source: String) -> SocketEventsSender {
+fn get_or_create_ws_sender(tx_pool: &Arc<DashMap<String, SocketEventsSender>>, user_id: i64, source: &str) -> SocketEventsSender {
     let tx_instance_id = get_database_id(user_id, source);
 
     if let Some(tx) = tx_pool.get(&tx_instance_id) {
@@ -315,10 +308,10 @@ fn get_or_create_ws_sender(tx_pool: &Arc<DashMap<String, SocketEventsSender>>, u
 #[derive(Clone)]
 pub struct UserBroadcast(pub SocketEventsSender);
 
-impl<S> FromRequestParts<S> for UserBroadcast 
-where 
-    ApplicationState: FromRef<S>, 
-    S: Send + Sync, 
+impl<S> FromRequestParts<S> for UserBroadcast
+where
+    ApplicationState: FromRef<S>,
+    S: Send + Sync,
 {
     type Rejection = (StatusCode, String);
 
@@ -331,7 +324,7 @@ where
 
         let current_user = session.get::<LoggedInUser>(AUTHENTICATED_USER_KEY).await.map_err(|_| unauthed_response())?.ok_or(unauthed_response())?;
 
-        let tx = get_or_create_ws_sender(&state.tx_pool, current_user.id, current_user.source);
+        let tx = get_or_create_ws_sender(&state.tx_pool, current_user.id, &current_user.source);
 
         Ok(UserBroadcast(tx))
     }
@@ -345,25 +338,61 @@ fn validate_secure_key(secure_key_value: Option<String>) -> Result<String, Kanba
             } else {
                 Ok(secure_key)
             }
-        },
+        }
         None => Err(KanbanError::GeneralError("The `APP_BACKEND_SECURE_KEY` environment variable was not set.".to_string())),
     }
 }
 
 #[cfg(test)]
-pub mod tests  {
-    use crate::{errors::KanbanError, state::{get_database, get_database_id, validate_secure_key}};
+pub mod tests {
+    use std::path::PathBuf;
+
+    use crate::{
+        errors::KanbanError,
+        state::{get_database, get_database_id, get_database_path, get_database_path_with_extension, validate_secure_key},
+    };
+
+    fn get_database_paths(database_id: &str) -> (PathBuf, PathBuf, PathBuf) {
+        let database = get_database_path(database_id);
+        let wal = get_database_path_with_extension(database_id, "db-wal");
+        let shm = get_database_path_with_extension(database_id, "db-shm");
+
+        (database, wal, shm)
+    }
+
+    #[tokio::test]
+    #[ignore = "utility: generates ./databases/dev-sample.kanban.db"]
+    async fn create_sample_database() {
+        let database_id = "dev-sample";
+
+        // let database_path = get_database_path(&database_id);
+        let (db, wal, shm) = get_database_paths(database_id);
+
+        // Remove any existing database file. 
+        let _ = std::fs::remove_file(&db);
+        let _ = std::fs::remove_file(&wal);
+        let _ = std::fs::remove_file(&shm);
+
+        // Let's initialize the pool which will create and seed the database because it starts
+        // with `dev`.
+        let pool = get_database(database_id, true)
+            .await
+            .expect("failed to create sample database");
+
+        // We're done here let's go ahead and close the pool before exiting.
+        pool.close().await;
+    }
 
     #[test]
     fn get_database_id_returns_hashed_value() {
-        let result_database_id = get_database_id(123, "whatever".to_string());
+        let result_database_id = get_database_id(123, "whatever");
 
         assert_eq!("a032aacdf2aaa5fb2dd0903d2123ae0c06a7a095a86a8834125cc706254bfa40", result_database_id);
     }
 
     #[tokio::test]
     async fn get_database_returns_error_if_not_found_when_create_if_not_exists_is_false() {
-        let database_result = get_database("this_doesnt_exist".to_string(), false).await;
+        let database_result = get_database("this_doesnt_exist", false).await;
 
         assert!(matches!(database_result, Err(KanbanError::DatabaseNotFound(_))));
     }
@@ -379,20 +408,13 @@ pub mod tests  {
     fn validate_secure_key_will_return_err_if_value_is_none() {
         let result = validate_secure_key(None);
 
-        assert_eq!(
-            result.unwrap_err(), 
-            KanbanError::GeneralError("The `APP_BACKEND_SECURE_KEY` environment variable was not set.".to_string())
-        );
+        assert_eq!(result.unwrap_err(), KanbanError::GeneralError("The `APP_BACKEND_SECURE_KEY` environment variable was not set.".to_string()));
     }
 
     #[test]
     fn validate_secure_key_will_return_err_if_value_is_empty() {
         let result = validate_secure_key(Some("".to_string()));
 
-        assert_eq!(
-            result.unwrap_err(), 
-            KanbanError::GeneralError("The `APP_BACKEND_SECURE_KEY` was present, but empty.".to_string())
-        );
+        assert_eq!(result.unwrap_err(), KanbanError::GeneralError("The `APP_BACKEND_SECURE_KEY` was present, but empty.".to_string()));
     }
 }
-

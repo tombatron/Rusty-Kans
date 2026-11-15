@@ -69,7 +69,7 @@ pub mod tests {
         };
 
         // Step 4: Let's make sure that sending to the web socket actually worked. 
-        let socket_id = get_database_id(user_id, AuthSources::DEV.to_string());
+        let socket_id = get_database_id(user_id, AuthSources::DEV);
         let socket = state.tx_pool.get(&socket_id).unwrap().clone();
 
         let result = socket.send(SocketEvents::CardMoved(card_move_event));

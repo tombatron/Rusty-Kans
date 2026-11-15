@@ -276,7 +276,7 @@ async fn post_board_share(
     // Unwrap here should be safe since this endpoint requires the user to be logged in anyway.
     let current_user = session.get::<LoggedInUser>(AUTHENTICATED_USER_KEY).await?.unwrap();
 
-    let owner_database_id = get_database_id(current_user.id, current_user.source);
+    let owner_database_id = get_database_id(current_user.id, &current_user.source);
 
     let template = ShareBoard {
         base_url: state.base_url,
@@ -410,7 +410,7 @@ async fn post_revoke_board_access(
     let template = UpdateBoardAccess { board_access, csrf_token };
     
     // Send a request to the grantee that their access has been revoked.
-    let grantee_database_id = get_database_id(revoke_form.user_id, revoke_form.source);
+    let grantee_database_id = get_database_id(revoke_form.user_id, &revoke_form.source);
 
     let client = reqwest::Client::new();
 

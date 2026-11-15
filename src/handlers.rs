@@ -99,7 +99,7 @@ pub mod tests {
 
     impl TestDatabaseGuard {
         pub fn new(user_id: i64) -> Self {
-            let database_id = get_database_id(user_id, AuthSources::DEV.to_string());
+            let database_id = get_database_id(user_id, AuthSources::DEV);
 
             let database_path = get_database_path(&database_id);
 
